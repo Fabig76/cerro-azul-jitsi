@@ -1,0 +1,17 @@
+<h1>{{titulo}}</h1>
+<p class="m">Rol al entrar: <b>{{rol}}</b></p>
+<div class="o">
+  <b>Programada:</b> {{fecha_utc}}<br>
+  <b>Duracion:</b> {{duracion}} minutos<br>
+  <b>Sala:</b> <code>{{sala}}</code>
+</div>
+<!--DESC-->
+<h2>Unirse a la reunion</h2>
+<p class="m">Te pediremos tu nombre y acceso a camara/microfono al entrar.</p>
+<form method="post" action="/unirse">
+  <input type="hidden" name="slug" value="{{slug}}">
+  <input type="hidden" name="rol" value="{{rol}}">
+  <label>Tu nombre</label>
+  <input name="nombre" required maxlength="50" placeholder="Como te identificaran">
+  <button type="submit">Entrar a la reunion</button>
+</form>

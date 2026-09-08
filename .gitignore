@@ -1,0 +1,49 @@
+# Archivos con secretos - NUNCA commitear
+.env
+.env.local
+*.env.local
+
+# Admin panel secrets
+admin-panel/instance/admin.env
+admin-panel/instance/*.db
+admin-panel/instance/*.log
+admin-panel/instance/reuniones.db
+admin-panel/instance/app.log
+
+# Backups
+*.bak
+*.bak.*
+*.backup
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (por si acaso)
+node_modules/
+
+# Archivos temporales
+*.tmp
+*.bak.1788*
+*.bak.1789*

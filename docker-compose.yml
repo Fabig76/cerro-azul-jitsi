@@ -1,0 +1,165 @@
+name: jitsi-meet
+
+# =====================================================================
+# Jitsi Meet - Cerro Azul (meet.urbcerroazul.com)
+# Stack standalone: NO toca los contenedores existentes
+# Reverse proxy: Caddy existente (adminbot.info / monitorlegal.org / etc.)
+#   → agrega bloque meet.urbcerroazul.com que apunta a localhost:8080
+# =====================================================================
+
+services:
+  # ---------------------------------------------------------------
+  # WEB (nginx + UI de Jitsi)
+  # ---------------------------------------------------------------
+  web:
+    image: jitsi/web:stable-9111
+    container_name: jitsi-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"      # solo localhost, Caddy hace TLS público
+    environment:
+      - PUBLIC_URL
+      - ENABLE_AUTH
+      - AUTH_TYPE
+      - JWT_APP_ID
+      - JWT_APP_SECRET
+      - XMPP_DOMAIN
+      - XMPP_AUTH_DOMAIN
+      - XMPP_MUC_DOMAIN
+      - XMPP_INTERNAL_MUC_DOMAIN
+      - XMPP_SERVER
+      - XMPP_BOSH_URL_BASE
+      - TZ
+    volumes:
+      - ./web/config:/config
+      - ./web/crash:/crash
+      - ./web/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - prosody
+    networks:
+      - jitsi
+
+  # ---------------------------------------------------------------
+  # PROSODY (XMPP server)
+  # ---------------------------------------------------------------
+  prosody:
+    image: jitsi/prosody:stable-9111
+    container_name: jitsi-prosody
+    restart: unless-stopped
+    expose:
+      - "5222"     # cliente XMPP (clients web)
+      - "5347"     # componentes internos (jicofo, jvb)
+      - "5280"     # BOSH (deprecated, lo deshabilitamos en config)
+    environment:
+      - AUTH_TYPE
+      - XMPP_DOMAIN
+      - XMPP_AUTH_DOMAIN
+      - XMPP_MUC_DOMAIN
+      - XMPP_INTERNAL_MUC_DOMAIN
+      - XMPP_SERVER
+      - XMPP_BOSH_URL_BASE
+      - JICOFO_AUTH_PASSWORD
+      - JVB_AUTH_PASSWORD
+      - JWT_APP_ID
+      - JWT_APP_SECRET
+      - ENABLE_AUTH
+      - PUBLIC_URL
+      - TZ
+      - TURN_CREDENTIALS
+      - TURN_HOST
+      - TURN_PORT
+      - TURN_TRANSPORT
+      - STUN_HOST
+      - STUN_PORT
+    volumes:
+      - ./prosody/config:/config
+      - ./prosody/prosody-plugins:/prosody-plugins
+    networks:
+      - jitsi
+
+  # ---------------------------------------------------------------
+  # JICOFO (conference focus)
+  # ---------------------------------------------------------------
+  jicofo:
+    image: jitsi/jicofo:stable-9111
+    container_name: jitsi-jicofo
+    restart: unless-stopped
+    environment:
+      - AUTH_TYPE
+      - XMPP_DOMAIN
+      - XMPP_AUTH_DOMAIN
+      - XMPP_MUC_DOMAIN
+      - XMPP_INTERNAL_MUC_DOMAIN
+      - XMPP_SERVER
+      - JICOFO_AUTH_PASSWORD
+      - JWT_APP_ID
+      - JWT_APP_SECRET
+      - MAX_PARTICIPANTS
+      - TZ
+    volumes:
+      - ./jicofo/config:/config
+    depends_on:
+      - prosody
+    networks:
+      - jitsi
+
+  # ---------------------------------------------------------------
+  # JVB (videobridge) - soporte para 200 audio + 1 cámara + pantalla
+  # ---------------------------------------------------------------
+  jvb:
+    image: jitsi/jvb:stable-9111
+    container_name: jitsi-jvb
+    restart: unless-stopped
+    # IMPORTANTE: PUBLIC_IP debe ser la IP pública del VPS para que
+    # el bridge reciba tráfico RTP de los participantes en internet
+    environment:
+      - XMPP_AUTH_DOMAIN
+      - XMPP_INTERNAL_MUC_DOMAIN
+      - XMPP_SERVER
+      - JVB_AUTH_PASSWORD
+      - JVB_BREWERY_MUC
+      - JVB_PORT=10000
+      - JVB_TCP_PORT=4443
+      - JVB_TCP_MAPPED_PORT=4443
+      - JVB_PUBLIC_ADDRESS=84.247.165.81
+      - COLIBRI_REST_ENABLED=true
+      - JVB_ADVERTISE_IPS=84.247.165.81
+      - SHUTDOWN_REST_ENABLED=false
+      - ENABLE_COLIBRI_WEBSOCKET=1
+      - JVB_WS_DOMAIN=meet.urbcerroazul.com
+      - LOCAL_ADDRESS=172.21.0.5
+      - JVB_PORT_10000
+      - MAX_PARTICIPANTS
+      - PUBLIC_URL
+      - TZ
+    volumes:
+      - ./jvb/config:/config
+    ports:
+      # UDP 10000 (RTP) - DEBE estar expuesto a internet (no localhost)
+      - "10000:10000/udp"
+      # TCP 4443 (fallback RTP)
+      - "4443:4443/tcp"
+    depends_on:
+      - prosody
+    networks:
+      - jitsi
+
+  # ---------------------------------------------------------------
+  # ADMIN PANEL (Cerro Azul)
+  # ---------------------------------------------------------------
+  admin:
+    build: /opt/jitsi-admin
+    image: jitsi-admin:local
+    container_name: jitsi-admin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"   # localhost only, Caddy hace proxy
+    volumes:
+      - /opt/jitsi-admin/instance:/app/instance
+      - /opt/jitsi-meet/.env:/opt/jitsi-meet/.env:ro
+    networks:
+      - jitsi
+
+networks:
+  jitsi:
+    driver: bridge

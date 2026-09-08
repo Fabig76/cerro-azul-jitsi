@@ -1,0 +1,24 @@
+<h1>Panel de reuniones</h1>
+<p class="m">Sesion iniciada como <b>{{user}}</b></p>
+
+<h2>Crear nueva reunion</h2>
+<form method="post" action="/admin/reunion">
+  <input type="hidden" name="csrf" value="{{csrf}}">
+  <label>Titulo <small>(obligatorio)</small></label>
+  <input name="titulo" required maxlength="120" placeholder="Ej: Asamblea ordinaria octubre">
+  <label>Descripcion <small>(opcional)</small></label>
+  <textarea name="descripcion" maxlength="500" placeholder="Agenda, temario, etc."></textarea>
+  <label>Fecha <small>(AAAA-MM-DD, hora Colombia UTC-5)</small></label>
+  <input name="fecha" type="date" required>
+  <label>Hora <small>(HH:MM, 24h)</small></label>
+  <input name="hora" type="time" required>
+  <label>Duracion estimada <small>(minutos)</small></label>
+  <input name="duracion" type="number" value="60" min="15" max="480">
+  <button type="submit">Crear reunion y generar QR</button>
+</form>
+<!--LISTA-->
+
+<h2>Sesion</h2>
+<form method="post" action="/admin/logout">
+  <button class="d">Cerrar sesion</button>
+</form>

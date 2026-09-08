@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ t }}</title>
+  <style>
+    :root { --bg:#0f172a; --c:#1e293b; --b:#334155; --t:#e2e8f0;
+            --m:#94a3b8; --a:#3b82f6; --h:#2563eb; --ok:#10b981; --er:#ef4444; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:system-ui,sans-serif; background:var(--bg); color:var(--t);
+           min-height:100vh; display:flex; align-items:center; justify-content:center;
+           padding:20px; }
+    .c { background:var(--c); border:1px solid var(--b); border-radius:12px;
+         padding:32px; max-width:640px; width:100%; }
+    h1 { font-size:22px; margin-bottom:6px; }
+    h2 { font-size:16px; margin:20px 0 10px; }
+    .m { color:var(--m); font-size:13px; margin-bottom:20px; }
+    label { display:block; font-size:13px; margin:10px 0 4px; }
+    input, textarea, select { width:100%; padding:9px 11px;
+      background:var(--bg); color:var(--t); border:1px solid var(--b);
+      border-radius:6px; font-size:14px; }
+    input:focus, textarea:focus { outline:none; border-color:var(--a); }
+    textarea { min-height:70px; font-family:inherit; resize:vertical; }
+    button { background:var(--a); color:#fff; border:none; padding:9px 18px;
+             border-radius:6px; font-size:14px; cursor:pointer; margin-top:14px; }
+    button:hover { background:var(--h); }
+    .d { background:var(--er); }
+    .r { background:var(--bg); border:1px solid var(--b); border-radius:8px;
+         padding:14px; margin-bottom:10px; }
+    .r h3 { font-size:15px; margin-bottom:3px; }
+    .r .mt { color:var(--m); font-size:12px; margin-bottom:6px; }
+    .r .ac { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+    .r .ac a, .r .ac button { margin:0; padding:5px 10px; font-size:12px;
+                               text-decoration:none; }
+    .b { display:inline-block; background:var(--ok); color:#fff; padding:2px 7px;
+         border-radius:4px; font-size:11px; margin-left:6px; }
+    .e { color:var(--er); background:#7f1d1d33; padding:9px; border-radius:6px;
+         margin:10px 0; font-size:13px; }
+    .o { color:var(--ok); background:#065f4633; padding:9px; border-radius:6px;
+         margin:10px 0; font-size:13px; }
+    .qr { text-align:center; margin:18px 0; }
+    .qr img { background:#fff; padding:8px; border-radius:6px; max-width:240px; }
+    small { color:var(--m); font-size:11px; }
+    a { color:var(--a); }
+  </style>
+</head>
+<body>
+  <div class="c">
+    {{ body|safe }}
+  </div>
+</body>
+</html>

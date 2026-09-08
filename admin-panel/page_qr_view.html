@@ -1,0 +1,26 @@
+<h1>Reunion creada</h1>
+<p class="m">Comparte este link o el QR con los participantes. Se generara automaticamente una sala cuando entren.</p>
+
+<div class="o">
+  <b>Titulo:</b> {{titulo}}<br>
+  <b>Fecha:</b> {{fecha_utc}}<br>
+  <b>Duracion:</b> {{duracion}} min<br>
+  <b>Sala:</b> <code>{{sala}}</code>
+</div>
+
+<h2>Codigo QR</h2>
+<div class="qr">
+  <img src="{{qr_url}}" alt="QR de la reunion">
+</div>
+<p class="m">Los participantes pueden escanear este QR con la camara del celular.</p>
+
+<h2>Link directo</h2>
+<p>
+  <input type="text" value="{{link_publico}}" readonly onclick="this.select();" style="font-family:monospace; font-size:12px;">
+</p>
+<div class="ac" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+  <a href="{{link_publico}}" target="_blank" style="background:var(--a); color:#fff; padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Probar como participante</a>
+  <a href="/admin" style="background:var(--c); color:var(--t); border:1px solid var(--b); padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Volver al panel</a>
+</div>
+
+<p class="m" style="margin-top:24px;"><small>Tip: envia el QR por WhatsApp con un mensaje tipo "Te esperamos el martes a las 7pm, escanea el QR o toca el link para entrar".</small></p>
