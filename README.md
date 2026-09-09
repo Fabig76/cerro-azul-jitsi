@@ -1,6 +1,22 @@
 # Cerro Azul - Jitsi Meet
 
+> ## ✅ ESTADO: FUNCIONANDO (verificado 8-Sep-2026)
+> - ✅ Video del moderador: se transmite
+> - ✅ Compartir pantalla: funciona
+> - ✅ Audio: se escucha
+> - ✅ Múltiples participantes (3+ + moderador) conectados simultáneamente
+> - ✅ Bridge operativo (operational_bridge_count: 1)
+>
+> **Versión:** JVB 2.3.295 (stable-11031, junio 2026)
+> **URL:** https://meet.urbcerroazul.com
+
 Plataforma de videoconferencias self-hosted para el Conjunto Residencial Cerro Azul, corriendo en `meet.urbcerroazul.com`.
+
+## Stack
+
+- **Jitsi Meet** stable-11031 (web + prosody + jicofo + jvb)
+- **Admin Panel** Flask + Gunicorn para crear reuniones y generar QR
+- **Caddy** reverse proxy (existente) sirve HTTPS con Let's Encrypt
 
 ## Stack
 

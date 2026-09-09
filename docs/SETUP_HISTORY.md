@@ -502,3 +502,53 @@ jitsi-admin     Up - Flask admin panel (Gunicorn)
 2. Verificar bytes reales con `hexdump -C` o Python directo
 3. Logos en vivo: `docker logs -f <container>` mientras reproduces el problema
 4. Network namespaces: `docker exec <a> curl <b>:port` para probar conectividad entre containers
+
+---
+
+## RESOLUCIÓN FINAL (8-Sep-2026) ✅
+
+**El sistema quedó FUNCIONANDO completamente** después de resolver 3 bugs críticos en cadena:
+
+### Bug 1: "Saca a los dos que se conectan" (no operational bridges)
+- **Causa:** `JVB_BREWERY_MUC=internal-muc.meet.urbcerroazul.com` (mal) → el JVB se unía a una sala de brewery equivocada
+- **Fix:** `JVB_BREWERY_MUC=jvbbrewery` (solo el nombre, el template concatena el dominio)
+- **Verificación:** `operational_bridge_count` pasó de 0 → 1
+
+### Bug 2: Login pide usuario/contraseña en sala pública
+- **Causa:** `authentication = "token"` (secure_domain) en Prosody
+- **Fix:** `AUTH_TYPE=anonymous` + `ENABLE_AUTH=0` → regenerar configs → `authentication = "jitsi-anonymous"`
+
+### Bug 3: Audio/video no se transmite + "DTLS 0xFEFC" (bridge channel disconnected)
+- **Causa:** Imágenes `stable-9111` (JVB 2.3.61, 2023/2024) NO soportan DTLS 1.3 que usa Chrome 152+
+- **Fix:** Actualizar a `stable-11031` (JVB 2.3.295, junio 2026) + `DISABLE_AWS_HARVESTER=true`
+- **Verificación:** JVB reporta versión 2.3.295, DTLS handshake exitoso, audio/video fluyen
+
+### Estado final verificado
+- ✅ Video del moderador se transmite
+- ✅ Compartir pantalla funciona
+- ✅ Audio se escucha
+- ✅ 3+ participantes + moderador conectados simultáneamente
+- ✅ Monitor Legal y Minuta Segura intactos (HTTP 200)
+- ✅ Backup completo en `/opt/jitsi-meet-backup-2026-09-09-0201`
+
+### Configuraciones críticas (resumen)
+```
+JVB_BREWERY_MUC=jvbbrewery          # NO el dominio completo
+JVB_ADVERTISE_IPS=84.247.165.81     # IP pública
+JVB_PUBLIC_ADDRESS=84.247.165.81
+COLIBRI_REST_ENABLED=true           # para /about/health
+DISABLE_AWS_HARVESTER=true          # fix issue #2008
+TURN_CREDENTIALS=<secret>           # nomenclatura correcta (no TURNCREDENTIALS_secret)
+TURN_HOST=meet.urbcerroazul.com
+AUTH_TYPE=anonymous                 # sin login en sala pública
+ENABLE_AUTH=0
+```
+
+### Versión de imágenes
+```
+jitsi/web:stable-11031
+jitsi/prosody:stable-11031
+jitsi/jicofo:stable-11031
+jitsi/jvb:stable-11031      # 2.3.295-g8d5c0037b
+```
+
