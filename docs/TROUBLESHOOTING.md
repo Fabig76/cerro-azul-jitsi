@@ -1,6 +1,77 @@
 # Troubleshooting - Problemas Conocidos y Soluciones
 
+## ⭐ BUG #6 (CRÍTICO): "There are no operational bridges" por JVB_BREWERY_MUC mal configurado
+
+**Síntoma:** Jicofo dice "no operational bridges", los participantes se desconectan al entrar el segundo.
+
+**Causa raíz DEFINITIVA:** En el `.env` estaba:
+```
+JVB_BREWERY_MUC=internal-muc.meet.urbcerroazul.com   ← MAL
+```
+
+El template de JVB concatena `JVB_BREWERY_MUC` + `@` + `internal-muc.meet.urbcerroazul.com`. Con el valor mal, el JVB se unía a la sala equivocada y Jicofo (que espera en `jvbbrewery@internal-muc...`) nunca lo veía.
+
+**Valor correcto:**
+```
+JVB_BREWERY_MUC=jvbbrewery   ← BIEN (solo el nombre, NO el dominio completo)
+```
+
+**Verificación clave (antes vs después):**
+```bash
+docker exec jitsi-jicofo wget -q -O - http://127.0.0.1:8888/stats | python3 -c 'import json,sys; print(json.load(sys.stdin)["bridge_selector"]["operational_bridge_count"])'
+# ANTES: 0   ❌
+# DESPUÉS: 1 ✅
+```
+
+## ⭐ BUG #7 (CRÍTICO): Audio/video no se transmite + "DTLS 0xFEFC" por imágenes viejas
+
+**Síntoma:**
+- Varios participantes se conectan (señalización OK)
+- El moderador NO transmite audio ni video
+- Mensaje en cliente: "bridge channel has been disconnected and thus video quality is limited"
+
+**Error en logs del JVB:**
+```
+SEVERE: Error during DTLS connection: Unsupported version: DTLS 0xFEFC
+SEVERE: Error during DTLS negotiation, closing this transport manager
+```
+
+**Causa raíz:** `DTLS 0xFEFC` = DTLS 1.3. Las imágenes `stable-9111` (JVB 2.3.61, de 2023/2024) NO soportan DTLS 1.3 que usa Chrome 152+. Además, esa versión tiene el bug del AwsCandidateHarvester (issue #2008).
+
+**Solución:**
+1. Actualizar imágenes a `stable-11031` (o superior) en docker-compose.yml
+2. Agregar `DISABLE_AWS_HARVESTER=true` al .env
+
+```bash
+cd /opt/jitsi-meet
+# Backup
+cp -a /opt/jitsi-meet /opt/jitsi-meet-backup-$(date +%F-%H%M)
+
+# Cambiar version en docker-compose.yml (stable-9111 -> stable-11031)
+sed -i 's/stable-9111/stable-11031/g' docker-compose.yml
+
+# Agregar al .env:
+echo "DISABLE_AWS_HARVESTER=true" >> .env
+
+# Limpiar configs y recrear
+docker compose down
+sudo rm -f prosody/config/conf.d/*.lua prosody/config/prosody.cfg.lua
+sudo rm -f jicofo/config/jicofo.conf jvb/config/jvb.conf web/config/config.js
+sudo rm -rf web/config/nginx web/config/keys
+docker compose pull
+docker compose up -d
+```
+
+**Verificación:** El JVB debe reportar versión 2.3.29x (no 2.3.61):
+```bash
+docker exec jitsi-jvb curl -s http://127.0.0.1:8080/about/version
+# {"name":"JVB","version":"2.3.295-g8d5c0037b","os":"Linux"}
+```
+
+---
+
 ## Problema: "Saca a los dos participantes" (CONFERENCE FAILED: conference.videobridgeNotAvailable)
+ (CONFERENCE FAILED: conference.videobridgeNotAvailable)
 
 **Sintoma:**
 - Primer participante entra OK

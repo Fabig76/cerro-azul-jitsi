@@ -12,7 +12,7 @@ services:
   # WEB (nginx + UI de Jitsi)
   # ---------------------------------------------------------------
   web:
-    image: jitsi/web:stable-9111
+    image: jitsi/web:stable-11031
     container_name: jitsi-web
     restart: unless-stopped
     ports:
@@ -43,7 +43,7 @@ services:
   # PROSODY (XMPP server)
   # ---------------------------------------------------------------
   prosody:
-    image: jitsi/prosody:stable-9111
+    image: jitsi/prosody:stable-11031
     container_name: jitsi-prosody
     restart: unless-stopped
     expose:
@@ -81,7 +81,7 @@ services:
   # JICOFO (conference focus)
   # ---------------------------------------------------------------
   jicofo:
-    image: jitsi/jicofo:stable-9111
+    image: jitsi/jicofo:stable-11031
     container_name: jitsi-jicofo
     restart: unless-stopped
     environment:
@@ -107,7 +107,7 @@ services:
   # JVB (videobridge) - soporte para 200 audio + 1 cámara + pantalla
   # ---------------------------------------------------------------
   jvb:
-    image: jitsi/jvb:stable-9111
+    image: jitsi/jvb:stable-11031
     container_name: jitsi-jvb
     restart: unless-stopped
     # IMPORTANTE: PUBLIC_IP debe ser la IP pública del VPS para que
