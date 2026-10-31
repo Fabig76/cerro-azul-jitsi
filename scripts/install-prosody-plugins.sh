@@ -32,8 +32,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGINS_DIR="${PROSODY_PLUGINS_DIR:-${REPO_ROOT}/prosody/prosody-plugins}"
-VERSION="${PROSODY_PLUGINS_VERSION:-1.0.9237-1}"
 BASE_URL="https://download.jitsi.org/unstable"
+VERSION="${PROSODY_PLUGINS_VERSION:-}"
 
 MODE=install
 for arg in "$@"; do
@@ -44,6 +44,19 @@ for arg in "$@"; do
         *) echo "Opcion desconocida: $arg" >&2; exit 1 ;;
     esac
 done
+
+# ── Descubrir la ultima version si no se indico una ──────────────────
+if [ -z "$VERSION" ]; then
+    echo "=== Buscando la ultima version en ${BASE_URL}/ ==="
+    VERSION=$(curl -fsSL --max-time 60 "${BASE_URL}/" 2>/dev/null \
+        | grep -oE 'jitsi-meet-prosody_[0-9.]+-[0-9]+_all\.deb' \
+        | sort -V -u | tail -1 | sed -E 's/^jitsi-meet-prosody_(.*)_all\.deb$/\1/')
+    if [ -z "$VERSION" ]; then
+        echo "ERROR: no se pudo descubrir la version. Usa --version <X.Y.Z-N>." >&2
+        exit 1
+    fi
+    echo "    ultima version: ${VERSION}"
+fi
 
 DEB_NAME="jitsi-meet-prosody_${VERSION}_all.deb"
 

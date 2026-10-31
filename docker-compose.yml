@@ -58,7 +58,16 @@ services:
   # PROSODY (XMPP server)
   # ---------------------------------------------------------------
   prosody:
-    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable-11031}
+    # Imagen propia: la oficial no trae mod_http_health y sin el endpoint
+    # /health el servicio 70-register-setup no registra las cuentas de
+    # focus@/jvb@ -> Jicofo y JVB no se autentican -> 0 bridges -> sin audio.
+    # Ver prosody/Dockerfile.prosody para el detalle.
+    build:
+      context: .
+      dockerfile: prosody/Dockerfile.prosody
+      args:
+        JITSI_IMAGE_VERSION: ${JITSI_IMAGE_VERSION:-stable-11031}
+    image: jitsi-prosody-cerroazul:${JITSI_IMAGE_VERSION:-stable-11031}
     container_name: jitsi-prosody
     restart: unless-stopped
     expose:
@@ -95,7 +104,12 @@ services:
       - ./prosody/prosody-plugins-custom:/prosody-plugins-custom
     networks: [jitsi]
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 5222 || exit 1"]
+      # Prosody en modo 'client' NO escucha en 5222 de forma verificable
+      # por HTTP (es XMPP puro) y la imagen NO trae 'nc'. El puerto que
+      # responde HTTP es 5280 (BOSH/websocket).
+      # Ojo: /health NO existe (mod_http_health no viene en la imagen),
+      # asi que se comprueba la raiz.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5280/ >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -127,7 +141,9 @@ services:
         condition: service_healthy
     networks: [jitsi]
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/about/health >/dev/null || exit 1"]
+      # Jicofo NO expone /about/health (devuelve 404). La ruta que
+      # responde es /stats (Prometheus). Verificado en produccion.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/stats >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -203,7 +219,9 @@ services:
         condition: service_healthy
     networks: [jitsi]
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/healthz >/dev/null || exit 1"]
+      # La imagen es python:3.12-slim: NO trae curl ni wget.
+      # Se usa python (que si esta) contra el endpoint propio del panel.
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8081/healthz', timeout=5).status==200 else 1)\""]
       interval: 30s
       timeout: 10s
       retries: 5

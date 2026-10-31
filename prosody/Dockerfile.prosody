@@ -1,0 +1,54 @@
+# =====================================================================
+# Dockerfile.prosody - Imagen de Prosody con mod_http_health
+#
+# POR QUE ESTA IMAGEN EXISTE:
+#
+# El servicio `70-register-setup` de la imagen oficial jitsi/prosody
+# registra las cuentas de los componentes (focus@, jvb@) SOLO despues de
+# que Prosody responda en http://127.0.0.1:5280/health.
+#
+# El endpoint /health lo da el modulo `mod_http_health`, que viene en el
+# paquete Debian `prosody-modules`. Ese paquete NO esta instalado en la
+# imagen de Jitsi, y el modulo tampoco viene en el paquete
+# `jitsi-meet-prosody` (verificado: 85 modulos .lua, ninguno de health).
+#
+# Sin /health, el register-setup agota los 60 intentos y hace `exit 1`
+# SIN registrar las cuentas. Consecuencia: Jicofo y JVB no pueden
+# autenticarse contra Prosody (SASLError not-authorized) y el bridge
+# queda con operational_bridge_count = 0: las reuniones no transmiten
+# audio ni video.
+#
+# Prosody busca los modulos "shared" en rutas RELATIVAS a su module_dir
+# (/usr/lib/prosody/modules), que no es un punto de montaje, asi que no
+# se puede resolver con un volumen bind. Por eso hace falta una imagen
+# propia que coloque el modulo en su sitio.
+#
+# Este modulo es de solo lectura: devuelve 200 con el texto "OK".
+# =====================================================================
+FROM jitsi/prosody:${JITSI_IMAGE_VERSION:-stable-11031}
+
+USER root
+
+# Prosody busca en share/lua/<lua_version>/mod_<plugin>/<plugin>/mod_<plugin>.lua
+# La version de Lua se detecta en tiempo de build.
+COPY prosody/prosody-plugins-custom/mod_http_health.lua /tmp/mod_http_health.lua
+
+RUN set -eux; \
+    LUA_VER="$(ls /usr/share/lua | sort -V | tail -1)"; \
+    echo "Detectada version de Lua: ${LUA_VER}"; \
+    DEST="/usr/lib/prosody/modules/share/lua/${LUA_VER}/mod_http_health"; \
+    mkdir -p "${DEST}"; \
+    cp /tmp/mod_http_health.lua "${DEST}/mod_http_health.lua"; \
+    rm -f /tmp/mod_http_health.lua; \
+    ls -la "${DEST}"; \
+    # Prosody corre como el usuario 'prosody' (uid dinamico). Hay que darle
+    # permiso de lectura explicito: sin esto el modulemanager falla con
+    # "Permission denied" en lugar de cargarlo.
+    chmod -R a+rX "/usr/lib/prosody/modules/share"; \
+    # Verificacion: el archivo debe estar donde Prosody lo va a buscar
+    # y ser legible por cualquiera.
+    test -f "${DEST}/mod_http_health.lua"; \
+    test -r "${DEST}/mod_http_health.lua"
+
+# La imagen original corre como root: s6 necesita escribir en /var/run/s6.
+# NO cambiar el usuario: el entrypoint de la imagen depende de root.
