@@ -164,8 +164,84 @@ curl https://meet.tu-dominio.com/healthz
 # Login admin
 # Abrir https://meet.tu-dominio.com/admin/login
 # Usuario: Hguaza76
-# Contrasena: la que configuraste en /opt/jitsi-admin/instance/admin.env
+# Contrasena: la que configuraste en /opt/jitsi-meet/admin-panel/instance/admin.env
 ```
+
+## Instalación desde cero (clon limpio)
+
+El repo es reproducible: un clon limpio levanta el stack completo.
+
+```bash
+# 1. Clonar
+git clone git@github.com:Fabig76/cerro-azul-jitsi.git /opt/jitsi-meet
+cd /opt/jitsi-meet
+
+# 2. Configurar el .env
+cp .env.example .env
+./gen-passwords.sh | grep -E '^[A-Z_]+=' | while IFS= read -r l; do
+    k="${l%%=*}"; v="${l#*=}"
+    sed -i "s|^${k}=.*|${k}=${v}|" .env
+done
+# Editar PUBLIC_URL, XMPP_*, JVB_ADVERTISE_IPS y JVB_WS_DOMAIN con los
+# valores reales del dominio y la IP publica.
+
+# 3. Validar el .env (detecta los errores que rompen el stack)
+./scripts/validate-env.sh .env
+
+# 4. Plugins de Prosody (la imagen NO los trae)
+./scripts/install-prosody-plugins.sh
+
+# 5. Levantar
+docker compose up -d --build
+
+# 6. Verificar: los 5 servicios deben quedar 'healthy'
+docker compose ps
+```
+
+### Layout en el servidor
+
+```
+/opt/jitsi-meet/                  # raiz del repo desplegado
+├── docker-compose.yml             # rutas RELATIVAS a este directorio
+├── .env                           # secretos (chmod 600, fuera de git)
+├── admin-panel/                   # build context del panel admin
+│   ├── Dockerfile
+│   ├── app/                       # app.py + templates
+│   └── instance/                  # admin.env, reuniones.db (persistido)
+├── prosody/
+│   ├── Dockerfile.prosody          # imagen con mod_http_health
+│   ├── prosody-plugins/            # 86 modulos .lua (del .deb de unstable)
+│   ├── prosody-plugins-custom/     # modulos propios (mod_http_health)
+│   └── config/                     # generado por la imagen, NO versionar
+├── web/config/, jicofo/config/, jvb/config/   # generados, NO versionar
+└── infra/caddy/meet.urbcerroazul.com.caddy    # bloque Caddy (fuente de verdad)
+```
+
+### Por qué existe `prosody/Dockerfile.prosody`
+
+La imagen oficial `jitsi/prosody` no trae el módulo `mod_http_health`, y el
+servicio `70-register-setup` de la imagen **registra las cuentas `focus@`/`jvb@`
+solo después** de que Prosody responda en `http://127.0.0.1:5280/health`.
+
+Sin ese endpoint el register-setup agota los 60 intentos y hace `exit 1`
+**sin registrar las cuentas**. Como consecuencia, Jicofo y JVB no pueden
+autenticarse (`SASLError not-authorized`), el bridge queda con
+`operational_bridge_count = 0` y **las reuniones no transmiten audio ni video**.
+
+En un despliegue anterior esto no se notó porque las cuentas habían quedado
+persistidas en `/config/data` desde el primer despliegue. Si se borra ese
+directorio, el stack se rompe igual. La imagen propia elimina esa fragilidad.
+
+### Verificación del bridge (la que de verdad importa)
+
+```bash
+docker exec jitsi-jicofo curl -s http://127.0.0.1:8888/stats \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["bridge_selector"]["operational_bridge_count"])'
+# Debe imprimir 1
+```
+
+Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
+**no sirve**: no hay medio. Verifica este número, no solo el estado de salud.
 
 ## Estructura del Repositorio
 
@@ -183,19 +259,24 @@ curl https://meet.tu-dominio.com/healthz
 ├── scripts/
 │   ├── setup-vps.sh                # Despliegue inicial en VPS limpio
 │   ├── sync-caddy.sh               # Verifica/sincroniza el bloque Caddy con el host
-│   └── rotate-turn-secret.sh       # Rota TURN_CREDENTIALS (y external_service_secret)
+│   ├── rotate-turn-secret.sh       # Rota TURN_CREDENTIALS (y external_service_secret)
+│   ├── install-prosody-plugins.sh  # Instala los 86 modulos de Prosody de Jitsi
+│   ├── validate-env.sh             # Valida el .env antes de desplegar
+│   ├── make-test-env.sh            # Genera un .env de prueba (para CI)
+│   └── test-ci-local.sh            # Simula los pasos del CI en local
 ├── prosody/
-│   ├── conf.d/
-│   │   └── jitsi-meet.cfg.lua      # Configuracion Prosody con TURN
-│   └── prosody-plugins/            # 84 plugins de Jitsi
+│   ├── Dockerfile.prosody          # Imagen propia: anade mod_http_health
+│   ├── prosody-plugins/            # 86 modulos .lua (del .deb de unstable)
+│   └── prosody-plugins-custom/     # Modulos propios (mod_http_health)
 ├── admin-panel/
 │   ├── Dockerfile                  # Imagen Docker del admin
-│   ├── app.py                       # App Flask principal
-│   ├── tpl.html                     # Template base
-│   ├── page_login.html              # Pagina de login
-│   ├── page_panel.html              # Panel de admin
-│   ├── page_qr_view.html            # Vista del QR + link
-│   ├── page_reunion.html            # Pagina publica de reunion
+│   ├── app/                        # App Flask + templates
+│   │   ├── app.py                  # App Flask principal
+│   │   ├── tpl.html                # Template base
+│   │   ├── page_login.html         # Pagina de login
+│   │   ├── page_panel.html         # Panel de admin
+│   │   ├── page_qr_view.html       # Vista del QR + link
+│   │   └── page_reunion.html       # Pagina publica de reunion
 │   └── instance/
 │       └── admin.env.example        # Template de credenciales admin
 ├── docs/
@@ -245,7 +326,7 @@ docker exec jitsi-jvb curl -s http://127.0.0.1:8080/about/health
 docker exec jitsi-jvb curl -s http://127.0.0.1:8080/about/version
 
 # Ver DB de reuniones (desde el host)
-sqlite3 /opt/jitsi-admin/instance/reuniones.db "SELECT id, slug, titulo FROM reuniones WHERE activo=1"
+sqlite3 /opt/jitsi-meet/admin-panel/instance/reuniones.db "SELECT id, slug, titulo FROM reuniones WHERE activo=1"
 ```
 
 ## Limitaciones Conocidas
@@ -264,9 +345,9 @@ sqlite3 /opt/jitsi-admin/instance/reuniones.db "SELECT id, slug, titulo FROM reu
 
 ## Credenciales (protegidas, NO commitear)
 
-- **DB**: SQLite en `/opt/jitsi-admin/instance/reuniones.db`
+- **DB**: SQLite en `/opt/jitsi-meet/admin-panel/instance/reuniones.db`
 - **Passwords XMPP/JWT**: archivo `/opt/jitsi-meet/.env` (chmod 600)
-- **Password admin**: archivo `/opt/jitsi-admin/instance/admin.env` (chmod 600)
+- **Password admin**: archivo `/opt/jitsi-meet/admin-panel/instance/admin.env` (chmod 600)
 - **TLS Caddy**: emitido automaticamente por Let's Encrypt
 
 ## Rotación de TURN_CREDENTIALS

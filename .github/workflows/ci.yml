@@ -108,6 +108,42 @@ jobs:
           docker rm -f adm || true
           exit 1
 
+  # ───────────────────────────────────────────────────────────────────
+  # 3b. La imagen de prosody construye y trae mod_http_health
+  #     (sin ese endpoint el register-setup no registra las cuentas
+  #      focus@/jvb@ -> el bridge queda en 0 -> sin audio)
+  # ───────────────────────────────────────────────────────────────────
+  prosody-build:
+    name: build imagen prosody + mod_http_health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen de prosody
+        run: docker build -t jitsi-prosody:ci -f prosody/Dockerfile.prosody .
+      - name: El modulo queda donde Prosody lo busca
+        run: |
+          # Prosody busca en share/lua/<lua_version>/mod_http_health/
+          # relativo a su module_dir, que no es un punto de montaje.
+          docker run --rm --entrypoint sh jitsi-prosody:ci -c '
+            set -e
+            V=$(ls /usr/share/lua | sort -V | tail -1)
+            F="/usr/lib/prosody/modules/share/lua/${V}/mod_http_health/mod_http_health.lua"
+            echo "  buscando: $F"
+            test -f "$F" || { echo "::error::mod_http_health no esta en su sitio"; exit 1; }
+            test -r "$F" || { echo "::error::mod_http_health no es legible"; exit 1; }
+            echo "::notice::mod_http_health OK (Lua $V)"
+          '
+      - name: El modulo tiene sintaxis Lua valida
+        run: |
+          docker run --rm --entrypoint sh jitsi-prosody:ci -c '
+            set -e
+            V=$(ls /usr/share/lua | sort -V | tail -1)
+            F="/usr/lib/prosody/modules/share/lua/${V}/mod_http_health/mod_http_health.lua"
+            luac -p "$F" 2>/dev/null || lua -e "assert(loadfile(\"$F\"))" \
+              || { echo "::error::sintaxis Lua invalida"; exit 1; }
+            echo "::notice::sintaxis Lua OK"
+          '
+
   # ───────────────────────────────────────────────────────────────
   # 4. Lint del codigo Python del panel admin
   # ───────────────────────────────────────────────────────────────
