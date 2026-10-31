@@ -182,7 +182,8 @@ curl https://meet.tu-dominio.com/healthz
 │       └── meet.urbcerroazul.com.caddy  # Bloque Caddy (fuente de verdad)
 ├── scripts/
 │   ├── setup-vps.sh                # Despliegue inicial en VPS limpio
-│   └── sync-caddy.sh               # Verifica/sincroniza el bloque Caddy con el host
+│   ├── sync-caddy.sh               # Verifica/sincroniza el bloque Caddy con el host
+│   └── rotate-turn-secret.sh       # Rota TURN_CREDENTIALS (y external_service_secret)
 ├── prosody/
 │   ├── conf.d/
 │   │   └── jitsi-meet.cfg.lua      # Configuracion Prosody con TURN
@@ -268,10 +269,37 @@ sqlite3 /opt/jitsi-admin/instance/reuniones.db "SELECT id, slug, titulo FROM reu
 - **Password admin**: archivo `/opt/jitsi-admin/instance/admin.env` (chmod 600)
 - **TLS Caddy**: emitido automaticamente por Let's Encrypt
 
+## Rotación de TURN_CREDENTIALS
+
+`TURN_CREDENTIALS` es el secreto compartido (32 hex) que Prosody usa para firmar
+las credenciales TURN de corta duración que reparte a los clientes. **No hay servidor
+TURN (coturn) en este stack**, así que hoy no está en el camino del audio/video real
+(que va por el JVB, UDP 10000); es una pieza que quedará operativa cuando se despliegue
+coturn (Fase 4 del plan).
+
+Para rotarlo (por ejemplo si se filtra, o periódicamente):
+
+```bash
+# En el VPS:
+bash /tmp/rotate-turn-secret.sh          # o copiar scripts/rotate-turn-secret.sh
+```
+
+El script:
+1. Genera un nuevo secreto de 32 hex (nunca lo imprime completo).
+2. Reemplaza `TURN_CREDENTIALS` en `.env`.
+3. Reemplaza `external_service_secret` en `prosody/config/prosody.cfg.lua`.
+4. Recrea `prosody` (`--force-recreate`, para que lea la env var nueva; `docker restart`
+   NO recarga variables de entorno — por eso el config se regenera solo con recreación).
+5. Verifica sin errores de módulo.
+
+**Nota de seguridad:** el valor antiguo quedó expuesto en el historial público de git
+(como `external_service_secret` en `prosody/conf.d/jitsi-meet.cfg.lua`). Se rotó el
+31-Oct-2026. Evitar volver a commitear cualquier secreto; usar `gitleaks` en CI.
+
 ## Stack Tecnologico
 
 - Docker + Docker Compose
-- Jitsi Meet stable-9111
+- Jitsi Meet stable-11031
 - Prosody XMPP server (con 84 plugins de auth_token, av_moderation, breakout, polls, etc.)
 - Flask 3 + Gunicorn para el admin panel
 - Caddy 2 como reverse proxy
