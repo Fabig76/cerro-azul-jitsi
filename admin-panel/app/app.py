@@ -46,6 +46,46 @@ KID = E.get("JWT_APP_ID") or "jitsi-admin-panel"
 KSEC = E.get("JWT_APP_SECRET") or SK
 PUB = E.get("PUBLIC_URL") or "meet.urbcerroazul.com"
 
+def csv_list(v):
+    return [x.strip() for x in (v or "").split(",") if x.strip()]
+
+# --- JWT (Fase 2) -------------------------------------------------------
+# Prosody valida 'iss' contra asap_accepted_issuers (JWT_ACCEPTED_ISSUERS)
+# y 'aud' contra asap_accepted_audiences (JWT_ACCEPTED_AUDIENCES). Si el
+# panel firma con otro valor, Jitsi rechaza el token: es el fallo clasico.
+# Por eso iss/aud se derivan de esas MISMAS variables del .env de Jitsi.
+# Si no estan (stack de Fase 1), Prosody acepta iss == app_id y cualquier
+# aud, asi que el fallback es KID (compatibilidad con el comportamiento previo).
+ACCEPTED_ISS = csv_list(E.get("JWT_ACCEPTED_ISSUERS"))
+ACCEPTED_AUD = csv_list(E.get("JWT_ACCEPTED_AUDIENCES"))
+JWT_ISS = A.get("JWT_ISSUER") or (ACCEPTED_ISS[0] if ACCEPTED_ISS else KID)
+JWT_AUD = A.get("JWT_AUDIENCE") or (ACCEPTED_AUD[0] if ACCEPTED_AUD else KID)
+# Margen de 'nbf' hacia atras: tolera relojes desfasados entre panel y Prosody.
+JWT_NBF_SKEW = 60
+# El token vence al fin previsto de la reunion + este margen.
+JWT_EXP_MARGIN_MIN = int(A.get("JWT_EXP_MARGIN_MIN") or "30")
+# Prefijo de las salas nuevas (el resto son 16 hex aleatorios).
+SALA_PREFIX = A.get("SALA_PREFIX") or "asamblea-"
+
+def jwt_config_problems():
+    """Lista de incoherencias panel <-> Prosody que harian fallar los tokens."""
+    probs = []
+    # Lo que Prosody acepta realmente (defaults de token/util.lib.lua).
+    pros_iss = ACCEPTED_ISS or [KID]
+    pros_aud = ACCEPTED_AUD or ["*"]
+    if JWT_ISS not in pros_iss:
+        probs.append("iss='" + JWT_ISS + "' no esta en JWT_ACCEPTED_ISSUERS=" + ",".join(pros_iss))
+    if JWT_AUD not in pros_aud and "*" not in pros_aud:
+        probs.append("aud='" + JWT_AUD + "' no esta en JWT_ACCEPTED_AUDIENCES=" + ",".join(pros_aud))
+    if not E.get("JWT_APP_SECRET"):
+        probs.append("JWT_APP_SECRET no esta en " + ENV_FILE + ": los tokens se firman con una clave que Prosody no conoce")
+    # Prosody decide con PROSODY_AUTH_TYPE; AUTH_TYPE es solo su fallback.
+    auth_type = E.get("PROSODY_AUTH_TYPE") or E.get("AUTH_TYPE") or ""
+    if E.get("ENABLE_AUTH", "0") not in ("1", "true") or auth_type != "jwt":
+        probs.append("Jitsi no exige JWT (ENABLE_AUTH=" + E.get("ENABLE_AUTH", "") +
+                     ", PROSODY_AUTH_TYPE efectivo=" + auth_type + "): las salas estan abiertas")
+    return probs
+
 app = Flask(__name__)
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -60,6 +100,11 @@ logging.basicConfig(level=logging.INFO,
         logging.StreamHandler()
     ])
 log = logging.getLogger("jitsi-admin")
+
+JWT_PROBLEMS = jwt_config_problems()
+for _p in JWT_PROBLEMS:
+    log.error("CONFIG JWT: " + _p)
+log.info("JWT iss=" + JWT_ISS + " aud=" + JWT_AUD + " app_id=" + KID)
 
 def db():
     c = sqlite3.connect(DB_PATH)
@@ -112,22 +157,78 @@ def rate_login(ip, mx=5, mn=15):
     _attempts[ip] = a
     return True
 
-def sign_jwt(room, user, mod=False, ttl=7200, sub_id=None):
+def fin_reunion(r):
+    """Fin previsto (UTC aware) = fecha_utc + duracion_min."""
+    dur = int(r["duracion_min"] or 60)
+    try:
+        ini = datetime.strptime(r["fecha_utc"], "%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        # Fila con fecha ilegible: se asume que empieza ahora.
+        ini = datetime.now(timezone.utc)
+    return ini + timedelta(minutes=dur)
+
+def exp_reunion(r):
+    """Vencimiento del token: fin previsto + JWT_EXP_MARGIN_MIN."""
+    return fin_reunion(r) + timedelta(minutes=JWT_EXP_MARGIN_MIN)
+
+def sign_jwt(room, user, mod=False, exp=None, pid=None):
+    """Firma el JWT de UNA persona para UNA sala.
+
+    - room: nombre exacto de la sala (nunca '*': un '*' abriria todas).
+    - pid:  id unico del participante. Va en 'sub' y en context.user.id;
+            si dos personas compartieran id, Jitsi las trataria como la misma.
+    - mod:  context.user.moderator. token_affiliation (Prosody) lo convierte
+            en affiliation owner => rol moderador. Nadie mas es moderador.
+    - exp:  datetime UTC; por defecto 2 h.
+    """
+    if not room or room == "*":
+        raise ValueError("room invalido para JWT")
     now = datetime.now(timezone.utc)
-    # sub debe ser UNICO por participante; si no, Jitsi pisa las sesiones
-    if sub_id is None:
-        sub_id = secrets.token_urlsafe(8)
+    if pid is None:
+        pid = secrets.token_hex(8)
+    if exp is None:
+        exp = now + timedelta(hours=2)
     p = {
-        "iss": KID,
-        "sub": sub_id + "@" + PUB,
-        "aud": KID,
+        "iss": JWT_ISS,
+        "aud": JWT_AUD,
+        # Con JWT_ENABLE_DOMAIN_VERIFICATION=0 Prosody no compara 'sub' con el
+        # dominio; se usa como id unico del participante.
+        "sub": pid + "@" + PUB,
         "room": room,
-        "context": {"user": {"name": user, "moderator": mod}},
-        "nbf": int(now.timestamp()),
-        "exp": int((now + timedelta(seconds=ttl)).timestamp()),
+        "context": {"user": {"id": pid, "name": user, "moderator": bool(mod)}},
+        "nbf": int(now.timestamp()) - JWT_NBF_SKEW,
+        "exp": int(exp.timestamp()),
         "iat": int(now.timestamp()),
     }
     return pyjwt.encode(p, KSEC, algorithm="HS256")
+
+def nueva_sala():
+    """Nombre de sala no predecible: prefijo + 16 hex (64 bits).
+
+    Hex en minusculas a proposito: Prosody compara el claim 'room' en
+    minusculas y Jitsi normaliza el nombre de sala; sin mayusculas ni
+    '_' no hay sorpresas de normalizacion.
+    """
+    return SALA_PREFIX + secrets.token_hex(8)
+
+def jitsi_url(sala, token):
+    # JWT en el fragmento (#jwt=...): no viaja al servidor en la peticion
+    # HTTP ni queda en logs de Caddy/nginx ni en el Referer.
+    return ("https://" + PUB + "/" + sala
+            + "#jwt=" + token
+            + "&config.prejoinPage.enabled=false"
+            + "&config.deeplinking.disabled=true")
+
+def get_reunion(rid):
+    with db() as c:
+        return c.execute("SELECT * FROM reuniones WHERE id=? AND activo=1", (rid,)).fetchone()
+
+def token_moderador(r):
+    """Token de administrador (moderator: true) para la reunion r."""
+    pid = "admin-" + secrets.token_hex(6)
+    nombre = A.get("ADMIN_DISPLAY_NAME") or "Administracion"
+    exp = exp_reunion(r)
+    return sign_jwt(r["sala_jitsi"], nombre, mod=True, exp=exp, pid=pid), pid, exp
 
 def escape_html(s):
     if s is None:
@@ -142,7 +243,10 @@ def escape_html(s):
 
 @app.route("/healthz")
 def healthz():
-    return jsonify({"status":"ok","service":"jitsi-admin"})
+    # Siempre 200 (el healthcheck del contenedor depende de esto); el estado
+    # de la config JWT va aparte para poder vigilarlo sin tumbar el panel.
+    return jsonify({"status":"ok","service":"jitsi-admin",
+                    "jwt_config_ok": not JWT_PROBLEMS})
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def login():
@@ -187,6 +291,11 @@ def panel():
     body = body.replace("{{csrf}}", csrf)
     body = body.replace("{{user}}", session.get("user",""))
     body = body.replace("<!--LISTA-->", listar_reuniones(csrf))
+    aviso = ""
+    if JWT_PROBLEMS:
+        aviso = ('<div class="e"><b>Configuracion JWT incoherente</b> - Jitsi rechazara los tokens o no los exigira:<br>'
+                 + "<br>".join(escape_html(x) for x in JWT_PROBLEMS) + "</div>")
+    body = body.replace("<!--AVISO_JWT-->", aviso)
     return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Panel", body=body)
 
 def listar_reuniones(csrf):
@@ -200,7 +309,11 @@ def listar_reuniones(csrf):
         sala = r["sala_jitsi"]
         link_publico = "https://" + PUB + "/reunion/" + slug
         link_qr = "/admin/qr/" + str(r["id"])
-        link_jitsi = link_publico + "?presenter=1"
+        # Fase 2: el token de moderador SOLO sale de rutas con login.
+        # (Antes era '?presenter=1' en la pagina publica: cualquiera que
+        # editara la URL entraba como moderador.)
+        link_sala = "/admin/reunion/" + str(r["id"]) + "/sala"
+        link_entrar = "/admin/reunion/" + str(r["id"]) + "/entrar"
         out.append('<div class="r">')
         out.append("  <h3>" + escape_html(r["titulo"]) + "</h3>")
         out.append("  <div class=mt><b>" + escape_html(r["fecha_utc"]) + " UTC</b> - duracion " + str(r["duracion_min"]) + " min - sala <code>" + escape_html(sala) + "</code></div>")
@@ -208,7 +321,8 @@ def listar_reuniones(csrf):
         out.append('  <div class="ac">')
         out.append('    <a href="' + link_qr + '" target=_blank>Ver QR</a>')
         out.append('    <a href="' + link_publico + '" target=_blank>Pagina publica</a>')
-        out.append('    <a href="' + link_jitsi + '" target=_blank>Entrar como presentador</a>')
+        out.append('    <a href="' + link_sala + '" target=_blank>Sala de moderacion</a>')
+        out.append('    <a href="' + link_entrar + '" target=_blank>Entrar como administrador</a>')
         out.append('    <form method="post" action="/admin/reunion/' + str(r['id']) + '/eliminar" style="display:inline">')
         out.append("      <input type=hidden name=csrf value=" + csrf + ">")
         out.append('      <button class="d" onclick="return confirm(\'Eliminar esta reunion?\')">Eliminar</button>')
@@ -235,7 +349,9 @@ def crear_reunion():
     except ValueError:
         return "Formato de fecha u hora invalido", 400
     slug = secrets.token_urlsafe(8).replace("_","-").lower()
-    sala = "cerroazul-" + slug
+    # Fase 2: sala aleatoria e independiente del slug publico. Antes era
+    # "cerroazul-" + slug, es decir, deducible del link publico/QR.
+    sala = nueva_sala()
     with db() as c:
         c.execute("INSERT INTO reuniones (slug, titulo, descripcion, fecha_utc, duracion_min, sala_jitsi, creador, creado_en, activo) VALUES (?,?,?,?,?,?,?,?,1)",
             (slug, titulo, descripcion, fecha_utc, duracion, sala, session.get("user","?"), datetime.now(timezone.utc).isoformat()))
@@ -284,42 +400,113 @@ def reunion_publica(slug):
     if not r:
         body = "<h1>Reunion no encontrada</h1><p class=m>Verifica el link o contacta al administrador.</p>"
         return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="No encontrada", body=body), 404
-    is_presenter = request.args.get("presenter") == "1"
-    rol = "Anfitrion / presentador" if is_presenter else "Asistente"
+    # La pagina publica SIEMPRE emite tokens de asistente (moderator: false).
+    # '?presenter=1' ya no tiene efecto; el admin entra por /admin/reunion/<id>/sala.
     body = open(os.path.join(TPL_DIR, "page_reunion.html")).read()
     body = body.replace("{{titulo}}", escape_html(r["titulo"]))
-    body = body.replace("{{rol}}", escape_html(rol))
+    body = body.replace("{{rol}}", "Asistente")
     body = body.replace("{{fecha_utc}}", escape_html(r["fecha_utc"]))
     body = body.replace("{{duracion}}", str(r["duracion_min"]))
-    body = body.replace("{{sala}}", escape_html(r["sala_jitsi"]))
     body = body.replace("{{descripcion}}", escape_html(r["descripcion"] or ""))
     body = body.replace("{{slug}}", escape_html(slug))
     return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t=r["titulo"], body=body)
+
+def pagina_finalizada(r):
+    body = ("<h1>Reunion finalizada</h1><p class=m>El acceso a <b>" + escape_html(r["titulo"])
+            + "</b> se cerro " + str(JWT_EXP_MARGIN_MIN)
+            + " minutos despues del fin previsto. Contacta a la administracion.</p>")
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Reunion finalizada", body=body), 410
 
 @app.route("/unirse", methods=["POST"])
 def unirse():
     slug = request.form.get("slug","").strip()
     nombre = request.form.get("nombre","").strip()[:50]
-    rol = request.form.get("rol","")
+    apto = request.form.get("apto","").strip()[:20]
     if not slug or not nombre:
         return "Faltan datos", 400
     with db() as c:
-        r = c.execute("SELECT sala_jitsi FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
+        r = c.execute("SELECT * FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
     if not r:
         abort(404)
-    is_mod = "Anfitrion" in rol
-    # JWT unico por participante (sub = session_id unico)
-    # Jitsi requiere sub unico por usuario para que no se pisen las sesiones
-    session_id = secrets.token_urlsafe(8)
-    token = sign_jwt(r["sala_jitsi"], nombre, mod=is_mod, ttl=7200, sub_id=session_id)
-    # JWT en fragment (#jwt=...) - Jitsi lo recomienda por seguridad
-    jitsi_url = ("https://" + PUB + "/" + r["sala_jitsi"]
-                 + "#jwt=" + token
-                 + "&config.prejoinPage.enabled=false"
-                 + "&config.deeplinking.disabled=true")
-    log.info("unirse slug=" + slug + " user=" + nombre + " mod=" + str(is_mod) + " sid=" + session_id)
-    return redirect(jitsi_url)
+    exp = exp_reunion(r)
+    if exp <= datetime.now(timezone.utc):
+        # No emitir un token que Prosody rechazaria por vencido.
+        return pagina_finalizada(r)
+    visible = ("Apto " + apto + " - " + nombre) if apto else nombre
+    # Un token por persona y por reunion: pid nuevo en cada /unirse.
+    # NUNCA moderador desde la pagina publica (se ignora cualquier 'rol'
+    # que venga en el formulario).
+    pid = secrets.token_hex(8)
+    token = sign_jwt(r["sala_jitsi"], visible, mod=False, exp=exp, pid=pid)
+    log.info("unirse slug=" + slug + " user=" + visible + " mod=False pid=" + pid)
+    return redirect(jitsi_url(r["sala_jitsi"], token))
+
+# --- Moderacion A/V (Fase 2) -------------------------------------------
+# Las acciones de moderacion (toggleModeration, askToUnmute, approveVideo,
+# muteEveryone...) las ejecuta el NAVEGADOR del moderador via el iframe API
+# de Jitsi: el servidor del panel no habla XMPP con la sala. Por eso el
+# panel expone:
+#   /admin/reunion/<id>/sala           pagina con Jitsi embebido + botones
+#   /admin/reunion/<id>/moderador.json token de moderador para que OTRO
+#                                      cliente embeba Jitsi (ver README)
+#   /admin/reunion/<id>/entrar         entrada directa como moderador
+
+@app.route("/admin/reunion/<int:rid>/sala")
+@login_required
+def sala_moderacion(rid):
+    r = get_reunion(rid)
+    if not r:
+        abort(404)
+    token, pid, exp = token_moderador(r)
+    if exp <= datetime.now(timezone.utc):
+        return pagina_finalizada(r)
+    cfg = {"domain": PUB, "roomName": r["sala_jitsi"], "jwt": token}
+    # json.dumps + escapar '<' evita cerrar el <script> con datos de la DB.
+    cfg_js = json.dumps(cfg).replace("<", "\\u003c")
+    body = open(os.path.join(TPL_DIR, "page_sala.html")).read()
+    body = body.replace("{{titulo}}", escape_html(r["titulo"]))
+    body = body.replace("{{sala}}", escape_html(r["sala_jitsi"]))
+    body = body.replace("{{domain}}", escape_html(PUB))
+    body = body.replace("{{cfg_json}}", cfg_js)
+    log.info("sala moderacion id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Moderacion - " + r["titulo"], body=body)
+
+@app.route("/admin/reunion/<int:rid>/moderador.json")
+@login_required
+def moderador_json(rid):
+    r = get_reunion(rid)
+    if not r:
+        abort(404)
+    token, pid, exp = token_moderador(r)
+    log.info("token moderador json id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
+    resp = jsonify({
+        "domain": PUB,
+        "roomName": r["sala_jitsi"],
+        "jwt": token,
+        "participantId": pid,
+        "exp": int(exp.timestamp()),
+        "expired": exp <= datetime.now(timezone.utc),
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+@app.route("/admin/reunion/<int:rid>/entrar")
+@login_required
+def entrar_moderador(rid):
+    r = get_reunion(rid)
+    if not r:
+        abort(404)
+    token, pid, exp = token_moderador(r)
+    if exp <= datetime.now(timezone.utc):
+        return pagina_finalizada(r)
+    log.info("entrar moderador id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
+    return redirect(jitsi_url(r["sala_jitsi"], token))
+
+# Crear el esquema al IMPORTAR el modulo, no solo con __main__.
+# Gunicorn importa 'app:app' en un proceso workers: si init_db() solo
+# estuviera bajo __main__, la tabla 'reuniones' nunca se crearia y el
+# panel fallaria en todas las consultas de un despliegue limpio.
+init_db()
 
 if __name__ == "__main__":
-    init_db()
     app.run(host="127.0.0.1", port=8081, debug=False)

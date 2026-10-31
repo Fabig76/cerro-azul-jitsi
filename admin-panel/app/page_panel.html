@@ -1,5 +1,6 @@
 <h1>Panel de reuniones</h1>
 <p class="m">Sesion iniciada como <b>{{user}}</b></p>
+<!--AVISO_JWT-->
 
 <h2>Crear nueva reunion</h2>
 <form method="post" action="/admin/reunion">
@@ -14,6 +15,7 @@
   <input name="hora" type="time" required>
   <label>Duracion estimada <small>(minutos)</small></label>
   <input name="duracion" type="number" value="60" min="15" max="480">
+  <p class="m" style="margin:8px 0 0"><small>El acceso de los asistentes se cierra 30 min despues del fin previsto: pon una duracion holgada.</small></p>
   <button type="submit">Crear reunion y generar QR</button>
 </form>
 <!--LISTA-->

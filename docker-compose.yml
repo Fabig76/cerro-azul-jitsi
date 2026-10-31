@@ -29,6 +29,7 @@ services:
       - PUBLIC_URL
       - ENABLE_AUTH
       - AUTH_TYPE
+      - ENABLE_GUESTS
       - JWT_APP_ID
       - JWT_APP_SECRET
       - XMPP_DOMAIN
@@ -38,6 +39,11 @@ services:
       - XMPP_SERVER
       - XMPP_BOSH_URL_BASE
       - ENABLE_COLIBRI_WEBSOCKET=1
+      # Fase 2: todos entran con mic y camara apagados. Verificado en
+      # /defaults/settings-config.js de jitsi/web:stable-11031
+      # (config.startWithAudioMuted / config.startWithVideoMuted).
+      - START_WITH_AUDIO_MUTED
+      - START_WITH_VIDEO_MUTED
       - TZ
     volumes:
       - ./web/config:/config
@@ -87,6 +93,19 @@ services:
       - JWT_APP_ID
       - JWT_APP_SECRET
       - ENABLE_AUTH
+      # Fase 2 - JWT obligatorio. La plantilla de Prosody decide con
+      # PROSODY_AUTH_TYPE (AUTH_TYPE solo es su fallback).
+      - PROSODY_AUTH_TYPE
+      - JWT_ACCEPTED_ISSUERS
+      - JWT_ACCEPTED_AUDIENCES
+      - JWT_ALLOW_EMPTY
+      - JWT_ENABLE_DOMAIN_VERIFICATION
+      - ENABLE_GUESTS
+      - ENABLE_LOBBY
+      - ENABLE_AV_MODERATION
+      # token_affiliation va en el componente MUC (XMPP_MUC_MODULES), no en
+      # el VirtualHost (XMPP_MODULES). Ver .env.example.
+      - XMPP_MUC_MODULES
       - PUBLIC_URL
       - TZ
       - TURN_CREDENTIALS
@@ -132,6 +151,11 @@ services:
       - JICOFO_AUTH_PASSWORD
       - JWT_APP_ID
       - JWT_APP_SECRET
+      # Fase 2: auth de Jicofo APAGADA a proposito (con JWT en Jicofo todo
+      # usuario autenticado seria owner) y sin auto-owner (si no, el primero
+      # en entrar seria moderador). El rol lo da token_affiliation en Prosody.
+      - JICOFO_ENABLE_AUTH
+      - ENABLE_AUTO_OWNER
       - MAX_PARTICIPANTS
       - TZ
     volumes:

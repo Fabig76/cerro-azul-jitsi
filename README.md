@@ -329,6 +329,154 @@ docker exec jitsi-jvb curl -s http://127.0.0.1:8080/about/version
 sqlite3 /opt/jitsi-meet/admin-panel/instance/reuniones.db "SELECT id, slug, titulo FROM reuniones WHERE activo=1"
 ```
 
+## Fase 2 — JWT y moderación A/V
+
+> **ATENCIÓN:** con `ENABLE_AUTH=1` + `JWT_ALLOW_EMPTY=0` **sin token no entra
+> nadie**: ni por `https://meet.urbcerroazul.com/<sala>` directo, ni con token
+> vencido, ni con token de otra sala. Todo acceso pasa por el panel.
+
+### Roles
+
+| Rol | Token | Qué puede hacer |
+|---|---|---|
+| Administrador | `context.user.moderator: true` (solo rutas `/admin/...` con login) | Hablar, cámara, pantalla; dar/quitar la palabra |
+| Asistente autorizado | `moderator: false` | Hablar / cámara **solo** después de que el admin lo apruebe |
+| Asistente normal | `moderator: false` | Levantar la mano y chat |
+
+"Autorizado" no es un tipo de token distinto: es un asistente al que el
+moderador aprobó en la moderación A/V durante la reunión.
+
+### Flujo
+
+1. El admin crea la reunión en `/admin`. La sala es `asamblea-` + 16 hex
+   aleatorios (`secrets.token_hex(8)`), guardada en `reuniones.sala_jitsi`,
+   independiente del `slug` del link público/QR.
+2. Asistente: abre `/reunion/<slug>` (QR), escribe apto y nombre → `POST /unirse`
+   → el panel firma **un token nuevo por persona** (`context.user.id` y `sub`
+   únicos, nombre `Apto 302 - Ana Pérez`, `moderator: false`) y redirige a
+   `https://meet.../<sala>#jwt=<token>`. El token va en el **fragmento**
+   (`#`), que el navegador no envía al servidor: no queda en logs ni en Referer.
+3. Admin: `/admin/reunion/<id>/sala` (Jitsi embebido + controles) o
+   `/admin/reunion/<id>/entrar` (Jitsi directo). Token con `moderator: true`.
+4. Prosody (`authentication = "token"`) valida firma HS256 (`JWT_APP_SECRET`),
+   `iss ∈ JWT_ACCEPTED_ISSUERS`, `aud ∈ JWT_ACCEPTED_AUDIENCES`, `nbf/exp` y
+   que `room` sea la sala. `token_affiliation` da `owner` (= moderador) solo si
+   `context.user.moderator` es true; el resto queda `member`.
+
+Claims: `iss`, `aud`, `sub`, `room`, `context.user.{id,name,moderator}`,
+`nbf = ahora − 60 s`, `exp = fecha + duración + 30 min`, `iat`. Si la reunión
+ya venció, `/unirse` responde **410 "Reunión finalizada"** en vez de emitir un
+token muerto. El margen se cambia con `JWT_EXP_MARGIN_MIN` (admin.env). Prosody
+valida `exp` al conectar: quien ya está dentro no es expulsado al vencer.
+
+### Variables y trampas de nombres (verificadas en las imágenes stable-11031)
+
+- **`PROSODY_AUTH_TYPE`, no `AUTH_TYPE`**: la plantilla de Prosody hace
+  `PROSODY_AUTH_TYPE | default AUTH_TYPE`. Se definen las dos en `jwt`.
+- **`XMPP_MUC_MODULES`, no `XMPP_MODULES`**: `XMPP_MODULES` se carga en el
+  `VirtualHost`; `XMPP_MUC_MODULES` en el `Component "muc"`. `token_affiliation`
+  engancha `muc-occupant-pre-join`, que solo existe en el componente MUC: en
+  `XMPP_MODULES` se cargaría sin hacer nada y nadie sería moderador.
+  Comprobado renderizando la plantilla: queda junto a `token_verification`.
+- **`ENABLE_AUTO_OWNER=false`** (Jicofo): por defecto Jicofo hace moderador al
+  primero que entra.
+- **`JICOFO_ENABLE_AUTH=0`**: con auth JWT en Jicofo, *todo* usuario
+  autenticado (todos traen JWT) sería owner. Va explícito porque su default es
+  `ENABLE_AUTH`.
+- **`JWT_ENABLE_DOMAIN_VERIFICATION=0`**: el panel pone un id de participante
+  en `sub`; con verificación de dominio `sub` tendría que ser el dominio.
+- `START_WITH_AUDIO_MUTED=1` / `START_WITH_VIDEO_MUTED=1` → `config.startWith*Muted = true`.
+- `ENABLE_LOBBY=0`, `ENABLE_GUESTS=0`, `ENABLE_AV_MODERATION=1`.
+
+`./scripts/validate-env.sh` falla si cualquiera de estas está mal. El panel
+compara su `iss`/`aud` con lo que acepta Prosody al arrancar: si no coinciden lo
+registra como `ERROR CONFIG JWT`, muestra un aviso rojo en `/admin` y
+`/healthz` devuelve `"jwt_config_ok": false` (sigue respondiendo 200 para no
+tumbar el healthcheck).
+
+### Dar y quitar la palabra
+
+La moderación la ejecuta el **navegador del moderador** con el iframe API
+(el servidor del panel no habla XMPP con la sala). El panel ofrece:
+
+- `GET /admin/reunion/<id>/sala` — página lista para usar: activa la moderación
+  de audio y video al entrar, lista los participantes (mano levantada primero)
+  con *Dar palabra / Quitar palabra / Habilitar cámara / Quitar cámara*, y
+  *Silenciar a todos / Apagar todas las cámaras*. Registra cada comando.
+- `GET /admin/reunion/<id>/moderador.json` — `{domain, roomName, jwt,
+  participantId, exp, expired}` para que **otro cliente** embeba Jitsi como
+  moderador. Requiere sesión del panel (cookie), `Cache-Control: no-store`.
+- `GET /admin/reunion/<id>/entrar` — Jitsi a pantalla completa como moderador;
+  la moderación se maneja desde el panel de participantes nativo de Jitsi.
+
+Snippet para el cliente:
+
+```html
+<script src="https://meet.urbcerroazul.com/external_api.js"></script>
+<script type="module">
+const cfg = await (await fetch('/admin/reunion/ID/moderador.json',
+                               { credentials: 'same-origin' })).json();
+const api = new JitsiMeetExternalAPI(cfg.domain, {
+  roomName: cfg.roomName, jwt: cfg.jwt,
+  parentNode: document.getElementById('jitsi'),
+  configOverwrite: { startWithAudioMuted: true, startWithVideoMuted: true },
+});
+api.addListener('videoConferenceJoined', () => {
+  api.executeCommand('toggleModeration', true, 'audio');  // nadie habla sin aprobación
+  api.executeCommand('toggleModeration', true, 'video');  // ni cámara / pantalla
+});
+// Dar la palabra (aprueba audio y le pide activar el micro):
+api.executeCommand('askToUnmute', participantId);
+// Quitar la palabra:
+api.executeCommand('rejectParticipant', participantId, 'audio');
+api.executeCommand('muteRemoteParticipant', participantId, 'audio');
+// Habilitar / quitar cámara:
+api.executeCommand('approveVideo', participantId);
+api.executeCommand('rejectParticipant', participantId, 'video');
+// Silenciar a todos:
+api.executeCommand('muteEveryone', 'audio');
+// participantId: eventos participantJoined / raiseHandUpdated, o api.getRoomsInfo().
+</script>
+```
+
+Comandos verificados en `external_api.min.js` de `jitsi/web:stable-11031`.
+En esa versión el cliente solo distingue `audio` y `video` en
+`toggleModeration` (no existe tipo `desktop`), así que la pantalla compartida
+queda bajo la moderación de video. **No probado en una reunión real.**
+
+### Reuniones existentes (migración)
+
+No hay cambio de esquema. Las filas viejas (`sala_jitsi = cerroazul-<slug>`)
+**siguen funcionando**: el token se firma con el `sala_jitsi` guardado. Pero ese
+nombre se deduce del link público, así que para asambleas importantes conviene
+crear una reunión nueva (sala `asamblea-…`). Las reuniones viejas cuya fecha +
+duración + 30 min ya pasó dan 410. Cambios de comportamiento:
+`/reunion/<slug>?presenter=1` **ya no da moderador** (antes cualquiera podía
+editar la URL), y el campo `rol` del formulario se ignora.
+
+### Despliegue y rollback
+
+```bash
+# Despliegue: copiar el bloque de auth de .env.example al .env del VPS,
+# luego validar y recrear.
+./scripts/validate-env.sh /opt/jitsi-meet/.env
+docker compose up -d --build --force-recreate prosody web jicofo admin
+```
+
+Rollback (salas abiertas como en la Fase 1): en `/opt/jitsi-meet/.env` poner
+`ENABLE_AUTH=0`, `PROSODY_AUTH_TYPE=anonymous`, `AUTH_TYPE=anonymous` y
+recrear `prosody web jicofo`. El panel sigue firmando tokens (Jitsi los ignora)
+y mostrará el aviso "Jitsi no exige JWT". Ojo: con `ENABLE_AUTO_OWNER=false`
+y sin token, nadie sería moderador; en rollback quitar también esa línea.
+
+### Pendiente / riesgo conocido
+
+Entre que entra un asistente y el admin activa la moderación, el asistente
+*podría* encender el micro (entra apagado, pero no bloqueado). Mitigación:
+el admin entra primero. El plugin `mod_muc_wait_for_host` (ya presente en
+`prosody/prosody-plugins/`) haría esperar a los asistentes hasta que entre el
+moderador; no está activado porque no se ha probado con `token_affiliation`.
+
 ## Limitaciones Conocidas
 
 - Max ~100 participantes por sala (teorico 200 con el VPS actual de 4 cores)

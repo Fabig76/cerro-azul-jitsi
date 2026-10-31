@@ -1,0 +1,199 @@
+<style>
+  /* Esta pagina necesita mas ancho que el resto del panel. */
+  .c { max-width:1280px; }
+  .sala { display:flex; gap:14px; flex-wrap:wrap; }
+  #jitsi { flex:1 1 640px; min-height:560px; background:#000; border-radius:8px; overflow:hidden; }
+  #jitsi iframe { width:100%; height:560px; border:0; }
+  .lado { flex:0 1 360px; min-width:280px; }
+  .gl button, .p button { margin:4px 4px 0 0; padding:5px 9px; font-size:12px; }
+  .p { background:var(--bg); border:1px solid var(--b); border-radius:8px; padding:8px 10px; margin-bottom:6px; }
+  .p .n { font-size:13px; }
+  .p .mano { color:#facc15; font-weight:bold; }
+  .ok2 { background:var(--ok); }
+  #log { font-family:monospace; font-size:11px; color:var(--m); max-height:160px; overflow:auto;
+         background:var(--bg); border:1px solid var(--b); border-radius:6px; padding:6px; white-space:pre-wrap; }
+</style>
+
+<h1>Moderacion - {{titulo}}</h1>
+<p class="m">Sala <code>{{sala}}</code> en {{domain}}. Entras como <b>moderador</b> (token con <code>moderator: true</code>)
+con microfono y camara apagados. Al entrar se activa la moderacion de audio y video: ningun asistente
+puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
+
+<div class="sala">
+  <div id="jitsi"></div>
+  <div class="lado">
+    <h2>Toda la sala</h2>
+    <div class="gl">
+      <button class="d" data-cmd="mute-all-audio">Silenciar a todos</button>
+      <button class="d" data-cmd="mute-all-video">Apagar todas las camaras</button>
+      <button data-cmd="mod-on">Activar moderacion A/V</button>
+      <button data-cmd="mod-off" class="d">Desactivar moderacion A/V</button>
+    </div>
+    <p class="m" style="margin:6px 0 0"><small>Moderacion: audio <b id="st-audio">?</b> / video <b id="st-video">?</b></small></p>
+
+    <h2>Participantes <small id="cnt"></small></h2>
+    <p class="m" style="margin-bottom:6px"><small>Mano levantada primero. "Dar palabra" aprueba el audio y le pide activar el micro.</small></p>
+    <div id="lista"><p class="m">Conectando...</p></div>
+
+    <h2>Registro</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script src="https://{{domain}}/external_api.js"></script>
+<script>
+(function () {
+  "use strict";
+  // Config inyectada por el panel (json.dumps). Contiene el JWT de moderador.
+  var CFG = {{cfg_json}};
+  var logEl = document.getElementById("log");
+  function log(msg) {
+    var t = new Date().toLocaleTimeString();
+    logEl.textContent = t + "  " + msg + "\n" + logEl.textContent;
+  }
+
+  if (typeof JitsiMeetExternalAPI === "undefined") {
+    log("ERROR: no cargo https://" + CFG.domain + "/external_api.js");
+    return;
+  }
+
+  var api = new JitsiMeetExternalAPI(CFG.domain, {
+    roomName: CFG.roomName,
+    jwt: CFG.jwt,
+    parentNode: document.getElementById("jitsi"),
+    width: "100%",
+    height: 560,
+    configOverwrite: {
+      startWithAudioMuted: true,
+      startWithVideoMuted: true,
+      prejoinConfig: { enabled: false },
+      disableDeepLinking: true
+    }
+  });
+
+  // participantId -> { name, hand (timestamp o 0) }
+  var gente = {};
+  var yo = null;
+
+  function cmd(nombre) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    log(nombre + "(" + args.map(function (a) { return JSON.stringify(a); }).join(", ") + ")");
+    api.executeCommand.apply(api, [nombre].concat(args));
+  }
+
+  // Activar moderacion de audio y video. En stable-11031 el iframe API solo
+  // distingue 'audio' y 'video' (no hay tipo 'desktop' en el cliente); la
+  // pantalla compartida queda bajo la moderacion de video.
+  function activarModeracion() {
+    cmd("toggleModeration", true, "audio");
+    cmd("toggleModeration", true, "video");
+    setTimeout(estadoModeracion, 1500);
+  }
+  function estadoModeracion() {
+    ["audio", "video"].forEach(function (m) {
+      api.isModerationOn(m).then(function (on) {
+        document.getElementById("st-" + m).textContent = on ? "ACTIVA" : "apagada";
+      });
+    });
+  }
+
+  function boton(txt, cls, fn) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = txt;
+    if (cls) b.className = cls;
+    b.addEventListener("click", fn);
+    return b;
+  }
+
+  function pintar() {
+    var cont = document.getElementById("lista");
+    cont.textContent = "";
+    var ids = Object.keys(gente).filter(function (id) { return id !== yo; });
+    ids.sort(function (a, b) {
+      var ha = gente[a].hand || Infinity, hb = gente[b].hand || Infinity;
+      if (ha !== hb) return ha - hb;
+      return (gente[a].name || "").localeCompare(gente[b].name || "");
+    });
+    document.getElementById("cnt").textContent = "(" + ids.length + ")";
+    if (!ids.length) {
+      var p = document.createElement("p"); p.className = "m"; p.textContent = "Nadie mas en la sala.";
+      cont.appendChild(p); return;
+    }
+    ids.forEach(function (id) {
+      var g = gente[id];
+      var d = document.createElement("div"); d.className = "p";
+      var n = document.createElement("div"); n.className = "n";
+      if (g.hand) {
+        var m = document.createElement("span"); m.className = "mano"; m.textContent = "[mano] ";
+        n.appendChild(m);
+      }
+      // textContent: el nombre lo escribe el asistente, nunca innerHTML.
+      n.appendChild(document.createTextNode(g.name || id));
+      d.appendChild(n);
+      d.appendChild(boton("Dar palabra", "ok2", function () { cmd("askToUnmute", id); }));
+      d.appendChild(boton("Quitar palabra", "d", function () {
+        cmd("rejectParticipant", id, "audio");
+        cmd("muteRemoteParticipant", id, "audio");
+      }));
+      d.appendChild(boton("Habilitar camara", "", function () { cmd("approveVideo", id); }));
+      d.appendChild(boton("Quitar camara", "d", function () {
+        cmd("rejectParticipant", id, "video");
+        cmd("muteRemoteParticipant", id, "video");
+      }));
+      cont.appendChild(d);
+    });
+  }
+
+  function recargar() {
+    api.getRoomsInfo().then(function (info) {
+      var main = (info.rooms || []).filter(function (r) { return r.isMainRoom; })[0];
+      if (!main) return;
+      var nuevo = {};
+      (main.participants || []).forEach(function (p) {
+        nuevo[p.id] = { name: p.displayName, hand: (gente[p.id] && gente[p.id].hand) || 0 };
+      });
+      gente = nuevo;
+      pintar();
+    });
+  }
+
+  api.addListener("videoConferenceJoined", function (e) {
+    yo = e.id;
+    log("unido como " + e.displayName + " (" + e.id + ")");
+    activarModeracion();
+    recargar();
+  });
+  // Si el rol de moderador llega despues del join, reintentar la activacion.
+  api.addListener("participantRoleChanged", function (e) {
+    if (e.id === yo && e.role === "moderator") { log("rol moderador confirmado"); activarModeracion(); }
+  });
+  api.addListener("moderationStatusChanged", function () { estadoModeracion(); });
+  api.addListener("participantJoined", function (e) {
+    gente[e.id] = { name: e.displayName, hand: 0 }; pintar();
+  });
+  api.addListener("participantLeft", function (e) { delete gente[e.id]; pintar(); });
+  api.addListener("displayNameChange", function (e) {
+    if (gente[e.id]) { gente[e.id].name = e.displayname || e.displayName; pintar(); }
+  });
+  api.addListener("raiseHandUpdated", function (e) {
+    if (!gente[e.id]) gente[e.id] = { name: e.id, hand: 0 };
+    gente[e.id].hand = e.handRaised || 0;
+    pintar();
+  });
+
+  document.querySelectorAll(".gl button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var c = b.getAttribute("data-cmd");
+      if (c === "mute-all-audio") cmd("muteEveryone", "audio");
+      else if (c === "mute-all-video") cmd("muteEveryone", "video");
+      else if (c === "mod-on") activarModeracion();
+      else if (c === "mod-off") {
+        cmd("toggleModeration", false, "audio");
+        cmd("toggleModeration", false, "video");
+        setTimeout(estadoModeracion, 1500);
+      }
+    });
+  });
+})();
+</script>

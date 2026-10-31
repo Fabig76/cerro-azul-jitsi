@@ -180,7 +180,113 @@ else
     ok "JVB_ADVERTISE_IPS=$v"
 fi
 
-# --- 6. Valores de ejemplo sin cambiar ---------------------------------
+# --- 6. Autenticacion JWT y moderacion (Fase 2) ------------------------
+echo
+echo "-- Autenticacion JWT (Fase 2) --"
+is_true() { case "$1" in 1|true|TRUE|True|yes|on) return 0;; *) return 1;; esac; }
+
+enable_auth="$(getval ENABLE_AUTH)"
+# Prosody usa PROSODY_AUTH_TYPE y, si no esta, cae en AUTH_TYPE.
+pat="$(getval PROSODY_AUTH_TYPE)"
+[ -n "$pat" ] || pat="$(getval AUTH_TYPE)"
+
+if ! is_true "$enable_auth"; then
+    warn "ENABLE_AUTH='$enable_auth': Jitsi NO exige token (salas abiertas, modo rollback)"
+else
+    ok "ENABLE_AUTH=$enable_auth"
+    if [ "$pat" != "jwt" ]; then
+        fail "con ENABLE_AUTH=1, PROSODY_AUTH_TYPE (o AUTH_TYPE) debe ser 'jwt', es '$pat'"
+        echo "              La plantilla de Prosody decide con PROSODY_AUTH_TYPE;"
+        echo "              AUTH_TYPE solo es su fallback."
+    else
+        ok "PROSODY_AUTH_TYPE efectivo = jwt"
+    fi
+    a="$(getval AUTH_TYPE)"
+    if [ -n "$a" ] && [ "$a" != "$pat" ]; then
+        warn "AUTH_TYPE='$a' distinto de PROSODY_AUTH_TYPE='$pat' (web/jicofo leen AUTH_TYPE)"
+    fi
+
+    v="$(getval JWT_APP_ID)"
+    if [ -z "$v" ]; then
+        fail "JWT_APP_ID esta vacio o no definido"
+    else
+        ok "JWT_APP_ID=$v"
+    fi
+
+    for k in JWT_ACCEPTED_ISSUERS JWT_ACCEPTED_AUDIENCES; do
+        v="$(getval "$k")"
+        if [ -z "$v" ]; then
+            fail "$k no esta definido (el panel firma iss/aud con su primer valor)"
+        else
+            ok "$k=$v"
+        fi
+    done
+
+    v="$(getval JWT_ALLOW_EMPTY)"
+    if [ "$v" != "0" ]; then
+        fail "JWT_ALLOW_EMPTY debe ser 0 (tiene '$v'): con 1 se entra sin token"
+    else
+        ok "JWT_ALLOW_EMPTY=0"
+    fi
+
+    v="$(getval JWT_ENABLE_DOMAIN_VERIFICATION)"
+    if is_true "$v"; then
+        fail "JWT_ENABLE_DOMAIN_VERIFICATION='$v': el panel pone un id de participante en 'sub', no el dominio"
+    else
+        ok "JWT_ENABLE_DOMAIN_VERIFICATION desactivado"
+    fi
+
+    if is_true "$(getval ENABLE_GUESTS)"; then
+        fail "ENABLE_GUESTS=1: habilita un dominio anonimo que entra sin token"
+    else
+        ok "ENABLE_GUESTS=0"
+    fi
+
+    # token_affiliation solo funciona en el componente MUC.
+    muc_mods=",$(getval XMPP_MUC_MODULES | tr -d ' '),"
+    vh_mods=",$(getval XMPP_MODULES | tr -d ' '),"
+    case "$muc_mods" in
+        *,token_affiliation,*) ok "XMPP_MUC_MODULES contiene token_affiliation" ;;
+        *)
+            fail "XMPP_MUC_MODULES debe contener token_affiliation (rol moderador desde el JWT)"
+            case "$vh_mods" in
+                *,token_affiliation,*)
+                    echo "              Esta en XMPP_MODULES (VirtualHost): ahi se carga pero"
+                    echo "              no recibe 'muc-occupant-pre-join' y no hace nada." ;;
+            esac ;;
+    esac
+
+    if is_true "$(getval JICOFO_ENABLE_AUTH)"; then
+        fail "JICOFO_ENABLE_AUTH debe ser 0: con auth JWT en Jicofo TODOS serian moderadores"
+    else
+        ok "JICOFO_ENABLE_AUTH=0"
+    fi
+
+    v="$(getval ENABLE_AUTO_OWNER)"
+    if [ "$v" != "false" ] && [ "$v" != "0" ]; then
+        fail "ENABLE_AUTO_OWNER debe ser false (tiene '$v'): si no, el primero en entrar es moderador"
+    else
+        ok "ENABLE_AUTO_OWNER=$v"
+    fi
+fi
+
+v="$(getval ENABLE_AV_MODERATION)"
+if [ -n "$v" ] && ! is_true "$v"; then
+    fail "ENABLE_AV_MODERATION='$v': sin moderacion A/V cualquiera puede hablar"
+else
+    ok "ENABLE_AV_MODERATION=${v:-default(true)}"
+fi
+
+for k in START_WITH_AUDIO_MUTED START_WITH_VIDEO_MUTED; do
+    v="$(getval "$k")"
+    if ! is_true "$v"; then
+        warn "$k='$v': los participantes no entran silenciados"
+    else
+        ok "$k=$v"
+    fi
+done
+
+# --- 7. Valores de ejemplo sin cambiar ---------------------------------
 echo
 echo "-- Valores de ejemplo sin reemplazar --"
 placeholders=$(grep -E '^[A-Z_]+=' "$ENV_FILE" | grep -iE 'CAMBIAR|TU-DOMINIO|IP-PUBLICA|tu-dominio' | cut -d= -f1 | tr '\n' ' ')

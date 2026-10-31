@@ -11,6 +11,7 @@ COPY app/page_login.html /app/page_login.html
 COPY app/page_panel.html /app/page_panel.html
 COPY app/page_reunion.html /app/page_reunion.html
 COPY app/page_qr_view.html /app/page_qr_view.html
+COPY app/page_sala.html /app/page_sala.html
 
 RUN mkdir -p /app/instance
 
