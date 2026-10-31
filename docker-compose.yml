@@ -2,9 +2,17 @@ name: jitsi-meet
 
 # =====================================================================
 # Jitsi Meet - Cerro Azul (meet.urbcerroazul.com)
-# Stack standalone: NO toca los contenedores existentes
-# Reverse proxy: Caddy existente (adminbot.info / monitorlegal.org / etc.)
-#   → agrega bloque meet.urbcerroazul.com que apunta a localhost:8080
+#
+# Stack standalone: NO toca los contenedores existentes (Monitor Legal,
+# Minuta Segura, Hermes). El reverse proxy es el Caddy existente, que
+# corre en otro proyecto de compose (hermes-agent) y esta conectado a la
+# red `jitsi-meet_jitsi` para resolver `web` y `admin`.
+#
+# Todas las rutas son RELATIVAS a este archivo: el repo se puede clonar
+# en cualquier ruta y `docker compose up -d --build` funciona.
+#
+# Las variables vienen del .env (ver .env.example). La version de las
+# imagenes se fija UNA vez en JITSI_IMAGE_VERSION.
 # =====================================================================
 
 services:
@@ -12,11 +20,11 @@ services:
   # WEB (nginx + UI de Jitsi)
   # ---------------------------------------------------------------
   web:
-    image: jitsi/web:stable-11031
+    image: jitsi/web:${JITSI_IMAGE_VERSION:-stable-11031}
     container_name: jitsi-web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:80"      # solo localhost, Caddy hace TLS público
+      - "127.0.0.1:8080:80"      # solo localhost, Caddy hace TLS publico
     environment:
       - PUBLIC_URL
       - ENABLE_AUTH
@@ -29,27 +37,34 @@ services:
       - XMPP_INTERNAL_MUC_DOMAIN
       - XMPP_SERVER
       - XMPP_BOSH_URL_BASE
+      - ENABLE_COLIBRI_WEBSOCKET=1
       - TZ
     volumes:
       - ./web/config:/config
       - ./web/crash:/crash
       - ./web/letsencrypt:/etc/letsencrypt
     depends_on:
-      - prosody
-    networks:
-      - jitsi
+      prosody:
+        condition: service_healthy
+    networks: [jitsi]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------
   # PROSODY (XMPP server)
   # ---------------------------------------------------------------
   prosody:
-    image: jitsi/prosody:stable-11031
+    image: jitsi/prosody:${JITSI_IMAGE_VERSION:-stable-11031}
     container_name: jitsi-prosody
     restart: unless-stopped
     expose:
       - "5222"     # cliente XMPP (clients web)
       - "5347"     # componentes internos (jicofo, jvb)
-      - "5280"     # BOSH (deprecated, lo deshabilitamos en config)
+      - "5280"     # BOSH
     environment:
       - AUTH_TYPE
       - XMPP_DOMAIN
@@ -73,15 +88,24 @@ services:
       - STUN_PORT
     volumes:
       - ./prosody/config:/config
+      # Los plugins de Jitsi NO vienen en la imagen oficial: se extraen
+      # del paquete Debian `jitsi-meet-prosody` (repo unstable). Ver
+      # scripts/install-prosody-plugins.sh. Son 84 modulos .lua.
       - ./prosody/prosody-plugins:/prosody-plugins
-    networks:
-      - jitsi
+      - ./prosody/prosody-plugins-custom:/prosody-plugins-custom
+    networks: [jitsi]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 5222 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------
   # JICOFO (conference focus)
   # ---------------------------------------------------------------
   jicofo:
-    image: jitsi/jicofo:stable-11031
+    image: jitsi/jicofo:${JITSI_IMAGE_VERSION:-stable-11031}
     container_name: jitsi-jicofo
     restart: unless-stopped
     environment:
@@ -99,19 +123,28 @@ services:
     volumes:
       - ./jicofo/config:/config
     depends_on:
-      - prosody
-    networks:
-      - jitsi
+      prosody:
+        condition: service_healthy
+    networks: [jitsi]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/about/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------
-  # JVB (videobridge) - soporte para 200 audio + 1 cámara + pantalla
+  # JVB (videobridge) - soporte para 200 audio + 1 camara + pantalla
+  #
+  # NO se fija LOCAL_ADDRESS: el entrypoint de la imagen lo autodetecta
+  # (`export LOCAL_ADDRESS=$(ip route get 1 ...)`) y pisa la variable.
+  # Fijarlo a mano solo produce drift cuando cambia la IP del contenedor.
+  # JVB_ADVERTISE_IPS viene del .env (IP publica del VPS).
   # ---------------------------------------------------------------
   jvb:
-    image: jitsi/jvb:stable-11031
+    image: jitsi/jvb:${JITSI_IMAGE_VERSION:-stable-11031}
     container_name: jitsi-jvb
     restart: unless-stopped
-    # IMPORTANTE: PUBLIC_IP debe ser la IP pública del VPS para que
-    # el bridge reciba tráfico RTP de los participantes en internet
     environment:
       - XMPP_AUTH_DOMAIN
       - XMPP_INTERNAL_MUC_DOMAIN
@@ -121,14 +154,12 @@ services:
       - JVB_PORT=10000
       - JVB_TCP_PORT=4443
       - JVB_TCP_MAPPED_PORT=4443
-      - JVB_PUBLIC_ADDRESS=84.247.165.81
       - COLIBRI_REST_ENABLED=true
-      - JVB_ADVERTISE_IPS=84.247.165.81
+      - JVB_ADVERTISE_IPS
       - SHUTDOWN_REST_ENABLED=false
       - ENABLE_COLIBRI_WEBSOCKET=1
-      - JVB_WS_DOMAIN=meet.urbcerroazul.com
-      - LOCAL_ADDRESS=172.21.0.5
-      - JVB_PORT_10000
+      - JVB_WS_DOMAIN
+      - DISABLE_AWS_HARVESTER=true
       - MAX_PARTICIPANTS
       - PUBLIC_URL
       - TZ
@@ -137,29 +168,48 @@ services:
     ports:
       # UDP 10000 (RTP) - DEBE estar expuesto a internet (no localhost)
       - "10000:10000/udp"
-      # TCP 4443 (fallback RTP)
+      # TCP 4443: websocket Colibri (fallback de medio y signalling).
+      # El JVB lo anuncia como wss://<dominio>/colibri-ws/<server-id>.
       - "4443:4443/tcp"
     depends_on:
-      - prosody
-    networks:
-      - jitsi
+      prosody:
+        condition: service_healthy
+    networks: [jitsi]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/about/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------
   # ADMIN PANEL (Cerro Azul)
   # ---------------------------------------------------------------
   admin:
-    build: /opt/jitsi-admin
+    build: ./admin-panel
     image: jitsi-admin:local
     container_name: jitsi-admin
     restart: unless-stopped
     ports:
       - "127.0.0.1:8081:8081"   # localhost only, Caddy hace proxy
+    env_file:
+      - .env
     volumes:
-      - /opt/jitsi-admin/instance:/app/instance
-      - /opt/jitsi-meet/.env:/opt/jitsi-meet/.env:ro
-    networks:
-      - jitsi
+      - ./admin-panel/instance:/app/instance
+      # El panel lee los secretos de Jitsi del .env del proyecto.
+      - ./.env:/opt/jitsi-meet/.env:ro
+    depends_on:
+      prosody:
+        condition: service_healthy
+    networks: [jitsi]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
 networks:
   jitsi:
     driver: bridge
+    name: jitsi-meet_jitsi

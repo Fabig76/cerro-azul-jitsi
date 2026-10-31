@@ -1,0 +1,36 @@
+# =====================================================================
+# gitleaks - configuracion para cerro-azul-jitsi
+# =====================================================================
+# Objetivo: que ningun secreto real llegue al repo (que es PUBLICO).
+#
+# Historia: el 31-Oct-2026 se encontro TURN_CREDENTIALS commiteado en
+# prosody/conf.d/jitsi-meet.cfg.lua (3 commits). Se roto el secreto, pero
+# los commits quedaron en el historial. Este archivo evita que se repita.
+#
+# Los .env.example / .env.local / admin.env.example SOLO pueden contener
+# placeholders; cualquier valor que parezca un secreto se reporta.
+# =====================================================================
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Archivos que legítimamente contienen placeholders, no secretos"
+paths = [
+  '''(^|/)go\.sum$''',
+  '''(^|/)package-lock\.json$''',
+  '''\.env\.example$''',
+  '''admin\.env\.example$''',
+  '''(^|/)prosody/prosody-plugins/.*''',
+]
+
+# Regla específica: los placeholders de los .env.example no son secretos.
+# Si alguien pega un valor real en un .env.example, gitleaks lo detecta
+# por la regla genérica de "password"/"secret", pero no por esta.
+[[rules]]
+id = "placeholder-not-a-secret"
+description = "Valores de ejemplo en archivos .env.example"
+regex = '''CAMBIAR-con-gen-passwords\.sh|CAMBIA\.\.\.|TU-DOMINIO|IP-PUBLICA-DEL-VPS|meet\.tu-dominio\.com'''
+path = '''\.env\.example$|admin\.env\.example$'''
+entropy = 3.5
+keywords = []

@@ -17,8 +17,13 @@ import jwt as pyjwt
 import qrcode
 from PIL import Image
 
-ENV_FILE = "/opt/jitsi-meet/.env"
-ADMIN_ENV_FILE = "/app/instance/admin.env"
+# Rutas configurables por variable de entorno (ver Dockerfile).
+# Los defaults son los paths dentro del contenedor.
+ENV_FILE = os.environ.get("JITSI_ENV_FILE", "/opt/jitsi-meet/.env")
+ADMIN_ENV_FILE = os.environ.get("ADMIN_ENV_FILE", "/app/instance/admin.env")
+DB_PATH = os.environ.get("DB_PATH", "/app/instance/reuniones.db")
+LOG_FILE = os.environ.get("LOG_FILE", "/app/instance/app.log")
+TPL_DIR = os.environ.get("TPL_DIR", "/app")
 
 def load_kv(path):
     env = {}
@@ -45,15 +50,13 @@ app = Flask(__name__)
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
 
-ADMIN_USER = "Hguaza76"
+ADMIN_USER = os.environ.get("ADMIN_USER", "Hguaza76")
 ADMIN_PWD_HASH = A.get("JITSI_ADMIN_PASSWORD_HASH")
-
-DB_PATH = "/app/instance/reuniones.db"
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[
-        logging.FileHandler("/app/instance/app.log"),
+        logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
     ])
 log = logging.getLogger("jitsi-admin")
@@ -162,12 +165,12 @@ def login():
             else:
                 log.warning("login FAIL user=" + u + " ip=" + ip)
                 err = "Usuario o contrasena incorrectos."
-    body = open("/app/page_login.html").read()
+    body = open(os.path.join(TPL_DIR, "page_login.html")).read()
     if err:
         body = body.replace("<!--ERR-->", '<div class="e">' + err + "</div>")
     else:
         body = body.replace("<!--ERR-->", "")
-    return render_template_string(open("/app/tpl.html").read(), t="Login", body=body)
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Login", body=body)
 
 @app.route("/admin/logout", methods=["POST"])
 @login_required
@@ -180,11 +183,11 @@ def logout():
 def panel():
     new_csrf()
     csrf = session["csrf"]
-    body = open("/app/page_panel.html").read()
+    body = open(os.path.join(TPL_DIR, "page_panel.html")).read()
     body = body.replace("{{csrf}}", csrf)
     body = body.replace("{{user}}", session.get("user",""))
     body = body.replace("<!--LISTA-->", listar_reuniones(csrf))
-    return render_template_string(open("/app/tpl.html").read(), t="Panel", body=body)
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Panel", body=body)
 
 def listar_reuniones(csrf):
     with db() as c:
@@ -265,14 +268,14 @@ def qr_view(rid):
         img.save(buf, format="PNG")
         buf.seek(0)
         return send_file(buf, mimetype="image/png", download_name="reunion-" + slug + ".png")
-    body = open("/app/page_qr_view.html").read()
+    body = open(os.path.join(TPL_DIR, "page_qr_view.html")).read()
     body = body.replace("{{titulo}}", escape_html(row["titulo"]))
     body = body.replace("{{fecha_utc}}", escape_html(row["fecha_utc"]))
     body = body.replace("{{duracion}}", str(row["duracion_min"]))
     body = body.replace("{{sala}}", escape_html(row["sala_jitsi"]))
     body = body.replace("{{link_publico}}", link_publico)
     body = body.replace("{{qr_url}}", "/admin/qr/" + str(rid) + "?format=png")
-    return render_template_string(open("/app/tpl.html").read(), t="Reunion creada", body=body)
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Reunion creada", body=body)
 
 @app.route("/reunion/<slug>")
 def reunion_publica(slug):
@@ -280,10 +283,10 @@ def reunion_publica(slug):
         r = c.execute("SELECT * FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
     if not r:
         body = "<h1>Reunion no encontrada</h1><p class=m>Verifica el link o contacta al administrador.</p>"
-        return render_template_string(open("/app/tpl.html").read(), t="No encontrada", body=body), 404
+        return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="No encontrada", body=body), 404
     is_presenter = request.args.get("presenter") == "1"
     rol = "Anfitrion / presentador" if is_presenter else "Asistente"
-    body = open("/app/page_reunion.html").read()
+    body = open(os.path.join(TPL_DIR, "page_reunion.html")).read()
     body = body.replace("{{titulo}}", escape_html(r["titulo"]))
     body = body.replace("{{rol}}", escape_html(rol))
     body = body.replace("{{fecha_utc}}", escape_html(r["fecha_utc"]))
@@ -291,7 +294,7 @@ def reunion_publica(slug):
     body = body.replace("{{sala}}", escape_html(r["sala_jitsi"]))
     body = body.replace("{{descripcion}}", escape_html(r["descripcion"] or ""))
     body = body.replace("{{slug}}", escape_html(slug))
-    return render_template_string(open("/app/tpl.html").read(), t=r["titulo"], body=body)
+    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t=r["titulo"], body=body)
 
 @app.route("/unirse", methods=["POST"])
 def unirse():
