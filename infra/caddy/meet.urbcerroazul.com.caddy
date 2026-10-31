@@ -1,0 +1,37 @@
+# =====================================================================
+# Cerro Azul Jitsi - meet.urbcerroazul.com
+# Fuente de verdad: https://github.com/Fabig76/cerro-azul-jitsi
+#   infra/caddy/meet.urbcerroazul.com.caddy
+#
+# NOTA SOBRE LAS DIRECCIONES (verificado 31-Oct-2026):
+# Caddy corre en un CONTENEDOR (hermes-caddy), asi que 127.0.0.1
+# dentro del contenedor es el propio contenedor, NO el host.
+# Se comprobó: `docker exec hermes-caddy wget http://127.0.0.1:8080/`
+# no responde. Por eso se usa el DNS de la red Docker (web:80,
+# admin:8081), igual que los bloques de monitorlegal.org y
+# minutasegura.com usan ml-web:5051 y minuta-segura-backend-1:8000.
+#
+# El contenedor hermes-caddy esta conectado a la red jitsi-meet_jitsi
+# (docker network connect jitsi-meet_jitsi hermes-caddy), por eso
+# resuelve los nombres web y admin.
+# =====================================================================
+meet.urbcerroazul.com {
+    encode gzip
+
+    # Panel admin, salud y paginas publicas de reunion.
+    # /admin* cubre /admin y /admin/... (ojo: /admin/* NO cubre /admin).
+    # /reunion/* cubre /reunion/<slug>.
+    @admin path /admin* /reunion/* /unirse /healthz
+
+    handle @admin {
+        reverse_proxy admin:8081
+    }
+
+    handle {
+        # jitsi-web enruta /xmpp-websocket y /http-bind; Caddy pasa
+        # WebSockets de forma nativa.
+        reverse_proxy web:80 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+}
