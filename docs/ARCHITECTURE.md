@@ -12,9 +12,9 @@
 Sirve los archivos estaticos de Jitsi Meet y maneja WebSocket para señalizacion cliente↔Jicofo.
 
 **Configuracion personalizada (`config.js`):**
-- `domain = 'meet.urbcerroazul.com'`
+- `domain = 'meet.bytracking.net'`
 - `bosh = '/http-bind'` (ruta relativa, Caddy proxy)
-- `websocket = 'wss://meet.urbcerroazul.com/xmpp-websocket'`
+- `websocket = 'wss://meet.bytracking.net/xmpp-websocket'`
 - `tokenAuthUrl = '/auth-token'` (para JWT del admin)
 - `prejoinConfig.enabled = false` (entrada directa a la sala)
 - Toolbar minima (sin filmstrip, sin etherpad, etc)
@@ -27,19 +27,19 @@ Sirve los archivos estaticos de Jitsi Meet y maneja WebSocket para señalizacion
 - **Imagen:** ~59 MB
 
 **Virtualhosts:**
-- `meet.urbcerroazul.com` - virtualhost principal con `authentication = "jitsi-anonymous"` (los participantes se conectan anonimos)
-- `auth.meet.urbcerroazul.com` - virtualhost interno para componentes (focus, jvb) con `authentication = "internal_hashed"`
+- `meet.bytracking.net` - virtualhost principal con `authentication = "jitsi-anonymous"` (los participantes se conectan anonimos)
+- `auth.meet.bytracking.net` - virtualhost interno para componentes (focus, jvb) con `authentication = "internal_hashed"`
 
 **Components internos:**
-- `internal-muc.meet.urbcerroazul.com` - MUC para JVB (bridge selection)
-- `muc.meet.urbcerroazul.com` - MUC de salas (donde entran los participantes)
-- `focus.meet.urbcerroazul.com` - cliente proxy para Jicofo
-- `speakerstats.meet.urbcerroazul.com` - estadisticas
-- `conferenceduration.meet.urbcerroazul.com` - duracion de reuniones
-- `endconference.meet.urbcerroazul.com` - eventos fin de reunion
-- `avmoderation.meet.urbcerroazul.com` - moderacion de audio/video
-- `lobby.meet.urbcerroazul.com` - lobby/sala de espera
-- `breakout.meet.urbcerroazul.com` - salas secundarias
+- `internal-muc.meet.bytracking.net` - MUC para JVB (bridge selection)
+- `muc.meet.bytracking.net` - MUC de salas (donde entran los participantes)
+- `focus.meet.bytracking.net` - cliente proxy para Jicofo
+- `speakerstats.meet.bytracking.net` - estadisticas
+- `conferenceduration.meet.bytracking.net` - duracion de reuniones
+- `endconference.meet.bytracking.net` - eventos fin de reunion
+- `avmoderation.meet.bytracking.net` - moderacion de audio/video
+- `lobby.meet.bytracking.net` - lobby/sala de espera
+- `breakout.meet.bytracking.net` - salas secundarias
 
 **Plugins habilitados (modules_enabled):**
 ```
@@ -68,8 +68,8 @@ TURNCREDENTIALS=*** stun, turn, turns }
 - Detecta cuando un bridge se desconecta
 
 **Configuracion:**
-- `brewery-jid = "jvbbrewery@internal-muc.meet.urbcerroazul.com"` (donde se registran los JVBs)
-- Conecta a Prosody como `focus@auth.meet.urbcerroazul.com`
+- `brewery-jid = "jvbbrewery@internal-muc.meet.bytracking.net"` (donde se registran los JVBs)
+- Conecta a Prosody como `focus@auth.meet.bytracking.net`
 
 ### 4. JVB - Video Bridge (`jitsi-jvb:stable-9111`)
 
@@ -132,11 +132,11 @@ TURNCREDENTIALS=*** stun, turn, turns }
 ### Cuando un participante entra a una reunion:
 
 ```
-1. Navegador carga https://meet.urbcerroazul.com/reunion/abc123
+1. Navegador carga https://meet.bytracking.net/reunion/abc123
    |
    v
 2. Caddy recibe request en :443
-   - Ve host: meet.urbcerroazul.com
+   - Ve host: meet.bytracking.net
    - Ruta /reunion/* → reverse_proxy admin:8081
    |
    v
@@ -148,16 +148,16 @@ TURNCREDENTIALS=*** stun, turn, turns }
 4. Usuario llena nombre y envia POST /unirse
    - Flask genera JWT unico (sub_id aleatorio)
    - Flask redirige (302) a:
-     https://meet.urbcerroazul.com/<sala>#jwt=<token>
+     https://meet.bytracking.net/<sala>#jwt=<token>
    |
    v
-5. Navegador carga https://meet.urbcerroazul.com/<sala>
+5. Navegador carga https://meet.bytracking.net/<sala>
    - Caddy ve ruta que no matchea admin → reverse_proxy web:80
    |
    v
 6. Jitsi Meet UI (Nginx) sirve index.html + JS
    - JS lee JWT del fragment (#jwt=)
-   - JS abre WebSocket a wss://meet.urbcerroazul.com/xmpp-websocket
+   - JS abre WebSocket a wss://meet.bytracking.net/xmpp-websocket
    |
    v
 7. Caddy pasa WebSocket a Jitsi web
@@ -166,7 +166,7 @@ TURNCREDENTIALS=*** stun, turn, turns }
    - Prosody verifica el JWT firmado por nuestro admin
    |
    v
-8. Cliente envia conference-request IQ a focus@auth.meet.urbcerroazul.com
+8. Cliente envia conference-request IQ a focus@auth.meet.bytracking.net
    - Pasa por Caddy → web → prosody → jicofo
    - Jicofo acepta y asigna JVB
    |
@@ -182,7 +182,7 @@ TURNCREDENTIALS=*** stun, turn, turns }
     v
 11. Cliente tambien pide credenciales TURN al Prosody
     - mod_turncredentials genera username/password basado en TURNCREDENTIALS_secret
-    - Devuelve lista de servers TURN: meet.urbcerroazul.com:3478 (STUN), :443 (TURNS)
+    - Devuelve lista de servers TURN: meet.bytracking.net:3478 (STUN), :443 (TURNS)
     - El cliente intenta TURN si UDP bloqueado
     |
     v
@@ -234,7 +234,7 @@ Caddy (en otra red `hermes-agent_hermes-net`) se conecta a `jitsi-meet_jitsi` vi
 ## SSL/TLS
 
 - **HTTPS:** Terminado en Caddy existente
-- **Let's Encrypt:** Automatico via Caddy para `meet.urbcerroazul.com`
+- **Let's Encrypt:** Automatico via Caddy para `meet.bytracking.net`
 - **Cert renewal:** Caddy lo maneja, no requiere intervencion
 - **WebSocket:** `wss://` pasa por Caddy via Upgrade header
 

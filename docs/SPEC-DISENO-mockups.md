@@ -140,14 +140,14 @@ Menú `⋯` abierto (popover con sombra 3, radio 14):
    │ │ NOV │ Asamblea ordinaria noviembre         │   │ Descripción       Opcional   │
    │ │  3  │ mar 3 nov · 7:00 p. m. · 60 min      │   │ ┌──────────────────────────┐ │
    │ └─────┘ ‹● Próxima›                          │   │ │Agenda, temario…          │ │
-   │         meet.urbcerroazul.com/reunion/ab12cd │   │ │                          │ │
+   │         meet.bytracking.net/reunion/ab12cd │   │ │                          │ │
    │                    [ Moderar ] ( Ver QR ) ⋯  │   │ └──────────────────────────┘ │
    │ ──────────────────────────────────────────── │   │ Fecha            Hora        │
    │ ┌─────┐                                      │   │ ┌───────────┐  ┌──────────┐ │
    │ │ OCT │ Reunión consejo de administración    │   │ │ 03/11/2026│  │ 07:00 p.m│ │
    │ │ 28  │ mié 28 oct · 6:30 p. m. · 90 min     │   │ └───────────┘  └──────────┘ │
    │ └─────┘ ‹Finalizada›                         │   │ Hora de Colombia             │
-   │         meet.urbcerroazul.com/reunion/x9y8z7 │   │ Duración estimada (minutos)  │
+   │         meet.bytracking.net/reunion/x9y8z7 │   │ Duración estimada (minutos)  │
    │                    [ Moderar ] ( Ver QR ) ⋯  │   │ ┌──────────────────────────┐ │
    │ ──────────────────────────────────────────── │   │ │ 60                       │ │
    │   … hasta 50 reuniones …                     │   │ └──────────────────────────┘ │
@@ -169,7 +169,7 @@ Detalle de una fila de la lista (`.list__item`):
 | content · título | "Asamblea ordinaria noviembre" | 20 px/600, una línea con "…" |
 | content · meta | "mar 3 nov · 7:00 p. m. · 60 min" | 14 px gris, cifras tabulares |
 | content · estado | `‹Próxima›` azul / `‹● En curso›` verde (punto) / `‹Finalizada›` gris | badge 12 px |
-| content · link | `meet.urbcerroazul.com/reunion/ab12cd` | mono 12 px gris, con "…" |
+| content · link | `meet.bytracking.net/reunion/ab12cd` | mono 12 px gris, con "…" |
 | trailing | `[ Moderar ]` (primario pequeño) · `( Ver QR )` (secundario) · `⋯` | 32 px en escritorio, 44 px táctil |
 
 Menú `⋯` de una reunión:
@@ -263,7 +263,7 @@ Estado vacío (sin reuniones), en la columna izquierda:
    │   ▄▄▄ ▄▄▄▄▀▄█▀▄ ▀▄▄ ▄▄▄ ▄▄    │
    │   ▀█▄▀ ▄▀ ▄██▀ ▄▀█▄ ▀▄▄▀▀█    │      Link directo
    │   ██▀▀▀▀██ ▄▀ █▄▀  ▄▀▄ █▀ ▄    │      ┌──────────────────────────────────────┐
-   │   ██ ██ ██ █▀▄▄ ▀█▄▀▄ ▄▀█▀    │      │ https://meet.urbcerroazul.com/reun…  │ mono,
+   │   ██ ██ ██ █▀▄▄ ▀█▄▀▄ ▄▀█▀    │      │ https://meet.bytracking.net/reun…  │ mono,
    │   ██▄▄▄▄██ ▄█ ▀▄ █▀ ▀▄█ ▄█    │      └──────────────────────────────────────┘ solo lectura;
    │                                │      Toca el link para seleccionarlo.          clic = seleccionar
    │  Escanéalo con la cámara       │
@@ -387,7 +387,7 @@ Igual, centrado en 440 px de ancho; la banda de degradado ocupa todo el ancho de
 └──────────────────────────────────────────────────────────────────────────────────────────┘
   ● MODERACIÓN EN VIVO                       (punto rojo con pulso suave; sin pulso si reduced-motion)
   Asamblea ordinaria noviembre                                         25 px / 700
-  Sala `asamblea-3f9c…` · meet.urbcerroazul.com                        14 px gris
+  Sala `asamblea-3f9c…` · meet.bytracking.net                        14 px gris
   ▸ ¿Cómo funciona la moderación?                                      (desplegable cerrado)
 
   ┌─────────────────────────────────────────────────────┐  ┌──────────────────────────────┐

@@ -1,12 +1,12 @@
 # Integración Jitsi ↔ votacionph.us (Fase 6)
 
-Jitsi (`meet.urbcerroazul.com`) es solo el canal de audio/video. Quién entra,
+Jitsi (`meet.bytracking.net`) es solo el canal de audio/video. Quién entra,
 con qué rol, la asistencia, los votos y el quórum los decide **votacionph.us**
 (`Fabig76/asambleas-virtuales`). Si alguien pierde el audio, sigue votando.
 
 Archivos: `integracion/` (cliente JS, ejemplo, README para el otro equipo),
 `admin-panel/README.md` (referencia del endpoint),
-`infra/caddy/meet.urbcerroazul.com.caddy` (cabeceras).
+`infra/caddy/meet.bytracking.net.caddy` (cabeceras).
 
 ## La regla de oro
 
@@ -24,14 +24,14 @@ Archivos: `integracion/` (cliente JS, ejemplo, README para el otro equipo),
  1. clic "Entrar a la asamblea"
  2. POST /api/reuniones/7/token ──▶ 3. sesión → nombre, apto, rol
     (cookie de sesión, mismo           elige key (asistente/admin)
-     origen; sin keys)              4. POST https://meet.urbcerroazul.com/api/reuniones/7/token
+     origen; sin keys)              4. POST https://meet.bytracking.net/api/reuniones/7/token
                                        Authorization: Bearer <key> ─▶ 5. compara key (compare_digest)
                                        {"nombre","apto","moderador"}     valida datos, reunión activa
                                                                        6. sign_jwt(sala, "Apto 302 - Ana",
                                                                           mod, exp_reunion, pid único)
                                     ◀─ 7. {jwt, roomName, soyModerador, exp, participantId, domain}
  ◀─ 8. {jwt, roomName, soyModerador}
- 9. crearSalaJitsi(...) → iframe https://meet.urbcerroazul.com/<sala>#jwt=… ─────────────────────▶ 10. valida firma, iss,
+ 9. crearSalaJitsi(...) → iframe https://meet.bytracking.net/<sala>#jwt=… ─────────────────────▶ 10. valida firma, iss,
                                                                                                        aud, room, nbf/exp;
                                                                                                        moderator:true → owner
 11. eventos (videoConferenceJoined, raiseHandUpdated…) → onEvento → backend votacionph (asistencia, cola)
@@ -59,7 +59,7 @@ log): `admin-panel/README.md`.
 
 Ejemplo de petición (desde un servidor):
 ```bash
-curl -s -X POST https://meet.urbcerroazul.com/api/reuniones/7/token \
+curl -s -X POST https://meet.bytracking.net/api/reuniones/7/token \
   -H "Authorization: Bearer $JITSI_API_KEY" -H 'Content-Type: application/json' \
   -d '{"nombre":"Ana Pérez","apto":"302","moderador":false}'
 ```
@@ -85,12 +85,12 @@ debe ligarse a la **persona de votacionph**, no al id de Jitsi.
 
 ## Cabeceras (iframe)
 
-- meet.urbcerroazul.com, vhost de Jitsi:
+- meet.bytracking.net, vhost de Jitsi:
   `Content-Security-Policy: frame-ancestors 'self' https://votacionph.us`.
   Rutas del panel (`/admin*`, `/reunion/*`, `/unirse`, `/healthz`,
   `/api/reuniones/*`): `frame-ancestors 'none'` + `X-Frame-Options: DENY`.
-- votacionph.us: `frame-src https://meet.urbcerroazul.com` y
-  `script-src … https://meet.urbcerroazul.com`. Su `frame-ancestors 'none'`
+- votacionph.us: `frame-src https://meet.bytracking.net` y
+  `script-src … https://meet.bytracking.net`. Su `frame-ancestors 'none'`
   **se queda**: controla quién embebe a votacionph, no lo que ella embebe.
   Detalle en `integracion/README.md`.
 
@@ -99,7 +99,7 @@ debe ligarse a la **persona de votacionph**, no al id de Jitsi.
 ### Consola del navegador (F12 en la página de votacionph)
 - Sin errores `Refused to frame` (si aparece: `frame-ancestors` → Caddy de
   meet; `frame-src` → CSP de votacionph).
-- Sin `Refused to load the script 'https://meet.urbcerroazul.com/external_api.js'`
+- Sin `Refused to load the script 'https://meet.bytracking.net/external_api.js'`
   (falta `script-src` en votacionph).
 - Network: `POST /api/reuniones/<id>/token` va a **votacionph.us** (mismo
   origen), nunca a meet; la respuesta no contiene ninguna key.
@@ -122,7 +122,7 @@ docker logs --since 10m jitsi-admin 2>&1 | grep 'api token'
 ```
 Una línea por petición: `id`, `origen`, `key=asistente|admin`,
 `pide_moderador`, resultado y `pid`. Nunca aparece el token ni la key.
-`curl -s https://meet.urbcerroazul.com/healthz` → `"jwt_config_ok": true`.
+`curl -s https://meet.bytracking.net/healthz` → `"jwt_config_ok": true`.
 
 ## Criterios de verificación de la Fase 6
 
@@ -157,15 +157,15 @@ Jitsi no envía `frame-ancestors` (cualquier sitio podría embeberlo).
 ssh chatbotph
 CF=/home/chatbotph/chatbotph/Caddyfile
 cp -p "$CF" "$CF.bak.fase6.$(date +%Y%m%d_%H%M%S)"
-# Sustituir el bloque 'meet.urbcerroazul.com { ... }' por el de
-# /opt/jitsi-meet/infra/caddy/meet.urbcerroazul.com.caddy (sin las lineas de
+# Sustituir el bloque 'meet.bytracking.net { ... }' por el de
+# /opt/jitsi-meet/infra/caddy/meet.bytracking.net.caddy (sin las lineas de
 # comentario de cabecera si se prefiere). Despues:
 docker exec hermes-caddy caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
 docker exec hermes-caddy caddy reload --adapter caddyfile --config /etc/caddy/Caddyfile
 # Comprobar:
-curl -sI https://meet.urbcerroazul.com/ | grep -i content-security-policy
-curl -sI https://meet.urbcerroazul.com/admin/login | grep -iE 'content-security-policy|x-frame-options'
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://meet.urbcerroazul.com/api/reuniones/1/token   # 401
+curl -sI https://meet.bytracking.net/ | grep -i content-security-policy
+curl -sI https://meet.bytracking.net/admin/login | grep -iE 'content-security-policy|x-frame-options'
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://meet.bytracking.net/api/reuniones/1/token   # 401
 # Rollback: cp -p "$CF.bak.fase6.<fecha>" "$CF" y el mismo validate + reload.
 ```
 

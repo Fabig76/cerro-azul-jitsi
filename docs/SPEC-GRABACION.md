@@ -4,7 +4,7 @@
 > **Fecha:** 2026-11-01 · **Alcance:** `admin-panel/app/page_sala.html`, `admin-panel/app/static/` (+ 1 línea de `app.py`), `web/config/custom-config.js` (solo si se elige la alternativa A2).
 > **Wireframes:** [`SPEC-GRABACION-mockups.md`](SPEC-GRABACION-mockups.md)
 
-Convenciones: **[V]** = verificado en este repo o en el bundle de Jitsi que sirve producción (`https://meet.urbcerroazul.com/libs/app.bundle.min.js`, stable-11031). **[P0]** = hay que confirmarlo en el *paso 0* (prueba de verificación, §8) en los PCs reales del administrador antes de escribir código. El resto es diseño.
+Convenciones: **[V]** = verificado en este repo o en el bundle de Jitsi que sirve producción (`https://meet.bytracking.net/libs/app.bundle.min.js`, stable-11031). **[P0]** = hay que confirmarlo en el *paso 0* (prueba de verificación, §8) en los PCs reales del administrador antes de escribir código. El resto es diseño.
 
 ---
 
@@ -14,7 +14,7 @@ Antes del diseño, cuatro cosas que encontré al leer el código y que contradic
 
 ### H1. El iframe de Jitsi NO es cross-origin: es del mismo origen que el panel [V]
 
-`infra/caddy/meet.urbcerroazul.com.caddy` sirve **el panel y Jitsi desde el mismo host**: `/admin*` va a `admin:8081` y todo lo demás a `web:80`, ambos bajo `https://meet.urbcerroazul.com`. `page_sala.html` crea el iframe con `CFG.domain` = ese mismo host. Por tanto, la página `/admin/reunion/<id>/sala` y el iframe `https://meet.urbcerroazul.com/<sala>` son **del mismo origen** (mismo esquema, host y puerto).
+`infra/caddy/meet.bytracking.net.caddy` sirve **el panel y Jitsi desde el mismo host**: `/admin*` va a `admin:8081` y todo lo demás a `web:80`, ambos bajo `https://meet.bytracking.net`. `page_sala.html` crea el iframe con `CFG.domain` = ese mismo host. Por tanto, la página `/admin/reunion/<id>/sala` y el iframe `https://meet.bytracking.net/<sala>` son **del mismo origen** (mismo esquema, host y puerto).
 
 Consecuencias:
 - La premisa "no se puede leer el audio del iframe por CORS" **no se cumple aquí**. En teoría, el panel podría entrar en `iframe.contentWindow` y sacar las pistas de audio de los `<audio>` de Jitsi **sin `getDisplayMedia` y sin ningún diálogo**.

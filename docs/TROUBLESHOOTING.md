@@ -6,10 +6,10 @@
 
 **Causa raíz DEFINITIVA:** En el `.env` estaba:
 ```
-JVB_BREWERY_MUC=internal-muc.meet.urbcerroazul.com   ← MAL
+JVB_BREWERY_MUC=internal-muc.meet.bytracking.net   ← MAL
 ```
 
-El template de JVB concatena `JVB_BREWERY_MUC` + `@` + `internal-muc.meet.urbcerroazul.com`. Con el valor mal, el JVB se unía a la sala equivocada y Jicofo (que espera en `jvbbrewery@internal-muc...`) nunca lo veía.
+El template de JVB concatena `JVB_BREWERY_MUC` + `@` + `internal-muc.meet.bytracking.net`. Con el valor mal, el JVB se unía a la sala equivocada y Jicofo (que espera en `jvbbrewery@internal-muc...`) nunca lo veía.
 
 **Valor correcto:**
 ```
@@ -295,7 +295,7 @@ SEVERE: [47] ParticipantInviteRunnable.doRun#219: Can not invite participant, no
 ```bash
 # 1. JVB conectado a Prosody?
 docker logs jitsi-jvb 2>&1 | grep "Joined MUC"
-# Debe decir: Joined MUC: internal-muc.meet.urbcerroazul.com
+# Debe decir: Joined MUC: internal-muc.meet.bytracking.net
 
 # 2. Health endpoint responde?
 docker exec jitsi-jvb curl -s -w "HTTP %{http_code}
@@ -519,3 +519,70 @@ if ! curl -sf https://meet.tu-dominio.com/healthz > /dev/null; then
     echo "ALERTA: Jitsi no responde" | mail -s "Jitsi down" admin@tu-dominio.com
 fi
 ```
+
+---
+
+## BUG: "Comparto pantalla pero los demás no la ven" (1-Nov-2026)
+
+**Síntoma.** Un invitado pulsa compartir pantalla, Chrome le pide qué
+compartir, acepta... y en la sala no aparece nada. Sin errores.
+
+### Lo que NO era
+
+- **No era `channelLastN = 4`.** Se sospechó primero, pero el log del JVB
+  lo descartó: la pantalla llegaba al servidor con 6 fuentes
+  `videoType="desktop"` y Prosody no registraba ningún bloqueo.
+- **No era falta de ancho de banda** ni un fallo del JVB.
+
+### La causa real
+
+Se había activado `toggleModeration(..., "desktop")` en el panel. Esa
+moderación **sí existe** en `stable-11031`:
+
+```
+desktopModerationEnabled · desktopWhitelist · desktopUnmuteApproved
+pendingDesktop · "desktop-moderation" · "raise-hand-desktop"
+```
+
+El problema: al activarla, el servidor **bloquea** el compartir de todos
+los que no estén en la lista blanca, y el panel **no tenía** ningún botón
+para añadir a alguien a esa lista. El invitado compartía, el servidor lo
+descartaba en silencio y nadie veía nada.
+
+### La solución
+
+**Moderar solo `audio` y `video`.** La pantalla queda fuera de la
+moderación y compartir funciona para todos:
+
+```js
+function activarModeracion() {
+  cmd("toggleModeration", true, "audio");
+  cmd("toggleModeration", true, "video");
+  // NO añadir "desktop" sin un botón de permiso por participante
+}
+```
+
+### Cómo verificarlo
+
+```bash
+# 1. La pantalla llega al servidor (debe aparecer desktop)
+ssh chatbotph 'docker logs jitsi-jvb --since 5m | grep -c "videoType=\"desktop\""'
+
+# 2. El panel NO activa moderación de desktop
+ssh chatbotph 'docker exec jitsi-admin grep -c "toggleModeration.*desktop" /app/page_sala.html'
+# debe dar 0
+
+# 3. La barra del sitio incluye desktop
+curl -sk https://meet.bytracking.net/config.js | grep -A12 "^config.toolbarButtons"
+```
+
+### Errores que se cometieron en el camino (para no repetirlos)
+
+1. **Creer que `config.toolbarButtons` se puede pasar por la query.** No
+   se puede: el bundle no lee esa clave de la URL (0 apariciones). Solo
+   `configOverwrite` por iframe, o el `config.js` del servidor (global).
+2. **Quitar `desktop` de la barra** para impedir compartir: rompe las
+   reuniones pequeñas donde alguien tiene que mostrar un documento.
+3. **No probar end-to-end.** Verificar que "el JVB recibe la pantalla"
+   no prueba que "el invitado la vea". Hay que abrir dos navegadores y
+   comprobarlo en la sala.

@@ -16,7 +16,7 @@ Lo que cambia respecto a la sala actual: (1) la tarjeta **Grabación** pasa a se
 └──────────────────────────────────────────────────────────────────────────────────┘
   ● MODERACIÓN EN VIVO                       ← al grabar: "● GRABANDO · MODERACIÓN EN VIVO"
   Asamblea Ordinaria 2026
-  Sala ca-3f9a… · meet.urbcerroazul.com
+  Sala ca-3f9a… · meet.bytracking.net
   ▸ ¿Cómo funciona la moderación?
 
 ┌─ .grab-zona (sticky) ─── ZONA GRABADA ─────────────┐  ┌─ .sala__lado ─────────────┐

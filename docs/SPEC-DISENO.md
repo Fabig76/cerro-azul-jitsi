@@ -16,7 +16,7 @@ lo que se esperaría de "un panel Flask con plantillas Jinja":
 |---|---|---|
 | H1 | **Las páginas no son plantillas Jinja.** `app.py` lee `page_*.html` como texto, sustituye marcadores con `str.replace` (`{{titulo}}`, `{{csrf}}`, `<!--ERR-->`, `<!--LISTA-->`, `<!--AVISO_JWT-->`) y lo inyecta en `tpl.html` con `{{ body\|safe }}`. Solo `tpl.html` pasa por Jinja (`render_template_string`, variables `t` y `body`). | En `page_*.html` **no** se puede usar `{% if %}`, `{% include %}` ni herencia. Toda lógica de layout (cabecera, ancho) vive en `tpl.html` y se controla con variables nuevas que pasa `app.py`. Los marcadores `{{x}}` y `<!--X-->` de cada página son **contrato**: no se renombran ni se borran. |
 | H2 | **Parte del HTML se genera en Python**: la lista de reuniones (`listar_reuniones`, `app.py:341-372`), el error de login (`app.py:314`), el aviso JWT (`app.py:336`), "Reunión no encontrada" (`app.py:441`) y "Reunión finalizada" (`pagina_finalizada`, `app.py:454-458`). | El rediseño **toca `app.py`**, pero solo en cadenas de HTML. Es imposible dejar la lista de reuniones bonita sin editar esas cadenas. |
-| H3 | **`/static/*` no llega al panel.** El bloque Caddy (`infra/caddy/meet.urbcerroazul.com.caddy:26`) solo envía al panel `/admin* /reunion/* /unirse /healthz /api/reuniones/*`; todo lo demás va al contenedor `web` de Jitsi, que **ya usa `/static/`** para sus propios ficheros. | El CSS no puede servirse en la ruta por defecto de Flask (`/static`). Se sirve en **`/admin/static/`** (`Flask(__name__, static_url_path="/admin/static")`). `/admin*` ya está enrutado: **no hace falta tocar Caddy**. Las páginas públicas (`/reunion/...`) también lo cargan desde `/admin/static/` (Flask no exige login para estáticos). |
+| H3 | **`/static/*` no llega al panel.** El bloque Caddy (`infra/caddy/meet.bytracking.net.caddy:26`) solo envía al panel `/admin* /reunion/* /unirse /healthz /api/reuniones/*`; todo lo demás va al contenedor `web` de Jitsi, que **ya usa `/static/`** para sus propios ficheros. | El CSS no puede servirse en la ruta por defecto de Flask (`/static`). Se sirve en **`/admin/static/`** (`Flask(__name__, static_url_path="/admin/static")`). `/admin*` ya está enrutado: **no hace falta tocar Caddy**. Las páginas públicas (`/reunion/...`) también lo cargan desde `/admin/static/` (Flask no exige login para estáticos). |
 | H4 | **El Dockerfile copia fichero a fichero** (`COPY app/tpl.html ...`), y `app.py` va dentro de la imagen. | Hay que añadir `COPY app/static /app/static`. Cualquier cambio exige `docker compose build admin` + `up -d --force-recreate admin` (no basta con copiar ficheros al VPS). |
 | H5 | **`page_sala.html` tiene un contrato JS** (sección 6.2): `#jitsi`, `#lista`, `#cnt`, `#log`, `#st-audio`, `#st-video`, `.gl button[data-cmd]`, y el JS **crea nodos con clases fijas**: `div.p`, `div.n`, `span.mano`, `p.m`, y botones con clase `ok2`, `d` o vacía. | Esas clases **no pueden desaparecer del CSS**: quedan como "clases de contrato" permanentes, estilizadas con el sistema nuevo. El texto `"[mano] "` lo escribe el JS: no se puede cambiar por un icono sin tocar JS (se estiliza como etiqueta). El color de `#st-audio`/`#st-video` según su valor (`ACTIVA`/`apagada`) tampoco: CSS no puede leer texto. |
 | H6 | **El iframe de Jitsi recibe `height: 560`** desde el JS (`new JitsiMeetExternalAPI(..., {height: 560})`), que el API aplica como estilo en línea. | Se mantiene 560 px de alto. Hacerlo fluido exigiría `!important` contra un estilo en línea del API: se descarta por frágil. |
@@ -581,7 +581,7 @@ app = Flask(__name__, static_url_path="/admin/static")   # static_folder por def
 ```
 - Dentro del contenedor `app.py` está en `/app/app.py`, así que los estáticos se buscan en `/app/static/`.
 - **Dockerfile:** añadir `COPY app/static /app/static` junto a los demás `COPY`.
-- URL pública: `https://meet.urbcerroazul.com/admin/static/theme.css`. Entra por `@admin path /admin*` de Caddy: **sin cambios en Caddy** (H3). No requiere sesión (Flask sirve estáticos sin pasar por `login_required`), así que las páginas públicas lo pueden cargar.
+- URL pública: `https://meet.bytracking.net/admin/static/theme.css`. Entra por `@admin path /admin*` de Caddy: **sin cambios en Caddy** (H3). No requiere sesión (Flask sirve estáticos sin pasar por `login_required`), así que las páginas públicas lo pueden cargar.
 - Caché: Flask ≥ 2.0 envía `ETag`/`Last-Modified` y sin `max-age` por defecto → el navegador revalida (304) en cada carga; el `?v=` garantiza que un cambio se vea al instante. No se toca `SEND_FILE_MAX_AGE_DEFAULT`.
 - Cada `render_template_string(..., t=..., body=...)` (7 llamadas: `app.py:317, 339, 434, 442, 452, 458, 513`) añade `kind=`, `width=` y `v=ASSET_V`. Para no repetir, se puede crear `def render_page(t, body, kind="public", width="narrow")` que lea `tpl.html` y llame a `render_template_string`; es un refactor puramente mecánico y se permite.
 
@@ -657,7 +657,7 @@ Contra el **contenedor local** (como `scripts/test-ci-local.sh`: `docker build` 
 1. Login (POST), crear una reunión, abrir panel, QR, pública, sala, y extraer por página: `id`s, `name`s por `form`, `action`/`method` de cada `form`, presencia de `csrf` (con y sin comillas), número de `.gl button[data-cmd]`, existencia de `#jitsi #lista #cnt #log #st-audio #st-video`.
 2. Marcadores residuales: ningún `{{` en el HTML final; ningún `<!--ERR-->`, `<!--LISTA-->`, `<!--AVISO_JWT-->`.
 3. `diff` del bloque `<script>` de `page_sala.html` contra `main` → vacío.
-4. Sin dependencias externas: en todos los HTML, ningún `src=`/`href=` a dominios distintos de `meet.urbcerroazul.com` (la única referencia externa admitida es `external_api.js` de ese dominio y los links públicos de reunión); en `theme.css` ningún `url(http`, ningún `@import`.
+4. Sin dependencias externas: en todos los HTML, ningún `src=`/`href=` a dominios distintos de `meet.bytracking.net` (la única referencia externa admitida es `external_api.js` de ese dominio y los links públicos de reunión); en `theme.css` ningún `url(http`, ningún `@import`.
 5. `GET /admin/static/theme.css` → 200 `text/css`; `theme.js` → 200 `text/javascript` o `application/javascript`.
 6. Bloques `SYNC-DARK` idénticos.
 7. Eliminar la reunión de prueba (POST con CSRF) → 302 a `/admin`.
@@ -712,7 +712,7 @@ Cada paso es un commit propio. Si un paso falla en producción, se revierte solo
 - [ ] El QR se ve sobre blanco en ambos temas y se escanea con la cámara de un iPhone y un Android.
 
 **Sin dependencias**
-- [ ] Con el servidor sin salida a Internet (o DevTools bloqueando todo menos `meet.urbcerroazul.com`), todas las páginas se ven completas. En la pestaña Red solo aparecen peticiones al propio dominio.
+- [ ] Con el servidor sin salida a Internet (o DevTools bloqueando todo menos `meet.bytracking.net`), todas las páginas se ven completas. En la pestaña Red solo aparecen peticiones al propio dominio.
 - [ ] Ninguna fuente web, imagen externa, `@import` ni CDN.
 
 **Sin cambios en el servidor**

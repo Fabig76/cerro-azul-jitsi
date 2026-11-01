@@ -114,10 +114,10 @@ Códigos de salida de `backup.sh`: `0` respaldo creado; `1` error, no se ha crea
 Lo que **no** está en el respaldo y se rehace en el servidor nuevo:
 
 - Las imágenes Docker (se descargan/construyen con `docker compose build`/`up`).
-- El certificado público de `meet.urbcerroazul.com` (lo emite Caddy solo, en el host).
+- El certificado público de `meet.bytracking.net` (lo emite Caddy solo, en el host).
   Lo que sí va (cifrado) es `web/config/keys/`, el certificado interno del contenedor `web`.
 - El bloque de Caddy vive en el Caddyfile **del host** (ver README, sección Caddy):
-  se reinstala desde `infra/caddy/meet.urbcerroazul.com.caddy` con `scripts/sync-caddy.sh`.
+  se reinstala desde `infra/caddy/meet.bytracking.net.caddy` con `scripts/sync-caddy.sh`.
 
 ## La passphrase
 
@@ -239,7 +239,7 @@ scripts/validate-env.sh .env
 ```
 
 Si la **IP pública cambió**: actualizar `JVB_ADVERTISE_IPS` (y `JVB_PUBLIC_ADDRESS` si
-se usa) en el `.env`, y el registro DNS de `meet.urbcerroazul.com` (TTL bajo antes del cambio).
+se usa) en el `.env`, y el registro DNS de `meet.bytracking.net` (TTL bajo antes del cambio).
 
 Los directorios `prosody/config`, `jicofo/config` y `jvb/config` restaurados (si el
 respaldo los traía) sirven de referencia, pero las imágenes de Jitsi **los regeneran a partir del `.env` en cada
@@ -316,7 +316,7 @@ docker compose build && docker compose up -d
 docker compose ps                        # los 5 servicios 'healthy'
 ```
 
-Caddy: reinstalar el bloque `infra/caddy/meet.urbcerroazul.com.caddy` en el Caddyfile
+Caddy: reinstalar el bloque `infra/caddy/meet.bytracking.net.caddy` en el Caddyfile
 del host (`scripts/sync-caddy.sh --apply`).
 
 ### 7. Verificar (esto es lo que da por aprobado el criterio)
@@ -328,7 +328,7 @@ docker exec jitsi-jicofo curl -s http://127.0.0.1:8888/stats \
 # -> 1
 
 # b) El panel arranca con la db restaurada
-curl -s https://meet.urbcerroazul.com/healthz        # {"service":"jitsi-admin","status":"ok"}
+curl -s https://meet.bytracking.net/healthz        # {"service":"jitsi-admin","status":"ok"}
 # entrar en /admin/login con la contraseña de siempre y ver las reuniones existentes
 
 # c) El TURN acepta la credencial del .env restaurado

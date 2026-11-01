@@ -1,7 +1,7 @@
-# Panel admin (Flask) — Cerro Azul Jitsi
+# Panel admin (Flask) — bytracking Jitsi
 
 `app/app.py`, servido por gunicorn en `admin:8081` (red Docker `jitsi`) y
-publicado por Caddy en `https://meet.urbcerroazul.com` para las rutas
+publicado por Caddy en `https://meet.bytracking.net` para las rutas
 `/admin*`, `/reunion/*`, `/unirse`, `/healthz` y `/api/reuniones/*`.
 
 Configuración: `instance/admin.env` (600, **nunca** en git; plantilla en
@@ -69,7 +69,7 @@ hay apto), igual que en `/unirse`.
 ```json
 {
   "jwt": "eyJ...",
-  "domain": "meet.urbcerroazul.com",
+  "domain": "meet.bytracking.net",
   "roomName": "asamblea-0123456789abcdef",
   "soyModerador": false,
   "exp": 1793520000,

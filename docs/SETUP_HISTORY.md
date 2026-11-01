@@ -1,5 +1,13 @@
 # Cerro Azul Jitsi - Historial Completo de Instalacion
 
+> **DOCUMENTO HISTORICO — no actualizar.**
+> Refleja la instalación tal como se hizo el 8-Sep-2026, cuando el dominio
+> era `meet.urbcerroazul.com`. El servicio se migró después a
+> **`meet.bytracking.net`** (1-Nov-2026) y el panel pasó a llamarse
+> `bytracking`. Las menciones al dominio viejo que aparecen aquí son
+> correctas en su contexto histórico. Para el estado actual, ver
+> `README.md` y `docs/ARCHITECTURE.md`.
+
 Documento que captura TODA la conversacion de instalacion del Jitsi Meet self-hosted en el VPS `chatbotph` (84.247.165.81), junto con los problemas encontrados, soluciones aplicadas y el estado final.
 
 **Fecha de la sesion:** 8 de Septiembre de 2026

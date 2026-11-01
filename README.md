@@ -1,16 +1,18 @@
-# Cerro Azul - Jitsi Meet
+# bytracking - Jitsi Meet
 
-> ## Estado (verificado 31-Oct-2026)
+> ## Estado (verificado 1-Nov-2026)
 > - ✅ `https://meet.bytracking.net/` responde 200
 > - ✅ El bloque de Caddy **persistido en el Caddyfile del host** y verificado
 >    tras un `docker restart` completo del contenedor (prueba de persistencia)
 > - ✅ `monitorlegal.org` y `minutasegura.com` siguen en 200
 > - ✅ Bridge operativo (`operational_bridge_count: 1`), JVB `/about/health` = 200
+> - ✅ Grabación local en el PC del administrador (Fase 9)
+> - ✅ Panel multi-conjunto: marca y responsable legal por variable
 >
 > **Versión:** Jitsi `stable-11031` (JVB 2.3.295)
 > **URL:** https://meet.bytracking.net
 
-Plataforma de videoconferencias self-hosted para el Conjunto Residencial Cerro Azul, corriendo en `meet.bytracking.net`.
+Plataforma de videoconferencias self-hosted para **bytracking**, corriendo en `meet.bytracking.net`. Nació para el Conjunto Residencial Cerro Azul y el panel está preparado para reutilizarse en otros conjuntos (Fase 9): la marca, el subtítulo y el responsable legal se configuran por variables de entorno.
 
 ## Stack
 
@@ -980,6 +982,33 @@ Botón **Grabar esta reunión** en la sala de moderación (`/admin/reunion/<id>/
 
 Documentos: [`docs/SPEC-GRABACION.md`](docs/SPEC-GRABACION.md) (diseño + §10 implementación), [`docs/GRABACION-ADMIN.md`](docs/GRABACION-ADMIN.md) (guía de uso y conversión, también con HandBrake), [`docs/GRABACION-PASO0.md`](docs/GRABACION-PASO0.md) (**checklist pendiente en Mac y Windows**).
 
+## Compartir pantalla: qué se puede y qué no (importante)
+
+Documentado aquí porque costó dos intentos fallidos.
+
+### Cómo funciona realmente en `stable-11031`
+
+| Intento | ¿Funciona? |
+|---|---|
+| `config.toolbarButtons` en la **query** de la URL | ❌ **No.** El bundle no lee esa clave de la URL (0 apariciones). Solo existe `config.customToolbarButtons`, que son botones EXTRA |
+| `configOverwrite` en el **iframe** (`JitsiMeetExternalAPI`) | ✅ **Sí.** Es lo que usa el panel de moderación (el admin) |
+| `config.toolbarButtons` en el **`config.js` del servidor** | ✅ **Sí**, pero es **global**: no distingue admin de residente |
+| Moderar la pantalla con `toggleModeration("audio"/"video"/"desktop")` | ⚠️ **Existe** (`desktopModerationEnabled`, `desktopWhitelist`), pero activarla bloquea el compartir de los invitados **hasta que el admin conceda permiso uno a uno**, y el panel no tiene ese control |
+
+### Estado actual (el que funciona)
+
+- La barra por defecto del sitio (`web/config/custom-config.js`) es la del **admin**, con `desktop` incluido.
+- La **moderación se activa solo para `audio` y `video`**. La pantalla queda libre.
+- Resultado: **cualquiera en la sala puede compartir pantalla** (comprobado en producción).
+
+### Reglas para no romperlo otra vez
+
+1. **No quites `desktop` de `config.toolbarButtons`** para "impedir" compartir: rompe el caso de uso de reuniones pequeñas, donde alguien tiene que mostrar un documento.
+2. **No actives `toggleModeration(..., "desktop")`** sin construir antes el permiso por participante: deja al invitado pulsando compartir sin que se vea nada.
+3. Si algún día se quiere moderar la pantalla, el orden es: (a) botón «dar permiso de pantalla» por participante con `grantModerator`, (b) **probar con dos personas reales**, (c) y solo entonces activar `desktop` en la moderación.
+
+> El detalle de lo que se probó y por qué falló está en el commit `140cd43`.
+
 ## Licencia
 
-Privado - Cerro Azul Residencial
+Privado - bytracking LLC
