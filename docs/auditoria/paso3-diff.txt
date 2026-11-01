@@ -1,0 +1,48 @@
+5c5
+<   theme.css:    35980 bytes
+---
+>   theme.css:    36793 bytes
+24c24
+<   ids:          ['contenido']
+---
+>   ids:          ['contenido', 'f-password', 'f-user', 'login-t']
+28c28
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+36c36
+<   ids:          ['contenido']
+---
+>   ids:          ['contenido', 'f-password', 'f-user', 'login-t']
+40c40
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+57c57
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+78c78
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+94c94
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+108c108
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+122c122
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+135c135
+<   scripts src:  ['/admin/static/theme.js?v=20261101b']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c']
+147c147
+<   scripts src:  ['/admin/static/theme.js?v=20261101b', 'https://meet.urbcerroazul.com/external_api.js']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101c', 'https://meet.urbcerroazul.com/external_api.js']

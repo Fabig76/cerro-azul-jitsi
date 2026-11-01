@@ -24,7 +24,8 @@ Herramientas de verificación (creadas en el paso 0):
 |---|---|---|---|---|
 | 0 | `399da6a` | Scripts de verificación y capturas; spec versionado | Línea base local y de producción, capturas "antes" | `auditoria/paso0-*.txt` |
 | 1 | `921c42b` (+`eaf8470` scripts) | `static/theme.css` + `theme.js`, `/admin/static`, `ASSET_V`, `render_page(kind,width)`, `COPY` en Dockerfile, `<link>`/`<script>` en `tpl.html` | 6.4 OK; diff = solo `<link>`/`<script>` nuevos y estáticos 404→200; capturas ≈ iguales | `auditoria/paso1-*.txt` |
-| 2 | (ver git log) | `tpl.html` nuevo (appbar + menú con tema y cerrar sesión, banda pública, pie con conmutador, skip link, `<main id=contenido>`), sin `<style>`; páginas viejas envueltas en `.c.legacy` | 6.4 OK, interacciones 33/36 (3 fallos = marcado viejo de pasos 5-6), capturas | `auditoria/paso2-*.txt` |
+| 2 | `c32bed7` | `tpl.html` nuevo (appbar + menú con tema y cerrar sesión, banda pública, pie con conmutador, skip link, `<main id=contenido>`), sin `<style>`; páginas viejas envueltas en `.c.legacy` | 6.4 OK, interacciones 33/36 (3 fallos = marcado viejo de pasos 5-6), capturas | `auditoria/paso2-*.txt` |
+| 3 | (ver git log) | `page_login.html` (tarjeta con marca, `.field` con `for`/`autocomplete`, botón con carga), error como `.alert--error role=alert`, helper `alerta()`, tildes del login | 6.4 OK (solo ids nuevos), interacciones login+tema 100 % OK, capturas | `auditoria/paso3-*.txt` |
 
 ---
 
@@ -115,3 +116,23 @@ Herramientas de verificación (creadas en el paso 0):
   falseaba la medida: se mide `offsetHeight`.
 - Nota de método: `rate_login` cuenta también los logins correctos (5 por IP / 15 min); entre tandas de
   pruebas se reinicia el contenedor local.
+
+## Paso 3 — Login
+
+**Cambios:** `page_login.html` según M1 (marca en círculo con degradado, `h1` "Cerro Azul", subtítulo, campos
+`.field` con `id`/`for`, `autocomplete="username"`/`"current-password"`, `autocapitalize="off"`,
+`spellcheck="false"`, botón `btn--primary btn--lg btn--block` con `data-loading`, nota "Acceso restringido…").
+Contrato intacto: `<!--ERR-->`, `<form method="post">` **sin `action`**, `name="user"`/`"password"`, `required`,
+`autofocus`. `app.py`: helper `alerta(tipo, titulo, texto, role)` + iconos SVG en línea; el error del login usa
+`alerta("error", err, role="alert")` (err es siempre constante del código); "contraseña" con tilde (D4);
+título de pestaña "Iniciar sesión · Cerro Azul"; `legacy=False`. CSS `/* page: login */`. `ASSET_V=…c`.
+
+**Verificación:**
+- 6.4 → **OK**; diff con el paso 2 = solo ids `f-user`, `f-password`, `login-t` en las dos vistas de login.
+  Se mantienen: login OK → 302 a `?next`, fallo → error visible, rate limit → "Demasiados intentos".
+- Interacciones (`auditoria/paso3-interacciones.txt`, todo OK): sin sesión → login con `?next=/admin/qr/1`;
+  form sin `action`; autofocus en usuario; `autocomplete` correcto; pulsar cada etiqueta enfoca su campo;
+  error = `.alert--error[role=alert]` con el texto; el `?next` sobrevive al error; el login correcto vuelve a
+  `/admin/qr/1`; al enviar el botón queda `aria-busy=true` y `disabled`.
+- Capturas `paso3` (login y login-error, claro/oscuro, 360/768/1280): coinciden con M1; la vista de 1280 en
+  la tanda de error muestra el mensaje de rate limit con el mismo aviso. Sin peticiones externas.

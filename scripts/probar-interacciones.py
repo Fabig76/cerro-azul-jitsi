@@ -148,6 +148,59 @@ def tamanos(b, base, estado):
         ctx.close()
 
 
+def etiquetas(p, nombre):
+    """Cada label[for] enfoca su campo al pulsarla; todos los campos visibles tienen label."""
+    sin = p.evaluate("""[...document.querySelectorAll('input:not([type=hidden]),textarea,select')]
+        .filter(e=>!e.labels||!e.labels.length).map(e=>e.name)""")
+    ok(not sin, "%s: todos los campos tienen <label> asociada %s" % (nombre, sin))
+    for f in p.evaluate("[...document.querySelectorAll('label[for]')].map(l=>l.htmlFor)"):
+        p.click("label[for='%s']" % f)
+        ok(p.evaluate("document.activeElement.id") == f, "%s: pulsar la etiqueta enfoca #%s" % (nombre, f))
+
+
+def login_g(b, base, estado):
+    print("[login]")
+    ctx = b.new_context(viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True)
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/admin/qr/1")
+    ok("/admin/login?next=/admin/qr/1" in p.url, "sin sesion -> login con ?next (%s)" % p.url.replace(base, ""))
+    ok(p.evaluate("document.querySelector('form').hasAttribute('action')") is False, "form de login sin action")
+    ok(p.evaluate("document.activeElement.name") == "user", "autofocus en usuario")
+    ac = p.evaluate("[...document.querySelectorAll('input')].map(i=>i.name+'='+i.autocomplete).join(' ')")
+    ok(ac == "user=username password=current-password", "autocomplete (%s)" % ac)
+    etiquetas(p, "login")
+    p.fill("[name=user]", USER)
+    p.fill("[name=password]", "mala")
+    p.click("button[type=submit]")
+    p.wait_for_load_state()
+    al = p.query_selector(".alert--error[role=alert]")
+    ok(al is not None and "contraseña incorrectos" in al.inner_text(), "error como alert--error role=alert")
+    ok("next=/admin/qr/1" in p.url, "tras el error se conserva ?next")
+    p.fill("[name=user]", USER)
+    p.fill("[name=password]", PASSWORD)
+    with p.expect_navigation():
+        p.click("button[type=submit]")
+    ok(p.url.endswith("/admin/qr/1"), "login correcto vuelve a ?next (%s)" % p.url.replace(base, ""))
+    ctx.close()
+    ctx = b.new_context()
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/admin/login")
+    # El listener de theme.js corre primero; este cancela la navegacion para poder mirar el boton.
+    p.evaluate("document.querySelector('form').addEventListener('submit', e => e.preventDefault())")
+    p.fill("[name=user]", "x")
+    p.fill("[name=password]", "x")
+    p.click("button[type=submit]")
+    p.wait_for_timeout(200)
+    st = p.evaluate("(b=>b.getAttribute('aria-busy')+'/'+b.disabled)(document.querySelector('[type=submit]'))")
+    ok(st == "true/true", "al enviar: aria-busy y disabled (%s)" % st)
+    ctx.close()
+
+
+GRUPOS_EXTRA = {"login": login_g}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://127.0.0.1:18090")

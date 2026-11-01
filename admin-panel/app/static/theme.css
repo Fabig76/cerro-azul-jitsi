@@ -872,7 +872,20 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 .disclosure__body { color: var(--text-muted); padding-bottom: var(--space-2); max-width: 48rem; }
 
 /* ---------- 6. Páginas ---------- */
-/* (se completan en los pasos 3-6) */
+
+/* page: login */
+.authcard { padding: var(--space-6); }
+@media (min-width: 480px) { .authcard { padding: var(--space-8); } }
+.authcard__head { display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: var(--space-1); margin-bottom: var(--space-6); }
+.authcard__head .brand__mark { margin-bottom: var(--space-3); }
+.authcard__title { font-size: var(--text-xl); line-height: var(--lh-xl); }
+@media (min-width: 768px) { .authcard__title { font-size: var(--text-2xl); line-height: var(--lh-2xl); } }
+.authcard__sub { color: var(--text-muted); }
+.authcard .alert { margin-bottom: var(--space-5); }
+.authcard .btn { margin-top: var(--space-1); }
+.authnote { margin-top: var(--space-6); text-align: center; font-size: var(--text-xs); line-height: var(--lh-xs);
+  color: var(--text-muted); }
 
 /* ---------- 7. Movimiento reducido e impresión ---------- */
 @media (prefers-reduced-motion: reduce) {

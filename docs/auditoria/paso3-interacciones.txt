@@ -1,0 +1,28 @@
+[login]
+  OK     sin sesion -> login con ?next (/admin/login?next=/admin/qr/1)
+  OK     form de login sin action
+  OK     autofocus en usuario
+  OK     autocomplete (user=username password=current-password)
+  OK     login: todos los campos tienen <label> asociada []
+  OK     login: pulsar la etiqueta enfoca #f-user
+  OK     login: pulsar la etiqueta enfoca #f-password
+  OK     error como alert--error role=alert
+  OK     tras el error se conserva ?next
+  OK     login correcto vuelve a ?next (/admin/qr/1)
+  OK     al enviar: aria-busy y disabled (true/true)
+[tema]
+  OK     auto + sistema claro -> fondo #F5F5F7 (rgb(245, 245, 247))
+  OK     Oscuro guarda ca-tema=dark
+  OK     data-theme=dark aplicado
+  OK     theme-color actualizado (#000000,#000000)
+  OK     tema aplicado antes del <body> (sin parpadeo)
+  OK     persiste entre paginas: fondo negro (rgb(0, 0, 0))
+  OK     segmentado marca Oscuro (aria-pressed)
+  OK     Auto borra ca-tema
+  OK     pie: Automático
+  OK     pie: -> Claro
+  OK     pie: -> Oscuro
+  OK     pie: -> Automático
+  OK     aria-label anuncia el estado (Apariencia: automático. Pulsa para cambiar)
+  OK     localStorage bloqueado: sin errores JS ([])
+=== OK ===

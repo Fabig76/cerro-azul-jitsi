@@ -90,7 +90,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261101b"
+ASSET_V = "20261101c"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -297,6 +297,23 @@ def render_page(t, body, kind="public", width="narrow", legacy=True):
     return render_template_string(tpl, t=t, body=body, kind=kind, width=width,
                                   legacy=legacy, v=ASSET_V)
 
+# Iconos SVG en linea de los avisos (sin ficheros ni fuentes de iconos).
+_SVG = '<svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true">'
+ICONO = {
+    "error": _SVG + '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+    "info": _SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+}
+
+
+def alerta(tipo, titulo_html, texto_html="", role=None):
+    """Aviso .alert--{tipo}. Los argumentos ya deben venir escapados."""
+    r = ' role="' + role + '"' if role else ""
+    cuerpo = '<p class="alert__title">' + titulo_html + "</p>"
+    if texto_html:
+        cuerpo += "<p>" + texto_html + "</p>"
+    return ('<div class="alert alert--' + tipo + '"' + r + ">" + ICONO.get(tipo, ICONO["info"])
+            + '<div class="alert__body">' + cuerpo + "</div></div>")
+
 # RUTAS
 
 @app.route("/healthz")
@@ -326,13 +343,14 @@ def login():
                 return redirect(nxt)
             else:
                 log.warning("login FAIL user=" + u + " ip=" + ip)
-                err = "Usuario o contrasena incorrectos."
+                err = "Usuario o contraseña incorrectos."
     body = open(os.path.join(TPL_DIR, "page_login.html")).read()
     if err:
-        body = body.replace("<!--ERR-->", '<div class="e">' + err + "</div>")
+        # err es siempre una constante del codigo, no entrada del usuario.
+        body = body.replace("<!--ERR-->", alerta("error", err, role="alert"))
     else:
         body = body.replace("<!--ERR-->", "")
-    return render_page("Login", body, kind="auth")
+    return render_page("Iniciar sesión", body, kind="auth", legacy=False)
 
 @app.route("/admin/logout", methods=["POST"])
 @login_required
