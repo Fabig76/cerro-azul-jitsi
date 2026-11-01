@@ -1,0 +1,68 @@
+services:
+  # =====================================================================
+  # Selenium Grid para la prueba de carga (Malleus / Fase 7.3)
+  #
+  # POR QUE ESTA CONFIGURACION:
+  #   Malleus lanza un navegador Chrome por cada "sender" o "receiver".
+  #   Con 600 clientes harian falta 600 navegadores: cientos de GB de RAM
+  #   que no hay en un VPS.
+  #
+  #   La solucion es el modo load-test de Malleus: permite meter VARIOS
+  #   receptores en el MISMO navegador (--receivers-per-tab). Asi, 600
+  #   receptores pueden vivir en ~30 navegadores.
+  #
+  #   Pero ese modo exige --use-load-test, y este usa un navegador
+  #   modificado (chrome-lite) que simula el WebRTC sin descargar video
+  #   real. Sirve para medir senalizacion y CPU del JVB/Prosody, que es
+  #   justo lo que queremos saber.
+  #
+  # NODO UNICO:
+  #   Un solo nodo con varios slots, no N nodos: el limite real es la
+  #   RAM del host, no el numero de contenedores.
+  # =====================================================================
+  selenium-hub:
+    image: selenium/hub:4.27
+    container_name: selenium-hub
+    ports:
+      - "4442:4442"   # eventos del grid
+      - "4443:4443"
+      - "4444:4444"   # el endpoint que usa Malleus (--hub-url)
+    environment:
+      - SE_SESSION_REQUEST_TIMEOUT=900
+      - SE_SESSION_RETRY_INTERVAL=5
+      - SE_NODE_SESSION_TIMEOUT=3600
+      - SE_NEW_SESSION_WAIT_TIMEOUT=900
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4444/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  selenium-node:
+    image: selenium/node-chrome:4.27
+    container_name: selenium-node
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    shm_size: 2gb          # Chrome necesita /dev/shm grande o se cae
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      # Cuantos navegadores simultaneos admite este nodo. Se sube hasta
+      # donde aguante la RAM: cada Chrome headless ~350-500 MB.
+      # Con 4 navegadores simultaneos y receivers-per-tab=15 salen 60
+      # receptores; para 600 harian falta ~40 navegadores, que este host
+      # no aguanta. Se escala subiendo este numero o anadiendo nodos.
+      - SE_NODE_MAX_SESSIONS=${NODE_MAX_SESSIONS:-4}
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+      - SE_NODE_SESSION_TIMEOUT=3600
+      - SE_VNC_NO_PASSWORD=1
+      - SE_SCREEN_WIDTH=800
+      - SE_SCREEN_HEIGHT=600
+      - SE_START_XVFB=true
+      - SE_JAVA_OPTS=-Xmx512m
+    volumes:
+      - /dev/shm:/dev/shm
+    restart: unless-stopped
