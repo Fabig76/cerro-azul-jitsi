@@ -2,8 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ t }}</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="/admin/static/theme.css?v={{ v }}">
+  <script src="/admin/static/theme.js?v={{ v }}"></script>
   <style>
     :root { --bg:#0f172a; --c:#1e293b; --b:#334155; --t:#e2e8f0;
             --m:#94a3b8; --a:#3b82f6; --h:#2563eb; --ok:#10b981; --er:#ef4444; }

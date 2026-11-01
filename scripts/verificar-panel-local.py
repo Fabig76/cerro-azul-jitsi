@@ -274,7 +274,8 @@ def comprobar_ficheros(app_dir):
     if os.path.exists(css):
         c = open(css, encoding="utf-8").read()
         print("  theme.css:    %d bytes" % len(c))
-        if re.search(r"url\(\s*['\"]?https?:", c) or "@import" in c:
+        sin_coment = re.sub(r"/\*.*?\*/", "", c, flags=re.S)
+        if re.search(r"url\(\s*['\"]?https?:", sin_coment) or "@import" in sin_coment:
             fallo("theme.css tiene url(http...) o @import")
         else:
             print("  theme.css sin url(http) ni @import: OK")

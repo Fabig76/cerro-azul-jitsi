@@ -1,0 +1,90 @@
+1c1
+< === VERIFICACION LOCAL DEL PANEL (0782429) ===
+---
+> === VERIFICACION LOCAL DEL PANEL (arbol de trabajo) ===
+5c5,9
+<   theme.css:    no existe
+---
+>   theme.css:    35533 bytes
+>   theme.css sin url(http) ni @import: OK
+>   SYNC-DARK:    2 bloques identicos (36 tokens)
+>   colores literales fuera de tokens: ninguno
+>   theme.js:     5373 bytes
+16,17c20,21
+<   /admin/static/theme.css -> 404 text/html; charset=utf-8
+<   /admin/static/theme.js  -> 404 text/html; charset=utf-8
+---
+>   /admin/static/theme.css -> 200 text/css; charset=utf-8
+>   /admin/static/theme.js  -> 200 text/javascript; charset=utf-8
+24c28
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+26c30
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+36c40
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+38c42
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+52c56
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+54c58
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+72c76
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+74c78
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+87c91
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+89c93
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+101c105
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+103c107
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+115c119
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+117c121
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+128c132
+<   scripts src:  []
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a']
+130c134
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']
+139c143
+<   scripts src:  ['https://meet.urbcerroazul.com/external_api.js']
+---
+>   scripts src:  ['/admin/static/theme.js?v=20261101a', 'https://meet.urbcerroazul.com/external_api.js']
+141c145
+<   stylesheets:  []
+---
+>   stylesheets:  ['/admin/static/theme.css']

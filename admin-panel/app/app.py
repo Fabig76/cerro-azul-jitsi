@@ -87,7 +87,11 @@ def jwt_config_problems():
                      ", PROSODY_AUTH_TYPE efectivo=" + auth_type + "): las salas estan abiertas")
     return probs
 
-app = Flask(__name__)
+# Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
+# es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
+# cualquier estatico (rompe la cache del navegador con ?v=).
+ASSET_V = "20261101a"
+app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
 
@@ -279,6 +283,17 @@ def escape_html(s):
                   .replace(">", "&gt;")
                   .replace(q, "&quot;"))
 
+def render_page(t, body, kind="public", width="narrow"):
+    """Inyecta 'body' en tpl.html.
+
+    kind:  "admin" (cabecera con menu), "public" (banda de marca + pie con
+           conmutador de tema) o "auth" (login: fondo aurora, sin cabecera).
+    width: "narrow", "content" o "wide" (ancho maximo del contenido).
+    """
+    with open(os.path.join(TPL_DIR, "tpl.html")) as f:
+        tpl = f.read()
+    return render_template_string(tpl, t=t, body=body, kind=kind, width=width, v=ASSET_V)
+
 # RUTAS
 
 @app.route("/healthz")
@@ -314,7 +329,7 @@ def login():
         body = body.replace("<!--ERR-->", '<div class="e">' + err + "</div>")
     else:
         body = body.replace("<!--ERR-->", "")
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Login", body=body)
+    return render_page("Login", body, kind="auth")
 
 @app.route("/admin/logout", methods=["POST"])
 @login_required
@@ -336,7 +351,7 @@ def panel():
         aviso = ('<div class="e"><b>Configuracion JWT incoherente</b> - Jitsi rechazara los tokens o no los exigira:<br>'
                  + "<br>".join(escape_html(x) for x in JWT_PROBLEMS) + "</div>")
     body = body.replace("<!--AVISO_JWT-->", aviso)
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Panel", body=body)
+    return render_page("Panel", body, kind="admin", width="content")
 
 def listar_reuniones(csrf):
     with db() as c:
@@ -431,7 +446,7 @@ def qr_view(rid):
     body = body.replace("{{sala}}", escape_html(row["sala_jitsi"]))
     body = body.replace("{{link_publico}}", link_publico)
     body = body.replace("{{qr_url}}", "/admin/qr/" + str(rid) + "?format=png")
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Reunion creada", body=body)
+    return render_page("Reunion creada", body, kind="admin", width="content")
 
 @app.route("/reunion/<slug>")
 def reunion_publica(slug):
@@ -439,7 +454,7 @@ def reunion_publica(slug):
         r = c.execute("SELECT * FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
     if not r:
         body = "<h1>Reunion no encontrada</h1><p class=m>Verifica el link o contacta al administrador.</p>"
-        return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="No encontrada", body=body), 404
+        return render_page("No encontrada", body), 404
     # La pagina publica SIEMPRE emite tokens de asistente (moderator: false).
     # '?presenter=1' ya no tiene efecto; el admin entra por /admin/reunion/<id>/sala.
     body = open(os.path.join(TPL_DIR, "page_reunion.html")).read()
@@ -449,13 +464,13 @@ def reunion_publica(slug):
     body = body.replace("{{duracion}}", str(r["duracion_min"]))
     body = body.replace("{{descripcion}}", escape_html(r["descripcion"] or ""))
     body = body.replace("{{slug}}", escape_html(slug))
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t=r["titulo"], body=body)
+    return render_page(r["titulo"], body)
 
 def pagina_finalizada(r):
     body = ("<h1>Reunion finalizada</h1><p class=m>El acceso a <b>" + escape_html(r["titulo"])
             + "</b> se cerro " + str(JWT_EXP_MARGIN_MIN)
             + " minutos despues del fin previsto. Contacta a la administracion.</p>")
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Reunion finalizada", body=body), 410
+    return render_page("Reunion finalizada", body), 410
 
 @app.route("/unirse", methods=["POST"])
 def unirse():
@@ -510,7 +525,7 @@ def sala_moderacion(rid):
     body = body.replace("{{domain}}", escape_html(PUB))
     body = body.replace("{{cfg_json}}", cfg_js)
     log.info("sala moderacion id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
-    return render_template_string(open(os.path.join(TPL_DIR, "tpl.html")).read(), t="Moderacion - " + r["titulo"], body=body)
+    return render_page("Moderacion - " + r["titulo"], body, kind="admin", width="wide")
 
 @app.route("/admin/reunion/<int:rid>/moderador.json")
 @login_required

@@ -1,0 +1,165 @@
+=== VERIFICACION LOCAL DEL PANEL (arbol de trabajo) ===
+
+=== FICHEROS ===
+  script sala vs 0782429: IDENTICO
+  theme.css:    35533 bytes
+  theme.css sin url(http) ni @import: OK
+  SYNC-DARK:    2 bloques identicos (36 tokens)
+  colores literales fuera de tokens: ninguno
+  theme.js:     5373 bytes
+  page_login.html    <style>=0 style=""=0
+  page_panel.html    <style>=0 style=""=1
+  page_qr_view.html  <style>=0 style=""=5
+  page_reunion.html  <style>=0 style=""=0
+  page_sala.html     <style>=1 style=""=3
+  tpl.html           <style>=1 style=""=0
+
+=== HTTP ===
+  /healthz -> 200 ['jwt_config_ok', 'service', 'status']
+  /admin sin sesion -> 302 /admin/login?next=/admin
+  /admin/static/theme.css -> 200 text/css; charset=utf-8
+  /admin/static/theme.js  -> 200 text/javascript; charset=utf-8
+
+--- login -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=(sin action) names=['password', 'user']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+--- login (error) -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=(sin action) names=['password', 'user']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+  error visible: si
+
+  login OK con ?next=/admin -> 302 /admin
+--- panel (vacio) -> HTTP 200 ---
+  ids:          []
+  forms:        2
+    form method=post action=/admin/reunion names=['csrf', 'descripcion', 'duracion', 'fecha', 'hora', 'titulo'] csrf=presente
+    form method=post action=/admin/logout names=[]
+  buttons:      2
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 1
+  marcadores:   ninguno
+  externos:     ninguno
+
+  crear sin csrf -> 403
+  crear sin titulo -> 400
+  crear futura -> 302 /admin/qr/1
+  crear pasada -> 302 /admin/qr/2
+
+--- panel (2 reuniones) -> HTTP 200 ---
+  ids:          []
+  forms:        4
+    form method=post action=/admin/reunion names=['csrf', 'descripcion', 'duracion', 'fecha', 'hora', 'titulo'] csrf=presente
+    form method=post action=/admin/reunion/<id>/eliminar names=['csrf'] csrf=presente
+    form method=post action=/admin/reunion/<id>/eliminar names=['csrf'] csrf=presente
+    form method=post action=/admin/logout names=[]
+  buttons:      4
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 3
+  marcadores:   ninguno
+  externos:     ninguno
+
+  'UTC UTC' en el panel: SI
+  <b> sin escapar en titulos: no
+  slugs en el panel: 2
+
+--- qr -> HTTP 200 ---
+  ids:          []
+  forms:        0
+  buttons:      0
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 5
+  marcadores:   ninguno
+  externos:     ninguno
+
+  qr png -> 200 image/png PNG
+
+--- reunion publica -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=/unirse names=['apto', 'nombre', 'slug']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ['<!--DESC-->']
+  externos:     ninguno
+
+  descripcion visible: no
+  <script> de la descripcion sin escapar: no
+
+--- reunion no encontrada -> HTTP 404 ---
+  ids:          []
+  forms:        0
+  buttons:      0
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+  /unirse futura -> 302 jitsi#jwt OK
+  /unirse sin nombre -> 400
+--- reunion finalizada (/unirse) -> HTTP 410 ---
+  ids:          []
+  forms:        0
+  buttons:      0
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+--- sala -> HTTP 200 ---
+  ids:          ['cnt', 'jitsi', 'lista', 'log', 'st-audio', 'st-video']
+  forms:        0
+  buttons:      6
+  scripts src:  ['/admin/static/theme.js?v=20261101a', 'https://meet.urbcerroazul.com/external_api.js']
+  scripts inl:  1
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      2   style="": 3
+  marcadores:   ninguno
+  externos:     ninguno
+  ids sala:     todos
+  .gl buttons:  6 ['dar-palabra-todos', 'mod-off', 'mod-on', 'mute-all-audio', 'mute-all-video', 'quitar-palabra-todos']
+
+  sala de reunion pasada -> 410
+  entrar -> 302 jitsi#jwt
+  moderador.json -> 200 ['domain', 'exp', 'expired', 'jwt', 'participantId', 'roomName']
+  api token sin auth -> 401
+
+  csrf del form eliminar: presente
+  eliminar con csrf malo -> 403
+  eliminar -> 302 /admin
+  reunion 2 sigue en el panel: no
+  logout -> 302 /admin/login
+  /admin tras logout -> 302
+  rate limit tras 7 intentos: mensaje visible
+
+=== RESULTADO: OK ===
