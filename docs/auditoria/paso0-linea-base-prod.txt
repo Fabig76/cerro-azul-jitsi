@@ -1,0 +1,27 @@
+=== VERIFICACION DEL PANEL ===
+
+--- login (/admin/login) -> HTTP 200 ---
+  ids:           []
+  names:         ['password', 'user', 'viewport']
+  forms:         1
+  inputs:        2
+  buttons:       1
+  csrf:          AUSENTE
+  scripts:       0
+  forms_action:  []
+
+--- healthz (/healthz) -> HTTP 200 ---
+  ids:           []
+  names:         []
+  forms:         0
+  inputs:        0
+  buttons:       0
+  csrf:          AUSENTE
+  scripts:       0
+  forms_action:  []
+
+--- API de tokens (sin auth debe dar 401) ---
+  HTTP 401
+
+--- pagina publica de reunion (residente) ---
+  login HTTP: 200
