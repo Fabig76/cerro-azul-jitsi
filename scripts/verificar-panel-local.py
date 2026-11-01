@@ -38,7 +38,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PASSWORD = "prueba-local-123"
 USER = "Hguaza76"
 API_KEY = "k" * 40
-PUB = "meet.urbcerroazul.com"
+PUB = "meet.bytracking.net"
 # Commit anterior al rediseno: referencia para el diff del <script> de la sala.
 BASE_REF_SALA = "0782429"
 

@@ -20,7 +20,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BLOCK_FILE="${REPO_ROOT}/infra/caddy/meet.urbcerroazul.com.caddy"
+BLOCK_FILE="${REPO_ROOT}/infra/caddy/meet.bytracking.net.caddy"
 
 APPLY=0
 CADDY_SSH="${CADDY_SSH:-chatbotph}"
@@ -49,7 +49,7 @@ extract_meet_block() {
     # Captura el bloque de configuracion Y el bloque de comentarios que lo
     # precede (lineas contiguas con '#' justo antes de la llave de apertura).
     awk '
-        /^meet\.urbcerroazul\.com \{/ {
+        /^meet\.bytracking\.net \{/ {
             # Retroceder: tomar los comentarios inmediatamente anteriores.
             # awk no puede retroceder, asi que se acumula en "pending".
             for (i = 1; i <= npending; i++) print pending[i]
@@ -64,7 +64,7 @@ extract_meet_block() {
 REMOTE_BLOCK="$(ssh "$CADDY_SSH" "cat '${CADDY_HOST_PATH}'" | extract_meet_block)"
 
 if [ -z "$REMOTE_BLOCK" ]; then
-    echo "El host NO tiene el bloque meet.urbcerroazul.com."
+    echo "El host NO tiene el bloque meet.bytracking.net."
     if [ "$APPLY" -eq 1 ]; then
         echo "->Agregando al final del Caddyfile del host..."
         ssh "$CADDY_SSH" "cat >> '${CADDY_HOST_PATH}'" < "$BLOCK_FILE"
@@ -103,7 +103,7 @@ ssh "$CADDY_SSH" "
 
     # Quitar el bloque meet anterior (si existe) y anexar el del repo.
     awk '
-        /^meet\.urbcerroazul\.com \{/ { skip=1 }
+        /^meet\.bytracking\.net \{/ { skip=1 }
         !skip { print }
         skip && /^\}/ { skip=0 }
     ' '${CADDY_HOST_PATH}' > /tmp/Caddyfile.new
@@ -128,8 +128,8 @@ echo "->Recarga hecha."
 # ── 6. Verificar ───────────────────────────────────────────────────────
 echo "->Verificando..."
 sleep 2
-for url in "https://meet.urbcerroazul.com/" \
-           "https://meet.urbcerroazul.com/healthz" \
+for url in "https://meet.bytracking.net/" \
+           "https://meet.bytracking.net/healthz" \
            "https://monitorlegal.org/" \
            "https://minutasegura.com/"; do
     code="$(curl -sk --max-time 15 -o /dev/null -w '%{http_code}' "$url")"

@@ -368,7 +368,7 @@ def qr_g(b, base, estado):
     ok(cols == 2, "768px: QR en dos columnas")
     p.click("#f-link")
     sel = p.evaluate("(e => e.value.substring(e.selectionStart, e.selectionEnd))(document.querySelector('#f-link'))")
-    ok(sel.startswith("https://meet.urbcerroazul.com/reunion/"), "clic en el link lo selecciona")
+    ok(sel.startswith("https://meet.bytracking.net/reunion/"), "clic en el link lo selecciona")
     ok("UTC" not in p.inner_text("main"), "sin 'UTC' en la vista QR")
     ok(p.is_visible("button[data-copy]"), "boton Copiar visible (con JS)")
     ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)

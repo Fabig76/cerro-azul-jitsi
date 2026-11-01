@@ -177,12 +177,12 @@ jobs:
           docker run --rm \
             -v "$PWD/infra/caddy:/conf:ro" \
             caddy:2-alpine \
-            caddy validate --adapter caddyfile --config /conf/meet.urbcerroazul.com.caddy
+            caddy validate --adapter caddyfile --config /conf/meet.bytracking.net.caddy
       - name: Comprobar que el bloque no usa 127.0.0.1 (Caddy corre en contenedor)
         run: |
           # Caddy corre en un contenedor: 127.0.0.1 seria el propio
           # contenedor, no el host. Debe usar el DNS de la red Docker.
-          if grep -nE 'reverse_proxy[[:space:]]+127\.0\.0\.1' infra/caddy/meet.urbcerroazul.com.caddy; then
+          if grep -nE 'reverse_proxy[[:space:]]+127\.0\.0\.1' infra/caddy/meet.bytracking.net.caddy; then
             echo "::error::el bloque usa 127.0.0.1; Caddy corre en un contenedor"
             exit 1
           fi

@@ -27,7 +27,7 @@ comprobar() {
     done
     echo "jitsi-admin: $st"
     for u in /admin/login /healthz /admin/static/theme.css /admin/static/theme.js; do
-        printf '%-28s %s\n' "$u" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "https://meet.urbcerroazul.com$u")"
+        printf '%-28s %s\n' "$u" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "https://meet.bytracking.net$u")"
     done
 }
 

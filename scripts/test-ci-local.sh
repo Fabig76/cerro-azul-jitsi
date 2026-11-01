@@ -90,11 +90,11 @@ fi
 
 step "7. caddy validate del bloque"
 docker run --rm -v "$WORK/repo/infra/caddy:/conf:ro" caddy:2-alpine \
-    caddy validate --adapter caddyfile --config /conf/meet.urbcerroazul.com.caddy 2>&1 | tail -3
+    caddy validate --adapter caddyfile --config /conf/meet.bytracking.net.caddy 2>&1 | tail -3
 if [ ${PIPESTATUS[0]} -ne 0 ]; then echo "FALLO caddy validate"; FAIL=1; fi
 
 step "8. el bloque no usa 127.0.0.1"
-if grep -nE 'reverse_proxy[[:space:]]+127\.0\.0\.1' infra/caddy/meet.urbcerroazul.com.caddy; then
+if grep -nE 'reverse_proxy[[:space:]]+127\.0\.0\.1' infra/caddy/meet.bytracking.net.caddy; then
     echo "FALLO: usa 127.0.0.1"; FAIL=1
 else
     echo "OK: usa DNS de red"

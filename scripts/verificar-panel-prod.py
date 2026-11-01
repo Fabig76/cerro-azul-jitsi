@@ -26,7 +26,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 HOST = os.environ.get("DEPLOY_HOST", "chatbotph")
-BASE = "https://meet.urbcerroazul.com"
+BASE = "https://meet.bytracking.net"
 AQUI = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("vpl", os.path.join(AQUI, "verificar-panel-local.py"))
 vpl = importlib.util.module_from_spec(spec)

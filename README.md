@@ -1,16 +1,16 @@
 # Cerro Azul - Jitsi Meet
 
 > ## Estado (verificado 31-Oct-2026)
-> - ✅ `https://meet.urbcerroazul.com/` responde 200
+> - ✅ `https://meet.bytracking.net/` responde 200
 > - ✅ El bloque de Caddy **persistido en el Caddyfile del host** y verificado
 >    tras un `docker restart` completo del contenedor (prueba de persistencia)
 > - ✅ `monitorlegal.org` y `minutasegura.com` siguen en 200
 > - ✅ Bridge operativo (`operational_bridge_count: 1`), JVB `/about/health` = 200
 >
 > **Versión:** Jitsi `stable-11031` (JVB 2.3.295)
-> **URL:** https://meet.urbcerroazul.com
+> **URL:** https://meet.bytracking.net
 
-Plataforma de videoconferencias self-hosted para el Conjunto Residencial Cerro Azul, corriendo en `meet.urbcerroazul.com`.
+Plataforma de videoconferencias self-hosted para el Conjunto Residencial Cerro Azul, corriendo en `meet.bytracking.net`.
 
 ## Stack
 
@@ -24,7 +24,7 @@ Plataforma de videoconferencias self-hosted para el Conjunto Residencial Cerro A
 Internet
     |
     v
-[Caddy :443] ── meet.urbcerroazul.com
+[Caddy :443] ── meet.bytracking.net
     |
     +── /admin/*        ──> [jitsi-admin:8081]   (Flask/Gunicorn)
     +── /reunion/*      ──> [jitsi-admin:8081]   (Flask/Gunicorn)
@@ -85,7 +85,7 @@ sudo ufw allow 10000/udp comment 'Jitsi JVB media'
 sudo ufw allow 4443/tcp comment 'Jitsi JVB fallback'
 
 # 6. Configurar el virtualhost en Caddy (reverse proxy existente)
-#    El repo es la fuente de verdad: infra/caddy/meet.urbcerroazul.com.caddy
+#    El repo es la fuente de verdad: infra/caddy/meet.bytracking.net.caddy
 #    Sincronizar (verifica, y con --apply actualiza + valida + recarga):
 ./scripts/sync-caddy.sh
 ./scripts/sync-caddy.sh --apply
@@ -116,7 +116,7 @@ Procedimiento (sin downtime, los otros sitios no se tocan):
 cp -p /home/chatbotph/chatbotph/Caddyfile \
       /home/chatbotph/chatbotph/Caddyfile.bak.$(date +%Y%m%d_%H%M%S)
 
-# 2. Agregar el bloque (ver infra/caddy/meet.urbcerroazul.com.caddy)
+# 2. Agregar el bloque (ver infra/caddy/meet.bytracking.net.caddy)
 
 # 3. VALIDAR antes de aplicar
 docker exec -i hermes-caddy caddy validate \
@@ -151,7 +151,7 @@ docker network connect jitsi-meet_jitsi hermes-caddy
 ```bash
 docker restart hermes-caddy
 sleep 5
-curl -sI https://meet.urbcerroazul.com/     # debe seguir en 200
+curl -sI https://meet.bytracking.net/     # debe seguir en 200
 ```
 
 ### Verificar
@@ -215,7 +215,7 @@ docker compose ps
 │   └── config/                     # generado por la imagen, NO versionar
 ├── web/config/custom-*.js        # Fase 3: config de sala grande (SI versionado)
 ├── web/config/ (resto), jicofo/config/, jvb/config/   # generados, NO versionar
-└── infra/caddy/meet.urbcerroazul.com.caddy    # bloque Caddy (fuente de verdad)
+└── infra/caddy/meet.bytracking.net.caddy    # bloque Caddy (fuente de verdad)
 ```
 
 ### Por qué existe `prosody/Dockerfile.prosody`
@@ -256,7 +256,7 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 ├── .gitignore                      # Ignora .env, __pycache__, etc
 ├── infra/
 │   └── caddy/
-│       └── meet.urbcerroazul.com.caddy  # Bloque Caddy (fuente de verdad)
+│       └── meet.bytracking.net.caddy  # Bloque Caddy (fuente de verdad)
 ├── scripts/
 │   ├── setup-vps.sh                # Despliegue inicial en VPS limpio
 │   ├── sync-caddy.sh               # Verifica/sincroniza el bloque Caddy con el host
@@ -357,7 +357,7 @@ sqlite3 /opt/jitsi-meet/admin-panel/instance/reuniones.db "SELECT id, slug, titu
 ## Fase 2 — JWT y moderación A/V
 
 > **ATENCIÓN:** con `ENABLE_AUTH=1` + `JWT_ALLOW_EMPTY=0` **sin token no entra
-> nadie**: ni por `https://meet.urbcerroazul.com/<sala>` directo, ni con token
+> nadie**: ni por `https://meet.bytracking.net/<sala>` directo, ni con token
 > vencido, ni con token de otra sala. Todo acceso pasa por el panel.
 
 ### Roles
@@ -437,7 +437,7 @@ La moderación la ejecuta el **navegador del moderador** con el iframe API
 Snippet para el cliente:
 
 ```html
-<script src="https://meet.urbcerroazul.com/external_api.js"></script>
+<script src="https://meet.bytracking.net/external_api.js"></script>
 <script type="module">
 const cfg = await (await fetch('/admin/reunion/ID/moderador.json',
                                { credentials: 'same-origin' })).json();
@@ -670,7 +670,7 @@ confundir a los asistentes.
 // moderacion A/V del admin.
 const botonesAsistente = ['microphone', 'raisehand', 'chat', 'settings', 'hangup'];
 
-const api = new JitsiMeetExternalAPI('meet.urbcerroazul.com', {
+const api = new JitsiMeetExternalAPI('meet.bytracking.net', {
   roomName: sala,
   jwt: tokenAsistente,           // moderator: false
   parentNode: document.getElementById('jitsi'),
@@ -696,11 +696,11 @@ const api = new JitsiMeetExternalAPI('meet.urbcerroazul.com', {
 ```bash
 ./scripts/validate-env.sh /opt/jitsi-meet/.env
 docker compose up -d --force-recreate web
-curl -s https://meet.urbcerroazul.com/config.js | grep -E 'p2p|channelLastN'
+curl -s https://meet.bytracking.net/config.js | grep -E 'p2p|channelLastN'
 # Debe mostrar, al final del fichero:
 #   config.p2p.enabled = false;
 #   config.channelLastN = 4;
-curl -s https://meet.urbcerroazul.com/interface_config.js | grep DISABLE_VIDEO_BACKGROUND
+curl -s https://meet.bytracking.net/interface_config.js | grep DISABLE_VIDEO_BACKGROUND
 ```
 
 ### Volver atrás

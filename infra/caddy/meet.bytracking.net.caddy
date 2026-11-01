@@ -1,7 +1,7 @@
 # =====================================================================
-# Cerro Azul Jitsi - meet.urbcerroazul.com
+# Cerro Azul Jitsi - meet.bytracking.net
 # Fuente de verdad: https://github.com/Fabig76/cerro-azul-jitsi
-#   infra/caddy/meet.urbcerroazul.com.caddy
+#   infra/caddy/meet.bytracking.net.caddy
 #
 # NOTA SOBRE LAS DIRECCIONES (verificado 31-Oct-2026):
 # Caddy corre en un CONTENEDOR (hermes-caddy), asi que 127.0.0.1
@@ -15,7 +15,7 @@
 # (docker network connect jitsi-meet_jitsi hermes-caddy), por eso
 # resuelve los nombres web y admin.
 # =====================================================================
-meet.urbcerroazul.com {
+meet.bytracking.net {
     encode gzip
 
     # Panel admin, salud y paginas publicas de reunion.
