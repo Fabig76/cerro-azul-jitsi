@@ -26,7 +26,8 @@ Herramientas de verificación (creadas en el paso 0):
 | 1 | `921c42b` (+`eaf8470` scripts) | `static/theme.css` + `theme.js`, `/admin/static`, `ASSET_V`, `render_page(kind,width)`, `COPY` en Dockerfile, `<link>`/`<script>` en `tpl.html` | 6.4 OK; diff = solo `<link>`/`<script>` nuevos y estáticos 404→200; capturas ≈ iguales | `auditoria/paso1-*.txt` |
 | 2 | `c32bed7` | `tpl.html` nuevo (appbar + menú con tema y cerrar sesión, banda pública, pie con conmutador, skip link, `<main id=contenido>`), sin `<style>`; páginas viejas envueltas en `.c.legacy` | 6.4 OK, interacciones 33/36 (3 fallos = marcado viejo de pasos 5-6), capturas | `auditoria/paso2-*.txt` |
 | 3 | `aacd4e3` | `page_login.html` (tarjeta con marca, `.field` con `for`/`autocomplete`, botón con carga), error como `.alert--error role=alert`, helper `alerta()`, tildes del login | 6.4 OK (solo ids nuevos), interacciones login+tema 100 % OK, capturas | `auditoria/paso3-*.txt` |
-| 4 | (ver git log) | `page_reunion.html` (M4), 404 y 410 como `.empty` en tarjeta, D1 (`fecha_txt`: hora de Colombia), `{{rol}}`="asistente" | 6.4 OK, interacciones residente 100 % OK (1 solo `/unirse` con triple toque), capturas | `auditoria/paso4-*.txt` |
+| 4 | `66a8ef1` | `page_reunion.html` (M4), 404 y 410 como `.empty` en tarjeta, D1 (`fecha_txt`: hora de Colombia), `{{rol}}`="asistente" | 6.4 OK, interacciones residente 100 % OK (1 solo `/unirse` con triple toque), capturas | `auditoria/paso4-*.txt` |
+| 4b | (ver git log) | D2: `<!--DESC-->` se sustituye por la descripción escapada (antes se reemplazaba un `{{descripcion}}` inexistente) | 6.4 OK: `<!--DESC-->` desaparece, descripción visible, `<script>` de la descripción sigue escapado | `auditoria/paso4b-verificacion.txt` |
 
 ---
 
@@ -165,3 +166,15 @@ título de pestaña "Iniciar sesión · Cerro Azul"; `legacy=False`. CSS `/* pag
   A 360 px la pública cumple texto ≥ 12, campos ≥ 16, controles ≥ 44. Fallos restantes = los 3 conocidos de
   páginas aún no migradas.
 - Capturas `paso4` (pública, 404, 410 × claro/oscuro × 3 anchos): coinciden con M4.
+
+## Paso 4b — D2: descripción visible al residente (commit aparte)
+
+**Cambio:** `reunion_publica()` reemplaza `<!--DESC-->` por `<p class="reunion__desc">` + `escape_html(descripción)`
+(o nada si está vacía). Se elimina el `replace("{{descripcion}}", …)` que no hacía nada. `white-space: pre-line`
+respeta los saltos de línea que escriba el administrador. El verificador deja de tratar `<!--DESC-->` como
+excepción: ahora cualquier marcador sin sustituir es fallo.
+
+**Verificación:** diff 6.4 contra el paso 4 = exactamente dos líneas: `marcadores: ['<!--DESC-->'] → ninguno`
+y `descripcion visible: no → si`. La reunión de prueba lleva `<script>x</script>` en la descripción:
+`"<script> de la descripcion sin escapar: no"` (se muestra como texto). Captura `paso4b/publica-dark-360.png`:
+la descripción aparece entre los chips y el aviso, como en M4.

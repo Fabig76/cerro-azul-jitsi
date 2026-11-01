@@ -215,8 +215,6 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
     llaves = re.findall(r"\{\{[^}]*\}\}", txt)
     print("  marcadores:   %s" % (resto + llaves if (resto or llaves) else "ninguno"))
     for m in resto + llaves:
-        if m == "<!--DESC-->":
-            continue  # bug H8 conocido hasta D2
         fallo("%s: marcador sin sustituir %s" % (nombre, m))
     # Referencias externas: src/href absolutos a otros dominios
     externos = set()

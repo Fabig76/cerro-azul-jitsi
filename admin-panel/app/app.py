@@ -537,7 +537,11 @@ def reunion_publica(slug):
     body = body.replace("{{rol}}", "asistente")
     body = body.replace("{{fecha_utc}}", escape_html(fecha_txt(r["fecha_utc"])))
     body = body.replace("{{duracion}}", str(r["duracion_min"]))
-    body = body.replace("{{descripcion}}", escape_html(r["descripcion"] or ""))
+    # D2: el marcador real de la plantilla es <!--DESC--> (antes se reemplazaba
+    # '{{descripcion}}', que no existe, y la descripcion nunca se mostraba).
+    desc = (r["descripcion"] or "").strip()
+    body = body.replace("<!--DESC-->",
+                        '<p class="reunion__desc">' + escape_html(desc) + "</p>" if desc else "")
     body = body.replace("{{slug}}", escape_html(slug))
     return render_page(r["titulo"], body, legacy=False)
 
