@@ -159,18 +159,31 @@ config.analytics = { disabled: true, rtcstatsEnabled: false };
 // interfaceConfig.TOOLBAR_BUTTONS esta obsoleto y el bundle solo lo usa
 // si config.toolbarButtons NO es un array. Por eso va aqui y no en
 // custom-interface_config.js.
-// Valor por defecto del sitio = barra del ADMIN (ya recortada respecto a
-// la de Jitsi). El panel admin la fija igual por configOverwrite y el
-// proyecto de asistentes la reduce a la suya (ver README, Fase 3). La
-// barra es solo UI: el control real de quien habla es la moderacion A/V.
+//
+// OJO (corregido 1-Nov-2026): esta version de Jitsi NO lee
+// `config.toolbarButtons` de la query. El panel lo mandaba en la URL del
+// residente y se ignoraba en silencio: el asistente acababa con la barra
+// de aqui abajo, que incluia 'desktop', y por tanto podia compartir
+// pantalla. Lo verificado en el bundle:
+//   - config.toolbarButtons   -> 0 apariciones (no se lee de la query)
+//   - config.customToolbarButtons -> existe, pero son botones EXTRA
+// Por eso la barra por defecto del sitio tiene que ser SEGURA para quien
+// entra por URL directa (el residente): sin 'desktop'.
+//
+// 'camera' se mantiene a proposito: en reuniones pequenas hace falta que
+// un participante pueda encender camara.
+//
+// El administrador entra EMBEBIDO desde el panel y alli si funciona
+// configOverwrite, asi que recupera 'desktop' y 'participants-pane' con
+// su propia barra (TOOLBAR_ADMIN en app.py).
+//
+// La barra es solo UI: quien puede hablar y transmitir de verdad lo
+// decide la moderacion A/V del servidor.
 config.toolbarButtons = [
     'microphone',
     'camera',
-    'desktop',
-    'participants-pane',
     'raisehand',
     'chat',
-    'tileview',
     'settings',
     'hangup'
 ];
