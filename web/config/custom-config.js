@@ -76,11 +76,12 @@ config.prejoinConfig.enabled = false;
 // 2 (camara + pantalla); 4 deja margen sin que 500 clientes descarguen
 // mosaicos enteros.
 config.channelLastN = 4;
-// Videos en resolucion completa a la vez. Antes era 1: con una camara y
-// una pantalla compartida, la pantalla se quedaba sin el hueco "full" y
-// se enviaba degradada. Ahora 2 cubre el caso normal (ponente + su
-// pantalla) sin que 500 clientes descarguen mosaicos enteros.
-config.maxFullResolutionParticipants = 2;
+// Solo 1 video en resolucion completa (el que esta en el escenario).
+// Se probo con 2 para que la pantalla siempre tuviera hueco "full", pero
+// con 500 clientes el JVB no puede sostener dos pistas grandes y algunos
+// receptores se quedaban con la pantalla en negro. Se vuelve al valor de
+// la Fase 3, que funcionaba.
+config.maxFullResolutionParticipants = 1;
 // Captura a 360p: suficiente para la camara del ponente, y lo que de
 // verdad se lee (los documentos) va por la pantalla compartida.
 config.resolution = 360;
@@ -90,21 +91,26 @@ config.constraints = {
     }
 };
 // --- Pantalla compartida -------------------------------------------------
-// PROBLEMA que habia aqui (corregido 1-Nov-2026): `config.resolution` y
-// `config.constraints` se aplicaban TAMBIEN a la pantalla compartida, asi
-// que al compartir se enviaba a 360p comprimido y se veia ilegible (el
-// texto de un documento, imposible de leer).
+// HISTORIA de esta clave (para no repetir errores):
 //
-// Verificado en lib-jitsi-meet: la resolucion de la pantalla sale de
-// `desktopSharingResolution`, NO de `resolution`. Si no se define, hereda
-// las constraints generales de video y acaba en 360p.
+// 1) Original (Fase 3): no existia. La pantalla heredaba las constraints
+//    generales de video (config.resolution = 360) y se veia ILEGIBLE:
+//    el texto de un documento a 360p no se puede leer.
 //
-// Se sube la pantalla a 1080p conservando los fps bajos: para un
-// documento lo que importa es la NITIDEZ (resolucion), no la fluidez.
-// A 5-15 fps el aumento de resolucion apenas encarece el ancho de banda.
+// 2) Primer intento de arreglo: 1920x1080. El texto se leia, pero con
+//    500 receptores y lastN=4 el JVB no puede servir 1080p a todos: la
+//    pantalla se quedaba OSCURA / en negro para quien no pillaba el
+//    hueco de resolucion completa. Demasiado para el servidor.
+//
+// 3) Valor actual: 800x600. Compromiso: se lee el texto de un documento
+//    normal (y el zoom del navegador ayuda) sin que el JVB tenga que
+//    repartir Full HD entre cientos de clientes.
+//
+// Si algun dia hace falta mas nitidez, subir de dos en dos (1024x768,
+// 1280x720) y PROBAR con los receptores reales antes de dejarlo.
 config.desktopSharingResolution = {
-    width: { ideal: 1920, max: 1920 },
-    height: { ideal: 1080, max: 1080 }
+    width: { ideal: 800, max: 800 },
+    height: { ideal: 600, max: 600 }
 };
 config.desktopSharingFrameRate = { min: 5, max: 15 };
 
