@@ -1,0 +1,454 @@
+ admin-panel/app/app.py            | 110 ++++++++++++++++++++-------
+ admin-panel/app/page_panel.html   |  79 +++++++++++++------
+ admin-panel/app/page_qr_view.html |  75 ++++++++++++------
+ admin-panel/app/static/theme.css  |  57 ++++++++++++++
+ admin-panel/app/static/theme.js   |  28 ++++++-
+ scripts/probar-interacciones.py   | 156 +++++++++++++++++++++++++++++++++++++-
+ 6 files changed, 429 insertions(+), 76 deletions(-)
+diff --git a/admin-panel/app/app.py b/admin-panel/app/app.py
+index e83aba4..ec5e9a8 100644
+--- a/admin-panel/app/app.py
++++ b/admin-panel/app/app.py
+@@ -90,7 +90,7 @@ def jwt_config_problems():
+ # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
+ # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
+ # cualquier estatico (rompe la cache del navegador con ?v=).
+-ASSET_V = "20261101d"
++ASSET_V = "20261101k"
+ app = Flask(__name__, static_url_path="/admin/static")
+ app.secret_key = A.get("FLASK_SECRET_KEY") or SK
+ app.permanent_session_lifetime = timedelta(hours=4)
+@@ -218,7 +218,9 @@ def fecha_col(fecha_utc):
+ def hora_12(d):
+     """7:00 p. m. (uso colombiano)."""
+     h = d.hour % 12 or 12
+-    return f"{h}:{d.minute:02d} " + ("a. m." if d.hour < 12 else "p. m.")
++    # Espacios de no separacion: "p. m." nunca se parte en dos lineas.
++    nb = chr(160)
++    return f"{h}:{d.minute:02d}" + nb + ("a." if d.hour < 12 else "p.") + nb + "m."
+ 
+ 
+ def fecha_txt(fecha_utc, anio=False):
+@@ -420,42 +422,96 @@ def panel():
+     body = body.replace("<!--LISTA-->", listar_reuniones(csrf))
+     aviso = ""
+     if JWT_PROBLEMS:
+-        aviso = ('<div class="e"><b>Configuracion JWT incoherente</b> - Jitsi rechazara los tokens o no los exigira:<br>'
+-                 + "<br>".join(escape_html(x) for x in JWT_PROBLEMS) + "</div>")
++        aviso = alerta("error", "Configuración JWT incoherente",
++                       "Jitsi rechazará los tokens o no los exigirá:<br>"
++                       + "<br>".join(escape_html(x) for x in JWT_PROBLEMS))
+     body = body.replace("<!--AVISO_JWT-->", aviso)
+-    return render_page("Panel", body, kind="admin", width="content")
++    return render_page("Reuniones", body, kind="admin", width="content", legacy=False)
++
++def estado_reunion(r, ahora=None):
++    """D3: (texto, variante de badge) con los datos que ya existen.
++
++    Proxima antes del inicio; En curso desde el inicio hasta que se cierra
++    el acceso (fin previsto + JWT_EXP_MARGIN_MIN, igual que /unirse);
++    Finalizada despues."""
++    ahora = ahora or datetime.now(TZ_UTC)
++    ini = fin_reunion(r) - timedelta(minutes=int(r["duracion_min"] or 60))
++    if ahora < ini:
++        return "Próxima", "info"
++    if ahora <= exp_reunion(r):
++        return "En curso", "success"
++    return "Finalizada", "neutral"
++
++
++_ICONO_EXT = ('<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">'
++              '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>')
++_ICONO_MAS = ('<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">'
++              '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>')
++
+ 
+ def listar_reuniones(csrf):
+     with db() as c:
+         rows = c.execute("SELECT * FROM reuniones WHERE activo=1 ORDER BY fecha_utc DESC LIMIT 50").fetchall()
+     if not rows:
+-        return "<h2>Reuniones</h2><p class=m>No hay reuniones creadas.</p>"
+-    out = ["<h2>Reuniones programadas</h2>"]
++        return ('<div class="list list--empty">'
++                + vacio("calendario", "Aún no hay reuniones", "Crea la primera con el formulario.")
++                + "</div>")
++    ahora = datetime.now(TZ_UTC)
++    out = ['<ul class="list" role="list">']
+     for r in rows:
++        rid = str(r["id"])
+         slug = r["slug"]
+-        sala = r["sala_jitsi"]
++        titulo = escape_html(r["titulo"])
+         link_publico = "https://" + PUB + "/reunion/" + slug
+-        link_qr = "/admin/qr/" + str(r["id"])
++        link_qr = "/admin/qr/" + rid
+         # Fase 2: el token de moderador SOLO sale de rutas con login.
+         # (Antes era '?presenter=1' en la pagina publica: cualquiera que
+         # editara la URL entraba como moderador.)
+-        link_sala = "/admin/reunion/" + str(r["id"]) + "/sala"
+-        link_entrar = "/admin/reunion/" + str(r["id"]) + "/entrar"
+-        out.append('<div class="r">')
+-        out.append("  <h3>" + escape_html(r["titulo"]) + "</h3>")
+-        out.append("  <div class=mt><b>" + escape_html(r["fecha_utc"]) + " UTC</b> - duracion " + str(r["duracion_min"]) + " min - sala <code>" + escape_html(sala) + "</code></div>")
+-        out.append("  <small>Link publico: <code>" + link_publico + "</code></small>")
+-        out.append('  <div class="ac">')
+-        out.append('    <a href="' + link_qr + '" target=_blank>Ver QR</a>')
+-        out.append('    <a href="' + link_publico + '" target=_blank>Pagina publica</a>')
+-        out.append('    <a href="' + link_sala + '" target=_blank>Sala de moderacion</a>')
+-        out.append('    <a href="' + link_entrar + '" target=_blank>Entrar como administrador</a>')
+-        out.append('    <form method="post" action="/admin/reunion/' + str(r['id']) + '/eliminar" style="display:inline">')
+-        out.append("      <input type=hidden name=csrf value=" + csrf + ">")
+-        out.append('      <button class="d" onclick="return confirm(\'Eliminar esta reunion?\')">Eliminar</button>')
+-        out.append("    </form>")
++        link_sala = "/admin/reunion/" + rid + "/sala"
++        link_entrar = "/admin/reunion/" + rid + "/entrar"
++        estado, variante = estado_reunion(r, ahora)
++        d = fecha_col(r["fecha_utc"])
++        if d is not None:
++            tile = ('<div class="datetile' + (" datetile--past" if variante == "neutral" else "")
++                    + '" aria-hidden="true"><span class="datetile__month">' + MESES[d.month - 1]
++                    + '</span><span class="datetile__day">' + str(d.day) + "</span></div>")
++        else:
++            tile = '<div class="datetile datetile--past" aria-hidden="true"></div>'
++        punto = '<span class="badge__dot" aria-hidden="true"></span>' if variante == "success" else ""
++        out.append('<li class="list__item">')
++        out.append('  <div class="list__leading">' + tile + "</div>")
++        out.append('  <div class="list__content">')
++        out.append('    <p class="list__title" title="' + titulo + '">' + titulo + "</p>")
++        out.append('    <p class="list__meta num">' + escape_html(fecha_txt(r["fecha_utc"])) + " · "
++                   + str(r["duracion_min"]) + " min</p>")
++        out.append('    <span class="badge badge--' + variante + '">' + punto + estado + "</span>")
++        out.append('    <p class="list__link">' + PUB + "/reunion/" + slug + "</p>")
++        out.append("  </div>")
++        out.append('  <div class="list__trailing">')
++        out.append('    <a class="btn btn--primary btn--sm" href="' + link_sala + '" target="_blank">Moderar</a>')
++        out.append('    <a class="btn btn--secondary btn--sm" href="' + link_qr + '" target="_blank">Ver QR</a>')
++        out.append('    <details class="menu">')
++        out.append('      <summary class="btn btn--secondary btn--sm btn--icon menu__trigger"'
++                   ' aria-label="Más acciones: ' + titulo + '">' + _ICONO_MAS + "</summary>")
++        out.append('      <div class="menu__popover">')
++        out.append('        <a class="menu__item" href="' + link_publico + '" target="_blank">Página pública'
++                   + _ICONO_EXT + "</a>")
++        out.append('        <a class="menu__item" href="' + link_entrar + '" target="_blank">'
++                   "Entrar como administrador" + _ICONO_EXT + "</a>")
++        out.append('        <hr class="menu__sep">')
++        out.append('        <form method="post" action="/admin/reunion/' + rid + '/eliminar">')
++        out.append('          <input type="hidden" name="csrf" value="' + csrf + '">')
++        # data-confirm: dialogo de theme.js; onclick: respaldo sin JS.
++        out.append('          <button class="menu__item menu__item--danger" type="submit"'
++                   ' data-confirm-title="¿Eliminar esta reunión?"'
++                   ' data-confirm="«' + titulo + '». El link y el QR dejarán de funcionar."'
++                   ' onclick="return confirm(\'¿Eliminar esta reunión?\')">Eliminar</button>')
++        out.append("        </form>")
++        out.append("      </div>")
++        out.append("    </details>")
+         out.append("  </div>")
+-        out.append("</div>")
++        out.append("</li>")
++    out.append("</ul>")
+     return chr(10).join(out)
+ 
+ @app.route("/admin/reunion", methods=["POST"])
+@@ -513,12 +569,12 @@ def qr_view(rid):
+         return send_file(buf, mimetype="image/png", download_name="reunion-" + slug + ".png")
+     body = open(os.path.join(TPL_DIR, "page_qr_view.html")).read()
+     body = body.replace("{{titulo}}", escape_html(row["titulo"]))
+-    body = body.replace("{{fecha_utc}}", escape_html(row["fecha_utc"]))
++    body = body.replace("{{fecha_utc}}", escape_html(fecha_txt(row["fecha_utc"], anio=True)))
+     body = body.replace("{{duracion}}", str(row["duracion_min"]))
+     body = body.replace("{{sala}}", escape_html(row["sala_jitsi"]))
+     body = body.replace("{{link_publico}}", link_publico)
+     body = body.replace("{{qr_url}}", "/admin/qr/" + str(rid) + "?format=png")
+-    return render_page("Reunion creada", body, kind="admin", width="content")
++    return render_page("Reunión creada", body, kind="admin", width="content", legacy=False)
+ 
+ @app.route("/reunion/<slug>")
+ def reunion_publica(slug):
+diff --git a/admin-panel/app/page_panel.html b/admin-panel/app/page_panel.html
+index ea3afa3..37b964f 100644
+--- a/admin-panel/app/page_panel.html
++++ b/admin-panel/app/page_panel.html
+@@ -1,26 +1,57 @@
+-<h1>Panel de reuniones</h1>
+-<p class="m">Sesion iniciada como <b>{{user}}</b></p>
+-<!--AVISO_JWT-->
++<div class="pagehead">
++  <div class="pagehead__text">
++    <h1>Reuniones</h1>
++    <p class="pagehead__sub">Sesión iniciada como <b>{{user}}</b></p>
++  </div>
++  <a class="btn btn--primary panel__nueva" href="#nueva">
++    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nueva reunión
++  </a>
++</div>
++<div class="panel__aviso"><!--AVISO_JWT--></div>
+ 
+-<h2>Crear nueva reunion</h2>
+-<form method="post" action="/admin/reunion">
+-  <input type="hidden" name="csrf" value="{{csrf}}">
+-  <label>Titulo <small>(obligatorio)</small></label>
+-  <input name="titulo" required maxlength="120" placeholder="Ej: Asamblea ordinaria octubre">
+-  <label>Descripcion <small>(opcional)</small></label>
+-  <textarea name="descripcion" maxlength="500" placeholder="Agenda, temario, etc."></textarea>
+-  <label>Fecha <small>(AAAA-MM-DD, hora Colombia UTC-5)</small></label>
+-  <input name="fecha" type="date" required>
+-  <label>Hora <small>(HH:MM, 24h)</small></label>
+-  <input name="hora" type="time" required>
+-  <label>Duracion estimada <small>(minutos)</small></label>
+-  <input name="duracion" type="number" value="60" min="15" max="480">
+-  <p class="m" style="margin:8px 0 0"><small>El acceso de los asistentes se cierra 30 min despues del fin previsto: pon una duracion holgada.</small></p>
+-  <button type="submit">Crear reunion y generar QR</button>
+-</form>
+-<!--LISTA-->
++<div class="panel">
++  <section class="panel__lista" aria-labelledby="lista-t">
++    <h2 class="visually-hidden" id="lista-t">Reuniones programadas</h2>
++    <!--LISTA-->
++  </section>
+ 
+-<h2>Sesion</h2>
+-<form method="post" action="/admin/logout">
+-  <button class="d">Cerrar sesion</button>
+-</form>
++  <section class="card panel__form" id="nueva" aria-labelledby="nueva-t">
++    <header class="card__header">
++      <h2 class="card__title" id="nueva-t">Nueva reunión</h2>
++      <p class="card__subtitle">Genera el link y el QR para compartir.</p>
++    </header>
++    <form method="post" action="/admin/reunion" class="form" data-loading>
++      <input type="hidden" name="csrf" value="{{csrf}}">
++      <div class="field">
++        <label class="field__label" for="f-titulo">Título</label>
++        <input class="field__input" id="f-titulo" name="titulo" required maxlength="120"
++               placeholder="Ej.: Asamblea ordinaria de noviembre" autocomplete="off">
++      </div>
++      <div class="field">
++        <label class="field__label" for="f-descripcion">Descripción <span class="field__opt">Opcional</span></label>
++        <textarea class="field__input" id="f-descripcion" name="descripcion" maxlength="500"
++                  placeholder="Orden del día, temario…"></textarea>
++      </div>
++      <div class="field">
++        <div class="field-row">
++          <div class="field">
++            <label class="field__label" for="f-fecha">Fecha</label>
++            <input class="field__input" id="f-fecha" name="fecha" type="date" required aria-describedby="f-fecha-hint">
++          </div>
++          <div class="field">
++            <label class="field__label" for="f-hora">Hora</label>
++            <input class="field__input" id="f-hora" name="hora" type="time" required aria-describedby="f-fecha-hint">
++          </div>
++        </div>
++        <p class="field__hint" id="f-fecha-hint">Hora de Colombia.</p>
++      </div>
++      <div class="field">
++        <label class="field__label" for="f-duracion">Duración estimada (minutos)</label>
++        <input class="field__input num" id="f-duracion" name="duracion" type="number" value="60" min="15" max="480"
++               inputmode="numeric" aria-describedby="f-duracion-hint">
++        <p class="field__hint" id="f-duracion-hint">El acceso de los asistentes se cierra 30 minutos después del fin previsto: pon una duración holgada.</p>
++      </div>
++      <button class="btn btn--primary btn--block" type="submit">Crear reunión y generar QR</button>
++    </form>
++  </section>
++</div>
+diff --git a/admin-panel/app/page_qr_view.html b/admin-panel/app/page_qr_view.html
+index 2588c06..7876035 100644
+--- a/admin-panel/app/page_qr_view.html
++++ b/admin-panel/app/page_qr_view.html
+@@ -1,26 +1,57 @@
+-<h1>Reunion creada</h1>
+-<p class="m">Comparte este link o el QR con los participantes. Se generara automaticamente una sala cuando entren.</p>
++<header class="qrhead">
++  <p class="qrhead__eyebrow">
++    <span class="qrhead__check" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
++    <span class="eyebrow">Reunión creada</span>
++  </p>
++  <h1 class="qrhead__title">{{titulo}}</h1>
++  <p class="pagehead__sub">Comparte este link o el QR con los participantes. La sala se crea sola cuando entren.</p>
++  <p class="print-only qrhead__fecha">{{fecha_utc}}</p>
++</header>
+ 
+-<div class="o">
+-  <b>Titulo:</b> {{titulo}}<br>
+-  <b>Fecha:</b> {{fecha_utc}}<br>
+-  <b>Duracion:</b> {{duracion}} min<br>
+-  <b>Sala:</b> <code>{{sala}}</code>
+-</div>
++<div class="qrview">
++  <figure class="qrcard">
++    <img class="qrcard__img" src="{{qr_url}}" alt="Código QR de la reunión" width="280" height="280">
++    <figcaption class="qrcard__caption">Escanéalo con la cámara del celular</figcaption>
++  </figure>
+ 
+-<h2>Codigo QR</h2>
+-<div class="qr">
+-  <img src="{{qr_url}}" alt="QR de la reunion">
+-</div>
+-<p class="m">Los participantes pueden escanear este QR con la camara del celular.</p>
++  <div class="qrview__info">
++    <section class="card" aria-labelledby="det-t">
++      <h2 class="card__title" id="det-t">Detalles</h2>
++      <dl class="kv">
++        <dt>Fecha</dt><dd class="num">{{fecha_utc}}</dd>
++        <dt>Duración</dt><dd class="num">{{duracion}} min</dd>
++        <dt>Sala</dt><dd><code>{{sala}}</code></dd>
++        <dt>Link</dt><dd class="qrview__url"><a href="{{link_publico}}" target="_blank">{{link_publico}}</a></dd>
++      </dl>
++      <div class="field qrview__link">
++        <label class="field__label" for="f-link">Link directo</label>
++        <div class="copyfield">
++          <input class="field__input field__input--mono" id="f-link" type="text" value="{{link_publico}}" readonly
++                 onclick="this.select();" aria-describedby="f-link-hint">
++          <!-- Mejora progresiva: theme.js lo muestra y copia al portapapeles. -->
++          <button class="btn btn--secondary copyfield__btn" type="button" data-copy="#f-link" data-js-only hidden>
++            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
++            <span data-copy-label>Copiar</span>
++          </button>
++        </div>
++        <p class="field__hint" id="f-link-hint">Toca el link para seleccionarlo o usa «Copiar».</p>
++        <p class="visually-hidden" role="status" aria-live="polite" data-copy-status></p>
++      </div>
++      <div class="qrview__acciones">
++        <a class="btn btn--primary" href="{{link_publico}}" target="_blank">Probar como participante
++          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
++        <a class="btn btn--secondary" href="{{qr_url}}" download>Descargar QR
++          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></a>
++        <a class="btn btn--secondary" href="/admin">Volver al panel</a>
++      </div>
++    </section>
+ 
+-<h2>Link directo</h2>
+-<p>
+-  <input type="text" value="{{link_publico}}" readonly onclick="this.select();" style="font-family:monospace; font-size:12px;">
+-</p>
+-<div class="ac" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+-  <a href="{{link_publico}}" target="_blank" style="background:var(--a); color:#fff; padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Probar como participante</a>
+-  <a href="/admin" style="background:var(--c); color:var(--t); border:1px solid var(--b); padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Volver al panel</a>
++    <div class="alert alert--info" role="note">
++      <svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
++      <div class="alert__body">
++        <p class="alert__title">Consejo</p>
++        <p>Envía el QR por WhatsApp con un mensaje como «Te esperamos el martes a las 7 p. m. Escanea el QR o toca el link para entrar».</p>
++      </div>
++    </div>
++  </div>
+ </div>
+-
+-<p class="m" style="margin-top:24px;"><small>Tip: envia el QR por WhatsApp con un mensaje tipo "Te esperamos el martes a las 7pm, escanea el QR o toca el link para entrar".</small></p>
+diff --git a/admin-panel/app/static/theme.css b/admin-panel/app/static/theme.css
+index a82cead..10df443 100644
+--- a/admin-panel/app/static/theme.css
++++ b/admin-panel/app/static/theme.css
+@@ -899,6 +899,52 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
+ .chips { list-style: none; margin: 0; padding: 0; }
+ .page--public .card--sheet > .empty { padding: var(--space-6) var(--space-2); }
+ 
++/* page: panel */
++.panel__aviso:empty { display: none; }
++.panel__aviso { margin-bottom: var(--space-6); }
++.panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); align-items: start; }
++.panel__form { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
++.list--empty { padding: 0; }
++@media (min-width: 1024px) {
++  .panel { grid-template-columns: minmax(0, 1fr) 22.5rem; }
++  .panel__form { position: sticky; top: calc(var(--header-h) + var(--space-6)); }
++  .panel__nueva { display: none; }
++  /* En la columna de 22.5rem dos selectores nativos de fecha/hora no caben: se apilan. */
++  .panel__form .field-row { grid-template-columns: 1fr; }
++}
++@media (max-width: 767.98px) {
++  .list__title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
++    line-clamp: 2; overflow-wrap: anywhere; }
++}
++@media (max-width: 479.98px) { .panel__nueva { width: 100%; } }
++.list .badge { margin-top: var(--space-1); }
++
++/* page: qr */
++.qrhead { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); }
++.qrhead__eyebrow { display: flex; align-items: center; gap: var(--space-2); }
++.qrhead__eyebrow .eyebrow { color: var(--success); }
++.qrhead__check { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%;
++  background: var(--success-soft); color: var(--success); }
++.qrhead__check .icon { width: 1rem; height: 1rem; stroke-width: 2.5; }
++.qrhead__title { overflow-wrap: anywhere; }
++.print-only { display: none; }
++.qrview { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); align-items: start; }
++.qrview__info { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
++.qrview__info .card__title { margin-bottom: var(--space-4); }
++.qrview__link { margin-top: var(--space-5); }
++.copyfield { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; }
++.copyfield .field__input { flex: 1 1 16rem; min-width: 0; }
++.copyfield__btn { flex: 1 0 auto; }
++@media (min-width: 1024px) { .copyfield__btn { flex-grow: 0; } }
++.qrview__url { font-family: var(--font-mono); font-size: var(--text-sm); overflow-wrap: anywhere; }
++.copyfield__btn[data-copied] { background: var(--success-soft); color: var(--success-soft-text); box-shadow: none; }
++.qrview__acciones { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
++@media (min-width: 480px) { .qrview__acciones { flex-direction: row; flex-wrap: wrap; } }
++@media (min-width: 768px) {
++  .qrview { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-8); }
++  .qrcard { width: calc(280px + 2 * var(--space-5)); position: sticky; top: calc(var(--header-h) + var(--space-6)); }
++}
++
+ /* ---------- 7. Movimiento reducido e impresión ---------- */
+ @media (prefers-reduced-motion: reduce) {
+   *, *::before, *::after {
+@@ -909,6 +955,17 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
+   }
+ }
+ 
++@media print {
++  .appbar, .footer, .skip-link, .hero, .qrview__info, .pagehead__sub, .menu { display: none !important; }
++  body, .page { background: var(--qr-bg) !important; }
++  .container { padding: 0; max-width: none; }
++  .print-only { display: block; }
++  .qrhead { align-items: center; text-align: center; }
++  .qrhead__eyebrow { display: none; }
++  .qrview { display: flex; justify-content: center; }
++  .qrcard { box-shadow: none; position: static; }
++}
++
+ /* ---------- 8. Compatibilidad temporal (pasos 1-6; se borra en el paso 7) ----------
+    Da el aspecto del sistema nuevo a las clases y elementos sin clase de las
+    plantillas aún no migradas. Solo afecta a elementos SIN atributo class
+diff --git a/admin-panel/app/static/theme.js b/admin-panel/app/static/theme.js
+index f622372..4c5ef2a 100644
+--- a/admin-panel/app/static/theme.js
++++ b/admin-panel/app/static/theme.js
+@@ -1,4 +1,4 @@
+-/* theme.js - tema, menus, carga de formularios y dialogo de confirmacion.
++/* theme.js - tema, menus, carga de formularios, copiar link y dialogo de confirmacion.
+    Mejora progresiva: sin este fichero todo sigue funcionando (tema del
+    sistema, <details> nativo, confirm() nativo). No toca la sala (.gl, #lista). */
+ (function () {
+@@ -79,6 +79,32 @@
+       for (var k = 0; k < bs.length; k++) { bs[k].removeAttribute("aria-busy"); bs[k].disabled = false; }
+     });
+ 
++    // Boton "Copiar" (vista QR): copia el valor del campo indicado en data-copy
++    var cps = document.querySelectorAll("button[data-copy]");
++    for (i = 0; i < cps.length; i++) {
++      cps[i].addEventListener("click", function (ev) {
++        var b = ev.currentTarget, campo = document.querySelector(b.getAttribute("data-copy"));
++        if (!campo) return;
++        var et = b.querySelector("[data-copy-label]"), st = document.querySelector("[data-copy-status]");
++        function hecho(okc) {
++          if (et) et.textContent = okc ? "Copiado" : "Selecciónalo";
++          if (st) st.textContent = okc ? "Link copiado al portapapeles" : "No se pudo copiar: selecciona el link";
++          if (okc) b.setAttribute("data-copied", ""); else campo.select();
++          clearTimeout(b._t);
++          b._t = setTimeout(function () { if (et) et.textContent = "Copiar"; b.removeAttribute("data-copied"); }, 2000);
++        }
++        function viejo() {
++          campo.select();
++          var r = false;
++          try { r = document.execCommand("copy"); } catch (e) { r = false; }
++          hecho(r);
++        }
++        if (navigator.clipboard && window.isSecureContext) {
++          navigator.clipboard.writeText(campo.value).then(function () { hecho(true); }, viejo);
++        } else viejo();
++      });
++    }
++
+     // Dialogo de confirmacion (sustituye al confirm() de respaldo)
+     if (typeof HTMLDialogElement !== "function") return;
+     var dlg = null, pendiente = null;

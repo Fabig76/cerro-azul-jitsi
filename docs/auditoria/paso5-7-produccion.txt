@@ -1,0 +1,17 @@
+Desplegando admin-panel de a9809f4 en chatbotph
+ Image jitsi-admin:local Building 
+ Image jitsi-admin:local Built 
+--- comprobaciones ---
+jitsi-admin: healthy
+/admin/login                 200 text/html; charset=utf-8
+/healthz                     200 application/json
+/admin/static/theme.css      200 text/css; charset=utf-8
+/admin/static/theme.js       200 text/javascript; charset=utf-8
+
+theme.css?v=20261101m
+jitsi-admin Up 13 seconds (healthy)
+jitsi-jicofo Up 6 hours (healthy)
+jitsi-jvb Up 7 hours (healthy)
+jitsi-prosody Up 5 hours (healthy)
+jitsi-web Up 6 hours (healthy)
+"operational_bridge_count":1

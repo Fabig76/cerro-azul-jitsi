@@ -1,0 +1,25 @@
+  OK     crear reunion de prueba en curso (/admin/qr/19)
+[A: administrador en la sala rediseñada]
+  OK     iframe de Jitsi dentro de #jitsi con height 560px
+  OK     A se une como moderador y activa la moderacion A/V (#st-audio/#st-video = ACTIVA)
+  OK     sala vacia: 'Nadie mas en la sala.'
+[B: residente entra por el link publico]
+  OK     /unirse -> Jitsi con el JWT en el fragmento (#jwt=)
+  AVISO  con #jwt= Jitsi pide autenticacion (fallo previo, ver DISENO-AUDITORIA)
+  OK     B unido a la conferencia
+  OK     A ve a B en #lista (div.p > div.n)
+  OK     #cnt = (1)
+  OK     B tiene la moderacion de audio activa (no puede hablar)
+[mano levantada]
+  OK     A ve '[mano]' de B (span.mano)
+[controles globales y por participante]
+  OK     'Dar a todos' -> B ya no tiene moderacion de audio
+  OK     #st-audio = apagada
+  OK     'Quitar a todos' -> B vuelve a estar moderado
+  OK     #st-audio = ACTIVA
+  OK     'Silenciar' de B registrado en #log
+  OK     'Desactivar' moderacion A/V -> ambos 'apagada'
+  OK     'Activar' moderacion A/V -> ambos 'ACTIVA'
+  OK     B cuelga -> 'Nadie mas en la sala.'
+  OK     reunion de prueba 19 eliminada
+=== OK ===  (avisos: ['#jwt= rechazado'])

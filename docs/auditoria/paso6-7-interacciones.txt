@@ -1,0 +1,166 @@
+[tema]
+  OK     auto + sistema claro -> fondo #F5F5F7 (rgb(245, 245, 247))
+  OK     Oscuro guarda ca-tema=dark
+  OK     data-theme=dark aplicado
+  OK     theme-color actualizado (#000000,#000000)
+  OK     tema aplicado antes del <body> (sin parpadeo)
+  OK     persiste entre paginas: fondo negro (rgb(0, 0, 0))
+  OK     segmentado marca Oscuro (aria-pressed)
+  OK     Auto borra ca-tema
+  OK     pie: Automático
+  OK     pie: -> Claro
+  OK     pie: -> Oscuro
+  OK     pie: -> Automático
+  OK     aria-label anuncia el estado (Apariencia: automático. Pulsa para cambiar)
+  OK     localStorage bloqueado: sin errores JS ([])
+[menu, foco, skip link]
+  OK     primer Tab: skip link
+  OK     skip link visible con foco
+  OK     skip link lleva a #contenido
+  OK     menu se abre con Enter
+  OK     Esc cierra el menu
+  OK     Esc devuelve el foco al boton
+  OK     clic fuera cierra el menu
+  OK     foco visible: anillo de 3px (solid 3px)
+[tamanos y desbordamiento]
+  OK      360px /admin/login               sin scroll horizontal (360)
+  OK     /admin/login texto >= 12px []
+  OK     /admin/login campos >= 16px (anti-zoom iOS) []
+  OK     /admin/login controles >= 44px en tactil []
+  OK      360px /admin                     sin scroll horizontal (360)
+  OK     /admin texto >= 12px []
+  OK     /admin campos >= 16px (anti-zoom iOS) []
+  OK     /admin controles >= 44px en tactil []
+  OK      360px /admin/qr/1                sin scroll horizontal (360)
+  OK     /admin/qr/1 texto >= 12px []
+  OK     /admin/qr/1 campos >= 16px (anti-zoom iOS) []
+  OK     /admin/qr/1 controles >= 44px en tactil []
+  OK      360px /admin/reunion/1/sala      sin scroll horizontal (360)
+  OK     /admin/reunion/1/sala texto >= 12px []
+  OK     /admin/reunion/1/sala campos >= 16px (anti-zoom iOS) []
+  OK     /admin/reunion/1/sala controles >= 44px en tactil []
+  OK      360px /reunion/g6rim8aqkhy       sin scroll horizontal (360)
+  OK     /reunion/g6rim8aqkhy texto >= 12px []
+  OK     /reunion/g6rim8aqkhy campos >= 16px (anti-zoom iOS) []
+  OK     /reunion/g6rim8aqkhy controles >= 44px en tactil []
+  OK      768px /admin/login               sin scroll horizontal (768)
+  OK      768px /admin                     sin scroll horizontal (768)
+  OK      768px /admin/qr/1                sin scroll horizontal (768)
+  OK      768px /admin/reunion/1/sala      sin scroll horizontal (768)
+  OK      768px /reunion/g6rim8aqkhy       sin scroll horizontal (768)
+  OK     1280px /admin/login               sin scroll horizontal (1280)
+  OK     1280px /admin                     sin scroll horizontal (1280)
+  OK     1280px /admin/qr/1                sin scroll horizontal (1280)
+  OK     1280px /admin/reunion/1/sala      sin scroll horizontal (1280)
+  OK     1280px /reunion/g6rim8aqkhy       sin scroll horizontal (1280)
+[login]
+  OK     sin sesion -> login con ?next (/admin/login?next=/admin/qr/1)
+  OK     form de login sin action
+  OK     autofocus en usuario
+  OK     autocomplete (user=username password=current-password)
+  OK     login: todos los campos tienen <label> asociada []
+  OK     login: pulsar la etiqueta enfoca #f-user
+  OK     login: pulsar la etiqueta enfoca #f-password
+  OK     error como alert--error role=alert
+  OK     tras el error se conserva ?next
+  OK     login correcto vuelve a ?next (/admin/qr/1)
+  OK     al enviar: aria-busy y disabled (true/true)
+[pagina publica del residente]
+  OK     no se muestra 'UTC' al residente
+  OK     fecha en hora de Colombia (['mar 5 nov · 7:00\xa0p.\xa0m.'])
+  OK     publica: todos los campos tienen <label> asociada []
+  OK     publica: pulsar la etiqueta enfoca #f-apto
+  OK     publica: pulsar la etiqueta enfoca #f-nombre
+  OK     boton principal >= 52px (52)
+  OK     boton a ancho completo
+  OK     autocomplete y enterkeyhint (apto=off/ nombre=name/go)
+  OK     aviso de micro/camara como alert--info
+  OK     triple toque en 'Entrar' -> 1 POST /unirse (debe ser 1)
+  OK     404 con estado vacio y h1
+  OK     titulo de pestana del 404 (Reunión no encontrada · Cerro Azul)
+[panel, D3, menu por reunion, dialogo de eliminar]
+  OK     crear reunion desde el formulario -> QR (/admin/qr/3)
+  OK     panel: todos los campos tienen <label> asociada []
+  OK     panel: pulsar la etiqueta enfoca #f-titulo
+  OK     panel: pulsar la etiqueta enfoca #f-descripcion
+  OK     panel: pulsar la etiqueta enfoca #f-fecha
+  OK     panel: pulsar la etiqueta enfoca #f-hora
+  OK     panel: pulsar la etiqueta enfoca #f-duracion
+  OK     D3: En curso
+  OK     D3: Finalizada
+  OK     D3: Próxima
+  OK     baldosa de fecha MAR 4
+  OK     meta en hora de Colombia
+  OK     1280px: formulario fijo (sticky) a la derecha
+  OK     1280px: boton 'Nueva reunion' oculto
+  OK     menu de la fila se abre con Enter
+  OK     menu: Pagina publica y Entrar como administrador (['https://meet.urbcerroazul.com/reunion/<slug>', '/admin/reunion/5/entrar'])
+  OK     Eliminar abre el dialogo (no confirm nativo)
+  OK     foco inicial en Cancelar
+  OK     el dialogo nombra la reunion
+  OK     el menu se cierra al abrir el dialogo
+  OK     Cancelar cierra y NO elimina
+  OK     Esc cierra y NO elimina
+  OK     Eliminar en el dialogo borra y vuelve al panel
+  OK     sin theme.js: confirm() nativo; Cancelar no borra (['¿Eliminar esta reunión?'])
+  OK     sin theme.js: Aceptar borra
+  OK     360px: la lista va antes que el formulario
+  OK     360px: 'Nueva reunion' lleva al formulario
+[qr]
+  OK     tarjeta del QR blanca tambien en oscuro (rgb(255, 255, 255))
+  OK     imagen del QR cargada
+  OK     QR nitido (pixelated)
+  OK     768px: QR en dos columnas
+  OK     clic en el link lo selecciona
+  OK     sin 'UTC' en la vista QR
+  OK     boton Copiar visible (con JS)
+  OK     Copiar pone el link en el portapapeles (https://meet.urbcerroazul.com/reunion/g6rim8aqkhy)
+  OK     Copiar: confirma 'Copiado' y lo anuncia (aria-live)
+  OK     Copiar: vuelve al texto inicial
+  OK     Descargar QR -> PNG
+  OK     impresion: solo titulo, fecha y QR
+  OK     sin JS: Copiar oculto (queda seleccionar el link)
+[sala: contrato JS y capa visual]
+  OK     360px: ids del contrato presentes (faltan [])
+  OK     360px: .gl contiene SOLO los 6 botones data-cmd
+  OK     360px: botones globales con aria-label completo
+  OK     360px: esqueleto inicial en #lista
+  OK     360px: explicacion plegada
+  OK     360px: 1 columna(s) (video | panel)
+  OK     360px: la fila con [mano] se destaca (['rgb(255, 244, 229)', 'rgb(240, 240, 243)'])
+  OK     360px: botones de la sala >= 32px (32)
+  OK     360px: sin scroll horizontal con participantes (360)
+  OK     1280px: ids del contrato presentes (faltan [])
+  OK     1280px: .gl contiene SOLO los 6 botones data-cmd
+  OK     1280px: botones globales con aria-label completo
+  OK     1280px: esqueleto inicial en #lista
+  OK     1280px: explicacion plegada
+  OK     1280px: 2 columna(s) (video | panel)
+  OK     1280px: la fila con [mano] se destaca (['rgb(255, 244, 229)', 'rgb(240, 240, 243)'])
+  OK     1280px: botones de la sala >= 32px (32)
+  OK     1280px: sin scroll horizontal con participantes (1280)
+[sala: el JS sin cambios funciona sobre el DOM nuevo (API de Jitsi simulado)]
+  OK     el script crea JitsiMeetExternalAPI
+  OK     parentNode #jitsi, height 560
+  OK     iframe de 560px dentro de #jitsi
+  OK     al unirse activa la moderacion A/V
+  OK     #st-audio/#st-video = ACTIVA
+  OK     #lista pinta al participante (div.p > div.n)
+  OK     #cnt = (1)
+  OK     mano levantada: span.mano '[mano] '
+  OK     fila con mano destacada (rgb(255, 244, 229))
+  OK     participante 'Pedir la palabra' -> ['askToUnmute', 'b1']
+  OK     participante 'Silenciar' -> ['muteRemoteParticipant', 'b1', 'audio']
+  OK     participante 'Habilitar camara' -> ['approveVideo', 'b1']
+  OK     participante 'Apagar camara' -> ['muteRemoteParticipant', 'b1', 'video']
+  OK     .gl mute-all-audio -> [['muteEveryone', 'audio']]
+  OK     .gl mute-all-video -> [['muteEveryone', 'video']]
+  OK     .gl mod-on -> [['toggleModeration', True, 'audio'], ['toggleModeration', True, 'video']]
+  OK     .gl mod-off -> [['toggleModeration', False, 'audio'], ['toggleModeration', False, 'video']]
+  OK     .gl dar-palabra-todos -> [['toggleModeration', False, 'audio']]
+  OK     .gl quitar-palabra-todos -> [['toggleModeration', True, 'audio']]
+  OK     tras 'Dar a todos' el estado de audio pasa a 'apagada'
+  OK     #log registra los comandos
+  OK     sin participantes: p.m 'Nadie mas en la sala.'
+  OK     sin errores de JS ([])
+=== OK ===

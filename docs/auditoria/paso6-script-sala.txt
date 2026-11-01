@@ -1,0 +1,5 @@
+# Bloque <script> de page_sala.html: antes (6e7c7c5) vs despues (HEAD)
+6e7c7c5  64da205aa6023b89d7e82be3a27f768f0d8e790b840a3e1f6e70a07a7189d654  -
+HEAD  64da205aa6023b89d7e82be3a27f768f0d8e790b840a3e1f6e70a07a7189d654  -
+# diff:
+(vacio: identico byte a byte)

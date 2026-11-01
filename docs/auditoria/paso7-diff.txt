@@ -1,0 +1,179 @@
+ admin-panel/app/app.py           | 22 +++++++++-----------
+ admin-panel/app/static/theme.css | 44 ----------------------------------------
+ admin-panel/app/tpl.html         |  6 ------
+ 3 files changed, 10 insertions(+), 62 deletions(-)
+diff --git a/admin-panel/app/app.py b/admin-panel/app/app.py
+index 2720558..8f4bda1 100644
+--- a/admin-panel/app/app.py
++++ b/admin-panel/app/app.py
+@@ -90,7 +90,7 @@ def jwt_config_problems():
+ # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
+ # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
+ # cualquier estatico (rompe la cache del navegador con ?v=).
+-ASSET_V = "20261101k"
++ASSET_V = "20261101m"
+ app = Flask(__name__, static_url_path="/admin/static")
+ app.secret_key = A.get("FLASK_SECRET_KEY") or SK
+ app.permanent_session_lifetime = timedelta(hours=4)
+@@ -323,19 +323,17 @@ def escape_html(s):
+                   .replace(">", "&gt;")
+                   .replace(q, "&quot;"))
+ 
+-def render_page(t, body, kind="public", width="narrow", legacy=True):
++def render_page(t, body, kind="public", width="narrow"):
+     """Inyecta 'body' en tpl.html.
+ 
+     kind:  "admin" (cabecera con menu), "public" (banda de marca + pie con
+            conmutador de tema) o "auth" (login: fondo aurora, sin cabecera).
+     width: "narrow", "content" o "wide" (ancho maximo del contenido).
+-    legacy: la pagina aun usa el marcado viejo (se envuelve en .c.legacy
+-           para los alias de compatibilidad de theme.css). Temporal.
+     """
+     with open(os.path.join(TPL_DIR, "tpl.html")) as f:
+         tpl = f.read()
+     return render_template_string(tpl, t=t, body=body, kind=kind, width=width,
+-                                  legacy=legacy, v=ASSET_V)
++                                  v=ASSET_V)
+ 
+ # Iconos SVG en linea de los avisos (sin ficheros ni fuentes de iconos).
+ _SVG = '<svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true">'
+@@ -403,7 +401,7 @@ def login():
+         body = body.replace("<!--ERR-->", alerta("error", err, role="alert"))
+     else:
+         body = body.replace("<!--ERR-->", "")
+-    return render_page("Iniciar sesión", body, kind="auth", legacy=False)
++    return render_page("Iniciar sesión", body, kind="auth")
+ 
+ @app.route("/admin/logout", methods=["POST"])
+ @login_required
+@@ -426,7 +424,7 @@ def panel():
+                        "Jitsi rechazará los tokens o no los exigirá:<br>"
+                        + "<br>".join(escape_html(x) for x in JWT_PROBLEMS))
+     body = body.replace("<!--AVISO_JWT-->", aviso)
+-    return render_page("Reuniones", body, kind="admin", width="content", legacy=False)
++    return render_page("Reuniones", body, kind="admin", width="content")
+ 
+ def estado_reunion(r, ahora=None):
+     """D3: (texto, variante de badge) con los datos que ya existen.
+@@ -574,7 +572,7 @@ def qr_view(rid):
+     body = body.replace("{{sala}}", escape_html(row["sala_jitsi"]))
+     body = body.replace("{{link_publico}}", link_publico)
+     body = body.replace("{{qr_url}}", "/admin/qr/" + str(rid) + "?format=png")
+-    return render_page("Reunión creada", body, kind="admin", width="content", legacy=False)
++    return render_page("Reunión creada", body, kind="admin", width="content")
+ 
+ @app.route("/reunion/<slug>")
+ def reunion_publica(slug):
+@@ -585,7 +583,7 @@ def reunion_publica(slug):
+                 + vacio("buscar", "Reunión no encontrada",
+                         "Verifica el link o contacta a la administración.", h1=True)
+                 + "</section>")
+-        return render_page("Reunión no encontrada", body, legacy=False), 404
++        return render_page("Reunión no encontrada", body), 404
+     # La pagina publica SIEMPRE emite tokens de asistente (moderator: false).
+     # '?presenter=1' ya no tiene efecto; el admin entra por /admin/reunion/<id>/sala.
+     body = open(os.path.join(TPL_DIR, "page_reunion.html")).read()
+@@ -599,7 +597,7 @@ def reunion_publica(slug):
+     body = body.replace("<!--DESC-->",
+                         '<p class="reunion__desc">' + escape_html(desc) + "</p>" if desc else "")
+     body = body.replace("{{slug}}", escape_html(slug))
+-    return render_page(r["titulo"], body, legacy=False)
++    return render_page(r["titulo"], body)
+ 
+ def pagina_finalizada(r):
+     body = ('<section class="card card--sheet">'
+@@ -608,7 +606,7 @@ def pagina_finalizada(r):
+                     + str(JWT_EXP_MARGIN_MIN) + " minutos después del fin previsto. "
+                     "Contacta a la administración.", h1=True)
+             + "</section>")
+-    return render_page("Reunión finalizada", body, legacy=False), 410
++    return render_page("Reunión finalizada", body), 410
+ 
+ @app.route("/unirse", methods=["POST"])
+ def unirse():
+@@ -663,7 +661,7 @@ def sala_moderacion(rid):
+     body = body.replace("{{domain}}", escape_html(PUB))
+     body = body.replace("{{cfg_json}}", cfg_js)
+     log.info("sala moderacion id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
+-    return render_page("Moderación · " + r["titulo"], body, kind="admin", width="wide", legacy=False)
++    return render_page("Moderación · " + r["titulo"], body, kind="admin", width="wide")
+ 
+ @app.route("/admin/reunion/<int:rid>/moderador.json")
+ @login_required
+diff --git a/admin-panel/app/static/theme.css b/admin-panel/app/static/theme.css
+index 0268080..bee3e25 100644
+--- a/admin-panel/app/static/theme.css
++++ b/admin-panel/app/static/theme.css
+@@ -15,7 +15,6 @@
+         disclosure)
+      6. Páginas (login, panel, qr, pública, sala + contrato de la sala)
+      7. Movimiento reducido, impresión
+-     8. Compatibilidad temporal (alias de clases viejas) — se borra en el paso 7
+ 
+    Puntos de corte (min-width, móvil primero): 480 (filas de campos),
+    768 (tablet), 1024 (dos columnas en panel y sala), 1280 (márgenes amplios).
+@@ -1044,46 +1043,3 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
+   .qrview { display: flex; justify-content: center; }
+   .qrcard { box-shadow: none; position: static; }
+ }
+-
+-/* ---------- 8. Compatibilidad temporal (pasos 1-6; se borra en el paso 7) ----------
+-   Da el aspecto del sistema nuevo a las clases y elementos sin clase de las
+-   plantillas aún no migradas. Solo afecta a elementos SIN atributo class
+-   (o con las clases viejas), así que no toca los componentes nuevos. */
+-.c { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); padding: var(--space-6); }
+-.m { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); margin-bottom: var(--space-4); }
+-.legacy h1 { margin-bottom: var(--space-2); }
+-.legacy h2 { margin: var(--space-6) 0 var(--space-3); }
+-.legacy label:not([class]) { display: block; font-size: var(--text-sm); font-weight: var(--weight-medium); margin: var(--space-3) 0 var(--space-1); }
+-.legacy input:not([class]):not([type="hidden"]), .legacy textarea:not([class]) {
+-  width: 100%; min-height: var(--tap); padding: var(--space-2) var(--space-4); font: inherit;
+-  font-size: var(--text-md); color: var(--text); background: var(--surface);
+-  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+-}
+-.legacy textarea:not([class]) { min-height: 6rem; resize: vertical; }
+-.legacy button:not([class]), .legacy button.d, .legacy button.ok2 {
+-  display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap);
+-  padding: 0 var(--space-5); margin-top: var(--space-3); border: 0; border-radius: var(--radius-md);
+-  font: inherit; font-weight: var(--weight-semibold); background: var(--accent-fill); color: var(--on-fill); cursor: pointer;
+-}
+-.legacy button:not([class]):hover { background: var(--accent-fill-hover); }
+-.legacy button.d, .legacy .d { background: var(--danger-fill); color: var(--on-fill); }
+-.legacy button.ok2, .legacy .ok2 { background: var(--success-fill); color: var(--on-fill); }
+-.r { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-3); }
+-.r h3 { margin-bottom: var(--space-1); overflow-wrap: anywhere; }
+-.r .mt { color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-2); }
+-.r small { display: block; overflow-wrap: anywhere; }
+-.r .ac { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center; }
+-.r .ac form { display: inline; }
+-.r .ac button { margin: 0; }
+-.b { display: inline-block; background: var(--success-soft); color: var(--success-soft-text); padding: 2px var(--space-2);
+-  border-radius: var(--radius-full); font-size: var(--text-xs); }
+-.e { background: var(--danger-soft); color: var(--danger-soft-text); padding: var(--space-3) var(--space-4);
+-  border-radius: var(--radius-md); margin: var(--space-3) 0; font-size: var(--text-sm); }
+-.o { background: var(--success-soft); color: var(--success-soft-text); padding: var(--space-3) var(--space-4);
+-  border-radius: var(--radius-md); margin: var(--space-3) 0; font-size: var(--text-sm); }
+-.qr { text-align: center; margin: var(--space-4) 0; }
+-.qr img { display: inline-block; background: var(--qr-bg); padding: var(--space-2); border-radius: var(--radius-sm); max-width: 240px; }
+-.legacy small { color: var(--text-muted); font-size: var(--text-xs); }
+-/* Variables viejas que usa el <style> en línea de page_sala.html hasta el paso 6 */
+-:root { --b: var(--border-strong); --m: var(--text-muted); --ok: var(--success-fill); --a: var(--accent-fill);
+-  --t: var(--text); --c: var(--surface); --er: var(--danger-fill); --h: var(--accent-fill-hover); }
+diff --git a/admin-panel/app/tpl.html b/admin-panel/app/tpl.html
+index 5d5b7fa..15dcd4b 100644
+--- a/admin-panel/app/tpl.html
++++ b/admin-panel/app/tpl.html
+@@ -54,13 +54,7 @@
+   </div>
+ {%- endif %}
+   <main id="contenido" class="container container--{{ width }}" tabindex="-1">
+-{%- if legacy %}
+-    <div class="c legacy">
+-      {{ body|safe }}
+-    </div>
+-{%- else %}
+     {{ body|safe }}
+-{%- endif %}
+   </main>
+ {%- if kind != 'admin' %}
+   <footer class="footer">
