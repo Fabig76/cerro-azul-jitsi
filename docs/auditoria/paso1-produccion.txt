@@ -1,0 +1,102 @@
+/admin/static/theme.css -> 200 text/css; charset=utf-8
+--- login -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=(sin action) names=['password', 'user']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+=== PRODUCCION: flujo con sesion ===
+--- panel -> HTTP 200 ---
+  ids:          []
+  forms:        3
+    form method=post action=/admin/reunion names=['csrf', 'descripcion', 'duracion', 'fecha', 'hora', 'titulo'] csrf=presente
+    form method=post action=/admin/reunion/<id>/eliminar names=['csrf'] csrf=presente
+    form method=post action=/admin/logout names=[]
+  buttons:      3
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 2
+  marcadores:   ninguno
+  externos:     ninguno
+
+  crear reunion de prueba -> 302 /admin/qr/12
+--- qr -> HTTP 200 ---
+  ids:          []
+  forms:        0
+  buttons:      0
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 5
+  marcadores:   ninguno
+  externos:     ninguno
+
+  qr png -> 200 image/png
+
+--- reunion publica -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=/unirse names=['apto', 'nombre', 'slug']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ['<!--DESC-->']
+  externos:     ninguno
+
+--- reunion no encontrada -> HTTP 404 ---
+  ids:          []
+  forms:        0
+  buttons:      0
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+  /unirse -> 302 jitsi#jwt OK
+--- sala -> HTTP 200 ---
+  ids:          ['cnt', 'jitsi', 'lista', 'log', 'st-audio', 'st-video']
+  forms:        0
+  buttons:      6
+  scripts src:  ['/admin/static/theme.js?v=20261101a', 'https://meet.urbcerroazul.com/external_api.js']
+  scripts inl:  1
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      2   style="": 3
+  marcadores:   ninguno
+  externos:     ninguno
+  ids sala:     todos
+  .gl buttons:  6 ['dar-palabra-todos', 'mod-off', 'mod-on', 'mute-all-audio', 'mute-all-video', 'quitar-palabra-todos']
+
+  moderador.json -> 200
+  eliminar reunion de prueba 12 -> 302 /admin
+  sigue en el panel: no
+  api token sin auth -> 401
+
+=== PRODUCCION: login real con la imagen desplegada (contenedor temporal) ===
+--- login (imagen desplegada) -> HTTP 200 ---
+  ids:          []
+  forms:        1
+    form method=post action=(sin action) names=['password', 'user']
+  buttons:      1
+  scripts src:  ['/admin/static/theme.js?v=20261101a']
+  scripts inl:  0
+  stylesheets:  ['/admin/static/theme.css']
+  <style>:      1   style="": 0
+  marcadores:   ninguno
+  externos:     ninguno
+
+  login con contrasena mala -> 200, error visible: si
+  login correcto con ?next=/admin -> 302 /admin
+  panel tras login -> 200; crear con CSRF -> 302 /admin/qr/1
+
+=== RESULTADO: OK ===

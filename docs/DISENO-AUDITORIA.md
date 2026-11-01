@@ -67,3 +67,17 @@ Herramientas de verificación (creadas en el paso 0):
 - `ruff check --isolated app.py`: 18 avisos antes y 18 después (todos preexistentes).
 - Capturas `paso1` (66): aspecto prácticamente igual al de antes; a 360 px el link público ya no desborda.
   Única petición externa: `external_api.js` de la sala (dominio propio, esperado).
+
+**Despliegue del paso 1 en producción** (adelantado para validar pronto la ruta de estáticos por Caddy):
+- Punto de rollback: `backups/admin-panel-pre-rediseno-20261101T060401Z.tgz` (ficheros) y la imagen
+  anterior etiquetada `jitsi-admin:pre-rediseno` (`7ce6040cbca1`). `scripts/desplegar-panel.sh --rollback`
+  la restaura sin rebuild.
+- `scripts/desplegar-panel.sh` → admin healthy; `/admin/login` 200, `/healthz` 200,
+  `/admin/static/theme.css` **200 `text/css`**, `theme.js` 200 `text/javascript`. Caddy sin cambios.
+- `scripts/verificar-panel-prod.py --login-imagen` → **OK** (`auditoria/paso1-produccion.txt`):
+  - Sesión firmada con la clave del panel (no tengo la contraseña real): panel, crear reunión de prueba
+    (id 12) → 302 QR, PNG, pública 200, 404, `/unirse` 302 a Jitsi con `#jwt`, sala 200 con los 6 ids y
+    los 6 `data-cmd`, `moderador.json` 200, eliminar con CSRF → 302 y ya no aparece; API sin key 401.
+  - Login **real** (usuario + contraseña + `?next=`) con la imagen desplegada en un contenedor temporal
+    del VPS (contraseña de prueba, puerto 18091 por túnel ssh, borrado al terminar): contraseña mala → error
+    visible; correcta → 302 `/admin`; crear con CSRF → 302.
