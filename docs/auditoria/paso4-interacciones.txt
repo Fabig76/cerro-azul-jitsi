@@ -1,0 +1,45 @@
+[pagina publica del residente]
+  OK     no se muestra 'UTC' al residente
+  OK     fecha en hora de Colombia (['mar 5 nov · 7:00 p. m.'])
+  OK     publica: todos los campos tienen <label> asociada []
+  OK     publica: pulsar la etiqueta enfoca #f-apto
+  OK     publica: pulsar la etiqueta enfoca #f-nombre
+  OK     boton principal >= 52px (52)
+  OK     boton a ancho completo
+  OK     autocomplete y enterkeyhint (apto=off/ nombre=name/go)
+  OK     aviso de micro/camara como alert--info
+  OK     triple toque en 'Entrar' -> 1 POST /unirse (debe ser 1)
+  OK     404 con estado vacio y h1
+  OK     titulo de pestana del 404 (Reunión no encontrada · Cerro Azul)
+[tamanos y desbordamiento]
+  OK      360px /admin/login               sin scroll horizontal (360)
+  OK     /admin/login texto >= 12px []
+  OK     /admin/login campos >= 16px (anti-zoom iOS) []
+  OK     /admin/login controles >= 44px en tactil []
+  OK      360px /admin                     sin scroll horizontal (360)
+  FALLO  /admin texto >= 12px ['CODE.:10.5px']
+  OK     /admin campos >= 16px (anti-zoom iOS) []
+  OK     /admin controles >= 44px en tactil []
+  OK      360px /admin/qr/1                sin scroll horizontal (360)
+  OK     /admin/qr/1 texto >= 12px []
+  FALLO  /admin/qr/1 campos >= 16px (anti-zoom iOS) ['']
+  OK     /admin/qr/1 controles >= 44px en tactil []
+  OK      360px /admin/reunion/1/sala      sin scroll horizontal (360)
+  FALLO  /admin/reunion/1/sala texto >= 12px ['DIV.:11px']
+  OK     /admin/reunion/1/sala campos >= 16px (anti-zoom iOS) []
+  OK     /admin/reunion/1/sala controles >= 44px en tactil []
+  OK      360px /reunion/tgaekaq8hfm       sin scroll horizontal (360)
+  OK     /reunion/tgaekaq8hfm texto >= 12px []
+  OK     /reunion/tgaekaq8hfm campos >= 16px (anti-zoom iOS) []
+  OK     /reunion/tgaekaq8hfm controles >= 44px en tactil []
+  OK      768px /admin/login               sin scroll horizontal (768)
+  OK      768px /admin                     sin scroll horizontal (768)
+  OK      768px /admin/qr/1                sin scroll horizontal (768)
+  OK      768px /admin/reunion/1/sala      sin scroll horizontal (768)
+  OK      768px /reunion/tgaekaq8hfm       sin scroll horizontal (768)
+  OK     1280px /admin/login               sin scroll horizontal (1280)
+  OK     1280px /admin                     sin scroll horizontal (1280)
+  OK     1280px /admin/qr/1                sin scroll horizontal (1280)
+  OK     1280px /admin/reunion/1/sala      sin scroll horizontal (1280)
+  OK     1280px /reunion/tgaekaq8hfm       sin scroll horizontal (1280)
+=== 3 FALLO(S) ===

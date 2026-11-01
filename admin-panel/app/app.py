@@ -90,7 +90,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261101c"
+ASSET_V = "20261101d"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -195,6 +195,44 @@ def fin_reunion(r):
         # Fila con fecha ilegible: se asume que empieza ahora.
         ini = datetime.now(timezone.utc)
     return ini + timedelta(minutes=dur)
+
+# --- Fechas para mostrar (D1) ---------------------------------------------
+# La BD y los tokens siguen en UTC. Solo para PRESENTAR se pasa a hora de
+# Colombia (UTC-5 fijo: Colombia no tiene horario de verano), con nombres en
+# espanol de tablas propias (no depende del locale del contenedor).
+TZ_COL = timezone(timedelta(hours=-5))
+TZ_UTC = timezone(timedelta(0))
+DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def fecha_col(fecha_utc):
+    """'2026-11-04 00:00 UTC' -> datetime en hora de Colombia, o None."""
+    try:
+        d = datetime.strptime(fecha_utc or "", "%Y-%m-%d %H:%M UTC").replace(tzinfo=TZ_UTC)
+    except ValueError:
+        return None
+    return d.astimezone(TZ_COL)
+
+
+def hora_12(d):
+    """7:00 p. m. (uso colombiano)."""
+    h = d.hour % 12 or 12
+    return f"{h}:{d.minute:02d} " + ("a. m." if d.hour < 12 else "p. m.")
+
+
+def fecha_txt(fecha_utc, anio=False):
+    """'mar 3 nov · 7:00 p. m.' (con anio: 'mar 3 nov 2026 · 7:00 p. m.').
+
+    Si la fecha no se puede leer, devuelve el texto original."""
+    d = fecha_col(fecha_utc)
+    if d is None:
+        return fecha_utc or ""
+    f = DIAS[d.weekday()] + " " + str(d.day) + " " + MESES[d.month - 1]
+    if anio:
+        f += " " + str(d.year)
+    return f + " · " + hora_12(d)
+
 
 def exp_reunion(r):
     """Vencimiento del token: fin previsto + JWT_EXP_MARGIN_MIN."""
@@ -303,6 +341,19 @@ ICONO = {
     "error": _SVG + '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
     "info": _SVG + '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
 }
+_SVG_E = '<svg class="empty__icon" viewBox="0 0 24 24" aria-hidden="true">'
+ICONO_VACIO = {
+    "buscar": _SVG_E + '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M9.5 9.2a1.8 1.8 0 1 1 2.3 1.7c-.5.2-.8.6-.8 1.1M11 14h.01"/></svg>',
+    "reloj": _SVG_E + '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>',
+    "calendario": _SVG_E + '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>',
+}
+
+
+def vacio(icono, titulo_html, texto_html, h1=False):
+    """Estado vacio (.empty). Los argumentos ya deben venir escapados."""
+    t = "h1" if h1 else "p"
+    return ('<div class="empty">' + ICONO_VACIO[icono] + "<" + t + ' class="empty__title">' + titulo_html
+            + "</" + t + '><p class="empty__text">' + texto_html + "</p></div>")
 
 
 def alerta(tipo, titulo_html, texto_html="", role=None):
@@ -474,24 +525,30 @@ def reunion_publica(slug):
     with db() as c:
         r = c.execute("SELECT * FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
     if not r:
-        body = "<h1>Reunion no encontrada</h1><p class=m>Verifica el link o contacta al administrador.</p>"
-        return render_page("No encontrada", body), 404
+        body = ('<section class="card card--sheet">'
+                + vacio("buscar", "Reunión no encontrada",
+                        "Verifica el link o contacta a la administración.", h1=True)
+                + "</section>")
+        return render_page("Reunión no encontrada", body, legacy=False), 404
     # La pagina publica SIEMPRE emite tokens de asistente (moderator: false).
     # '?presenter=1' ya no tiene efecto; el admin entra por /admin/reunion/<id>/sala.
     body = open(os.path.join(TPL_DIR, "page_reunion.html")).read()
     body = body.replace("{{titulo}}", escape_html(r["titulo"]))
-    body = body.replace("{{rol}}", "Asistente")
-    body = body.replace("{{fecha_utc}}", escape_html(r["fecha_utc"]))
+    body = body.replace("{{rol}}", "asistente")
+    body = body.replace("{{fecha_utc}}", escape_html(fecha_txt(r["fecha_utc"])))
     body = body.replace("{{duracion}}", str(r["duracion_min"]))
     body = body.replace("{{descripcion}}", escape_html(r["descripcion"] or ""))
     body = body.replace("{{slug}}", escape_html(slug))
-    return render_page(r["titulo"], body)
+    return render_page(r["titulo"], body, legacy=False)
 
 def pagina_finalizada(r):
-    body = ("<h1>Reunion finalizada</h1><p class=m>El acceso a <b>" + escape_html(r["titulo"])
-            + "</b> se cerro " + str(JWT_EXP_MARGIN_MIN)
-            + " minutos despues del fin previsto. Contacta a la administracion.</p>")
-    return render_page("Reunion finalizada", body), 410
+    body = ('<section class="card card--sheet">'
+            + vacio("reloj", "Reunión finalizada",
+                    "El acceso a «<b>" + escape_html(r["titulo"]) + "</b>» se cerró "
+                    + str(JWT_EXP_MARGIN_MIN) + " minutos después del fin previsto. "
+                    "Contacta a la administración.", h1=True)
+            + "</section>")
+    return render_page("Reunión finalizada", body, legacy=False), 410
 
 @app.route("/unirse", methods=["POST"])
 def unirse():

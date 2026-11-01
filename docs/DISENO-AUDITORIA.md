@@ -25,7 +25,8 @@ Herramientas de verificación (creadas en el paso 0):
 | 0 | `399da6a` | Scripts de verificación y capturas; spec versionado | Línea base local y de producción, capturas "antes" | `auditoria/paso0-*.txt` |
 | 1 | `921c42b` (+`eaf8470` scripts) | `static/theme.css` + `theme.js`, `/admin/static`, `ASSET_V`, `render_page(kind,width)`, `COPY` en Dockerfile, `<link>`/`<script>` en `tpl.html` | 6.4 OK; diff = solo `<link>`/`<script>` nuevos y estáticos 404→200; capturas ≈ iguales | `auditoria/paso1-*.txt` |
 | 2 | `c32bed7` | `tpl.html` nuevo (appbar + menú con tema y cerrar sesión, banda pública, pie con conmutador, skip link, `<main id=contenido>`), sin `<style>`; páginas viejas envueltas en `.c.legacy` | 6.4 OK, interacciones 33/36 (3 fallos = marcado viejo de pasos 5-6), capturas | `auditoria/paso2-*.txt` |
-| 3 | (ver git log) | `page_login.html` (tarjeta con marca, `.field` con `for`/`autocomplete`, botón con carga), error como `.alert--error role=alert`, helper `alerta()`, tildes del login | 6.4 OK (solo ids nuevos), interacciones login+tema 100 % OK, capturas | `auditoria/paso3-*.txt` |
+| 3 | `aacd4e3` | `page_login.html` (tarjeta con marca, `.field` con `for`/`autocomplete`, botón con carga), error como `.alert--error role=alert`, helper `alerta()`, tildes del login | 6.4 OK (solo ids nuevos), interacciones login+tema 100 % OK, capturas | `auditoria/paso3-*.txt` |
+| 4 | (ver git log) | `page_reunion.html` (M4), 404 y 410 como `.empty` en tarjeta, D1 (`fecha_txt`: hora de Colombia), `{{rol}}`="asistente" | 6.4 OK, interacciones residente 100 % OK (1 solo `/unirse` con triple toque), capturas | `auditoria/paso4-*.txt` |
 
 ---
 
@@ -136,3 +137,31 @@ título de pestaña "Iniciar sesión · Cerro Azul"; `legacy=False`. CSS `/* pag
   `/admin/qr/1`; al enviar el botón queda `aria-busy=true` y `disabled`.
 - Capturas `paso3` (login y login-error, claro/oscuro, 360/768/1280): coinciden con M1; la vista de 1280 en
   la tanda de error muestra el mensaje de rate limit con el mismo aviso. Sin peticiones externas.
+
+## Paso 4 — Páginas del residente (D1)
+
+**Cambios:**
+- `app.py`: D1 → `TZ_COL` (UTC−5 fijo), tablas `DIAS`/`MESES` propias, `fecha_col()`, `hora_12()` ("7:00 p. m."),
+  `fecha_txt(fecha_utc, anio=False)` ("mar 3 nov · 7:00 p. m."); si la fecha no se puede leer devuelve el texto
+  original. Comprobado: `2026-11-04 00:00 UTC` → `mar 3 nov · 7:00 p. m.`; `2026-10-31 20:09 UTC` →
+  `sáb 31 oct · 3:09 p. m.`; `basura` → `basura`. La BD y los tokens no cambian.
+- `reunion_publica()`: `{{fecha_utc}}` recibe `fecha_txt(...)` (mismo marcador, otro valor, como dice 4.4/4.5);
+  `{{rol}}` = "asistente" (se muestra "Entras como asistente"). `legacy=False`.
+- 404 y 410: helper `vacio(icono, título, texto, h1)` con iconos SVG en línea, dentro de `.card--sheet`;
+  textos con tildes; títulos de pestaña "Reunión no encontrada"/"Reunión finalizada". `pagina_finalizada`
+  sigue siendo la misma para `/unirse`, `/sala` y `/entrar` (como prevé 4.5).
+- `page_reunion.html` según M4: eyebrow "Estás invitado", `h1`, chips de fecha/duración con icono,
+  `.alert--info role=note`, campos con `for`/`id`, `autocomplete="off"`/`"name"`, `autocapitalize`,
+  `enterkeyhint="go"`, botón `btn--lg btn--block` con `data-loading`. Contrato intacto: `{{titulo}} {{rol}}
+  {{fecha_utc}} {{duracion}} <!--DESC--> {{slug}}`, `form POST /unirse` con `slug`/`apto`/`nombre`.
+- CSS `/* page: reunión pública */`. `ASSET_V=…d`. Ruff: 18 = base (se evitaron 2 avisos nuevos).
+
+**Verificación:**
+- 6.4 → **OK**; diff = ids `f-apto`, `f-nombre`, `reunion-t` en la pública. `/unirse` sigue → 302 a Jitsi con
+  `#jwt`, 400 sin nombre, 410 en reunión pasada; 404 en slug inexistente.
+- Interacciones (`auditoria/paso4-interacciones.txt`): sin "UTC" en la página; fecha en hora de Colombia;
+  etiquetas enfocan su campo; botón 52 px a ancho completo; `autocomplete`/`enterkeyhint`; **triple toque en
+  "Entrar a la reunión" → 1 solo POST `/unirse`** (antes podía emitir varios tokens); 404 con `h1` y título.
+  A 360 px la pública cumple texto ≥ 12, campos ≥ 16, controles ≥ 44. Fallos restantes = los 3 conocidos de
+  páginas aún no migradas.
+- Capturas `paso4` (pública, 404, 410 × claro/oscuro × 3 anchos): coinciden con M4.

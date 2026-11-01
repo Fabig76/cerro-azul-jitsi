@@ -887,6 +887,18 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 .authnote { margin-top: var(--space-6); text-align: center; font-size: var(--text-xs); line-height: var(--lh-xs);
   color: var(--text-muted); }
 
+/* page: reunión pública (residente, móvil primero) */
+.reunion { display: flex; flex-direction: column; gap: var(--space-5); }
+.reunion__head { display: flex; flex-direction: column; gap: var(--space-1); }
+.reunion__title { font-size: var(--text-xl); line-height: var(--lh-xl); overflow-wrap: anywhere; }
+@media (min-width: 768px) { .reunion__title { font-size: var(--text-2xl); line-height: var(--lh-2xl); } }
+.reunion__desc { white-space: pre-line; overflow-wrap: anywhere; color: var(--text); }
+.reunion .form { margin-top: var(--space-1); }
+.reunion__cta { display: flex; flex-direction: column; gap: var(--space-2); }
+.reunion__rol { text-align: center; font-size: var(--text-xs); line-height: var(--lh-xs); color: var(--text-muted); }
+.chips { list-style: none; margin: 0; padding: 0; }
+.page--public .card--sheet > .empty { padding: var(--space-6) var(--space-2); }
+
 /* ---------- 7. Movimiento reducido e impresión ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

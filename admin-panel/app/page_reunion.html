@@ -1,17 +1,38 @@
-<h1>{{titulo}}</h1>
-<p class="m">Rol al entrar: <b>{{rol}}</b></p>
-<div class="o">
-  <b>Programada:</b> {{fecha_utc}}<br>
-  <b>Duracion:</b> {{duracion}} minutos
-</div>
-<!--DESC-->
-<h2>Unirse a la reunion</h2>
-<p class="m">Entraras con microfono y camara apagados. Para hablar, levanta la mano: la administracion te dara la palabra.</p>
-<form method="post" action="/unirse">
-  <input type="hidden" name="slug" value="{{slug}}">
-  <label>Apartamento <small>(opcional, ej. 302 o T2-302)</small></label>
-  <input name="apto" maxlength="20" placeholder="302">
-  <label>Tu nombre</label>
-  <input name="nombre" required maxlength="50" placeholder="Como te identificaran">
-  <button type="submit">Entrar a la reunion</button>
-</form>
+<section class="card card--sheet reunion" aria-labelledby="reunion-t">
+  <header class="reunion__head">
+    <p class="eyebrow">Estás invitado</p>
+    <h1 class="reunion__title" id="reunion-t">{{titulo}}</h1>
+  </header>
+  <ul class="chips" role="list">
+    <li class="chip">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
+      <span class="num">{{fecha_utc}}</span>
+    </li>
+    <li class="chip">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
+      <span class="num">{{duracion}} minutos</span>
+    </li>
+  </ul>
+  <!--DESC-->
+  <div class="alert alert--info" role="note">
+    <svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+    <div class="alert__body"><p>Entrarás con micrófono y cámara apagados. Para hablar, levanta la mano ✋ y la administración te dará la palabra.</p></div>
+  </div>
+  <form method="post" action="/unirse" class="form" data-loading>
+    <input type="hidden" name="slug" value="{{slug}}">
+    <div class="field">
+      <label class="field__label" for="f-apto">Apartamento <span class="field__opt">Opcional</span></label>
+      <input class="field__input" id="f-apto" name="apto" maxlength="20" placeholder="302 o T2-302"
+             autocomplete="off" inputmode="text" autocapitalize="characters">
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-nombre">Tu nombre</label>
+      <input class="field__input" id="f-nombre" name="nombre" required maxlength="50"
+             placeholder="Cómo te identificarán" autocomplete="name" autocapitalize="words" enterkeyhint="go">
+    </div>
+    <div class="reunion__cta">
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Entrar a la reunión</button>
+      <p class="reunion__rol">Entras como {{rol}}</p>
+    </div>
+  </form>
+</section>

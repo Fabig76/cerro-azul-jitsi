@@ -198,7 +198,52 @@ def login_g(b, base, estado):
     ctx.close()
 
 
-GRUPOS_EXTRA = {"login": login_g}
+def slug_publico(b, base, estado, titulo="Asamblea ordinaria noviembre"):
+    ctx = b.new_context(storage_state=estado)
+    p = ctx.new_page()
+    p.goto(base + "/admin")
+    html = p.content()
+    ctx.close()
+    i = html.find(titulo)
+    m = re.search(r"/reunion/([a-z0-9-]{6,})", html[i:] if i >= 0 else html)
+    return m.group(1) if m else "x"
+
+
+def publica(b, base, estado):
+    print("[pagina publica del residente]")
+    slug = slug_publico(b, base, estado)
+    ctx = b.new_context(viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True)
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/reunion/" + slug)
+    txt = p.inner_text("main")
+    ok("UTC" not in txt, "no se muestra 'UTC' al residente")
+    ok(bool(re.search(r"(lun|mar|mié|jue|vie|sáb|dom) \d+ \w+ · \d+:\d\d [ap]\. m\.", txt)),
+       "fecha en hora de Colombia (%s)" % re.findall(r"\w+ \d+ \w+ · [^\n]+", txt)[:1])
+    etiquetas(p, "publica")
+    h = p.evaluate("document.querySelector('button[type=submit]').offsetHeight")
+    ok(h >= 52, "boton principal >= 52px (%s)" % h)
+    w = p.evaluate("document.querySelector('button[type=submit]').offsetWidth / document.querySelector('form').offsetWidth")
+    ok(w > 0.99, "boton a ancho completo")
+    ac = p.evaluate("[...document.querySelectorAll('input:not([type=hidden])')].map(i=>i.name+'='+i.autocomplete+'/'+i.enterKeyHint).join(' ')")
+    ok(ac == "apto=off/ nombre=name/go", "autocomplete y enterkeyhint (%s)" % ac)
+    ok(p.query_selector(".alert--info") is not None, "aviso de micro/camara como alert--info")
+    posts = []
+    p.on("request", lambda r: posts.append(r.url) if r.method == "POST" and r.url.endswith("/unirse") else None)
+    p.fill("[name=nombre]", "Ana")
+    p.evaluate("""() => { var b=document.querySelector('[type=submit]'); b.click(); b.click(); b.click(); }""")
+    p.wait_for_timeout(1500)
+    ok(len(posts) == 1, "triple toque en 'Entrar' -> %d POST /unirse (debe ser 1)" % len(posts))
+    ctx.close()
+    ctx = b.new_context(viewport={"width": 360, "height": 740})
+    p = ctx.new_page()
+    r = p.goto(base + "/reunion/noexiste")
+    ok(r.status == 404 and p.inner_text("h1") == "Reunión no encontrada", "404 con estado vacio y h1")
+    ok(p.title() == "Reunión no encontrada · Cerro Azul", "titulo de pestana del 404 (%s)" % p.title())
+    ctx.close()
+
+
+GRUPOS_EXTRA = {"login": login_g, "publica": publica}
 
 
 def main():
