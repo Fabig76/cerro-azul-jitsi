@@ -284,7 +284,10 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   │   ├── page_login.html         # Pagina de login
 │   │   ├── page_panel.html         # Panel de admin
 │   │   ├── page_qr_view.html       # Vista del QR + link
-│   │   └── page_reunion.html       # Pagina publica de reunion
+│   │   ├── page_reunion.html       # Pagina publica de reunion
+│   │   └── static/                 # Tema visual (Fase 8)
+│   │       ├── theme.css           # Sistema de diseno: tokens, componentes, claro/oscuro
+│   │       └── theme.js            # Tema, menus, estado de carga, dialogos
 │   ├── README.md                   # Rutas del panel y API interna (Fase 6)
 │   └── instance/
 │       └── admin.env.example        # Template de credenciales admin
@@ -294,7 +297,11 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   ├── ARCHITECTURE.md             # Arquitectura detallada
 │   ├── TROUBLESHOOTING.md          # Bugs encontrados y fixes
 │   ├── BACKUP-RESTORE.md           # Respaldo y restauracion en servidor limpio
-│   └── INTEGRACION-JITSI.md        # Integracion con votacionph.us (Fase 6)
+│   ├── INTEGRACION-JITSI.md        # Integracion con votacionph.us (Fase 6)
+│   ├── SPEC-DISENO.md              # Spec del rediseno visual (Fase 8)
+│   ├── SPEC-DISENO-mockups.md      # Wireframes de cada pantalla
+│   ├── DISENO-AUDITORIA.md         # Que se cambio, como se verifico y evidencia
+│   └── capturas-rediseno/          # 54 capturas: 5 paginas x 3 anchos x 2 temas
 └── scripts/
     └── setup-vps.sh                # Script de despliegue
 ```
@@ -899,6 +906,44 @@ El script:
 - Flask 3 + Gunicorn para el admin panel
 - Caddy 2 como reverse proxy
 - Python 3.12 + SQLite para el admin
+
+## Fase 8 — Rediseño visual del panel
+
+El panel se veía como una herramienta interna sin terminar. Se rediseñó con un sistema de diseño propio (inspiración macOS/iOS: jerarquía, espacio, tipografía y color con intención), **sin ninguna dependencia externa** (nada de CDN, el panel funciona con la red caída hacia fuera).
+
+### Qué se cambió
+
+| Pieza | Qué es |
+|---|---|
+| `admin-panel/app/static/theme.css` | Sistema de diseño: tokens (`--color-*`, `--space-*`, `--radius-*`, `--shadow-*`, `--font-*`), escala tipográfica 12/14/16/20/25/31/39, componentes (botón, campo, tarjeta, aviso, diálogo, menú, esqueleto) |
+| `admin-panel/app/static/theme.js` | ≤ 3 KB: conmutador de tema (claro/oscuro/automático, guardado en `localStorage`), menús, estado de carga, diálogos. Todo funciona también sin JS |
+| `page_login.html` | Acceso del administrador con marca y jerarquía |
+| `page_panel.html` | Lista de reuniones primero; "Moderar" y "Ver QR" visibles, el resto en menú ⋯ |
+| `page_qr_view.html` | QR grande, link público, botón de copiar |
+| `page_reunion.html` | Página del residente, **móvil primero**: campos de 16 px (iOS no hace zoom) y botón de 52 px |
+| `page_sala.html` | Moderación en vivo. **Solo capa visual**: el JS no se tocó |
+
+### Por qué el CSS vive en `/admin/static/` y no en `/static/`
+
+Caddy solo enruta al panel `/admin*`, `/reunion/*`, `/unirse`, `/healthz` y `/api/reuniones/*`. Todo lo demás va al contenedor `web` de Jitsi, que **ya usa `/static/`** para sus propios ficheros. Por eso Flask se registra con `static_url_path="/admin/static"`. No hubo que tocar Caddy.
+
+### Bugs corregidos de paso
+
+| Bug | Síntoma que veía el usuario |
+|---|---|
+| `UTC UTC` duplicado | La lista mostraba `2026-11-04 00:00 UTC UTC` |
+| Descripción invisible | El administrador la escribía y **el residente nunca la veía** (`<!--DESC-->` no se sustituía) |
+| Hora en UTC | Una asamblea del martes 19:00 aparecía como *miércoles 00:00*. Ahora se muestra en hora de Colombia |
+| **JWT en el fragmento** | El residente rellenaba el formulario y veía **«Se requiere autenticación»**: esta versión de Jitsi solo lee el token de `?jwt=`. Corregido en `4535fd9` |
+
+### Verificación
+
+- `docs/SPEC-DISENO.md` — spec completo (tokens, componentes, plan por página, riesgos).
+- `docs/SPEC-DISENO-mockups.md` — wireframes.
+- `docs/DISENO-AUDITORIA.md` — tabla de **cada modificación**: archivo, cambio, cómo se verificó y evidencia.
+- `docs/capturas-rediseno/` — **54 capturas**: 5 páginas × 360/768/1280 px × claro/oscuro, más la sala real con dos clientes conectados.
+
+**Contratos que no se pueden romper** (el JS de la sala depende de ellos): `#jitsi`, `#lista`, `#cnt`, `#log`, `#st-audio`, `#st-video`, `.gl button[data-cmd]`, y las clases que el JS crea (`.p`, `.n`, `.mano`, `.m`, `.ok2`, `.d`).
 
 ## Licencia
 
