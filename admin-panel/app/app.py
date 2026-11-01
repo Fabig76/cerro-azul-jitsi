@@ -663,7 +663,7 @@ def sala_moderacion(rid):
     body = body.replace("{{domain}}", escape_html(PUB))
     body = body.replace("{{cfg_json}}", cfg_js)
     log.info("sala moderacion id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
-    return render_page("Moderacion - " + r["titulo"], body, kind="admin", width="wide")
+    return render_page("Moderación · " + r["titulo"], body, kind="admin", width="wide", legacy=False)
 
 @app.route("/admin/reunion/<int:rid>/moderador.json")
 @login_required

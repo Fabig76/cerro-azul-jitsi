@@ -945,6 +945,85 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
   .qrcard { width: calc(280px + 2 * var(--space-5)); position: sticky; top: calc(var(--header-h) + var(--space-6)); }
 }
 
+/* page: sala (moderación en vivo). El JS de page_sala.html no se toca (D8).
+   CONTRATO SALA: #jitsi, #lista, #cnt, #log, #st-audio, #st-video, .gl y las
+   clases que crea el JS (div.p, div.n, span.mano, p.m, botones .ok2 / .d /
+   sin clase). Estas reglas son permanentes: no borrarlas. */
+.salahead { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-5); }
+.salahead__live { display: flex; align-items: center; gap: var(--space-2); }
+.salahead__live .eyebrow { color: var(--danger); }
+.live-dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--danger); animation: pulse 1600ms var(--ease-in-out) infinite; }
+.salahead__title { overflow-wrap: anywhere; }
+.salahead__meta { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); overflow-wrap: anywhere; }
+.salahead .disclosure__body p { font-size: var(--text-sm); line-height: var(--lh-sm); }
+
+.sala { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+/* El iframe recibe height:560 en línea (API de Jitsi): no se hace fluido. */
+#jitsi { min-height: 560px; background: #000; border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: var(--shadow-2), 0 0 0 1px var(--border); }
+#jitsi iframe { display: block; width: 100%; border: 0; }
+.sala__lado { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.sala__card { padding: var(--space-4); }
+@media (min-width: 768px) { .sala__card { padding: var(--space-5); } }
+.sala__card-title { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-md); line-height: var(--lh-md);
+  font-weight: var(--weight-semibold); margin-bottom: var(--space-3); }
+.sala__estados { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+.sala__estado { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+#st-audio, #st-video { font-weight: var(--weight-semibold); color: var(--text); }
+#cnt:empty { display: none; }
+
+.gl .sala__grupo { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.gl .sala__fila { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.gl button { width: 100%; white-space: normal; padding-block: var(--space-1); }
+.gl .field__hint { font-size: var(--text-xs); line-height: var(--lh-xs); }
+
+.sala__ayuda { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); margin-bottom: var(--space-3); }
+#lista { display: flex; flex-direction: column; gap: var(--space-2); }
+#lista > .skeleton { height: 4.5rem; }
+.sala__conectando { color: var(--text-muted); font-size: var(--text-sm); text-align: center; }
+#lista .p { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-3);
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); box-shadow: inset 3px 0 0 transparent; }
+/* Tablet: los 4 botones en una fila; móvil y panel lateral (>= 1024): 2 x 2 */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  #lista .p { grid-template-columns: repeat(4, max-content); }
+}
+#lista .p:has(.mano) { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
+#lista .n { grid-column: 1 / -1; min-width: 0; font-size: var(--text-md); line-height: var(--lh-md); font-weight: var(--weight-medium);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lista .mano { display: inline-block; margin-right: var(--space-1); padding: 0 var(--space-2); border-radius: var(--radius-full);
+  background: var(--warn); color: #000; font-size: var(--text-xs); line-height: 1.6; font-weight: var(--weight-bold);
+  vertical-align: .1em; }
+/* Botones que crea pintar(): base = secundario pequeño */
+#lista .p button {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 2rem; padding: var(--space-1) var(--space-2);
+  border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  line-height: 1.15; cursor: pointer; background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border);
+  transition: background-color var(--dur-fast) var(--ease-in-out), box-shadow var(--dur-fast) var(--ease-in-out);
+}
+#lista .p button:hover { background: var(--border); }
+#lista .p button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+#lista .p button:active { transform: scale(.98); }
+#lista .p button.ok2 { background: var(--success-soft); color: var(--success-soft-text); box-shadow: none; }
+#lista .p button.ok2:hover { box-shadow: inset 0 0 0 1px var(--success); }
+#lista .p button.d { background: var(--danger-soft); color: var(--danger-soft-text); box-shadow: none; }
+#lista .p button.d:hover { box-shadow: inset 0 0 0 1px var(--danger); }
+@media (pointer: coarse) { #lista .p button { min-height: var(--tap); } }
+/* "Nadie mas en la sala." (p.m que escribe el JS) */
+#lista > p.m { color: var(--text-muted); text-align: center; padding: var(--space-6) var(--space-2); margin: 0; }
+
+.sala__registro { padding-block: var(--space-1); }
+.sala__registro > summary { color: var(--text); width: 100%; }
+#log { font-family: var(--font-mono); font-size: var(--text-xs); line-height: var(--lh-xs); color: var(--text-muted);
+  max-height: 10rem; overflow: auto; background: var(--surface-2); border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+#log:empty::before { content: "Sin eventos todavía."; }
+
+@media (min-width: 1024px) {
+  .sala { grid-template-columns: minmax(0, 1fr) 22.5rem; }
+  #jitsi { position: sticky; top: calc(var(--header-h) + var(--space-4)); }
+  #lista { max-height: 50vh; overflow: auto; }
+}
+
 /* ---------- 7. Movimiento reducido e impresión ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

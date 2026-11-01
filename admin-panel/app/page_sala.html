@@ -1,48 +1,77 @@
-<style>
-  /* Esta pagina necesita mas ancho que el resto del panel. */
-  .c { max-width:1280px; }
-  .sala { display:flex; gap:14px; flex-wrap:wrap; }
-  #jitsi { flex:1 1 640px; min-height:560px; background:#000; border-radius:8px; overflow:hidden; }
-  #jitsi iframe { width:100%; height:560px; border:0; }
-  .lado { flex:0 1 360px; min-width:280px; }
-  .gl button, .p button { margin:4px 4px 0 0; padding:5px 9px; font-size:12px; }
-  .p { background:var(--bg); border:1px solid var(--b); border-radius:8px; padding:8px 10px; margin-bottom:6px; }
-  .p .n { font-size:13px; }
-  .p .mano { color:#facc15; font-weight:bold; }
-  .ok2 { background:var(--ok); }
-  #log { font-family:monospace; font-size:11px; color:var(--m); max-height:160px; overflow:auto;
-         background:var(--bg); border:1px solid var(--b); border-radius:6px; padding:6px; white-space:pre-wrap; }
-</style>
-
-<h1>Moderacion - {{titulo}}</h1>
-<p class="m">Sala <code>{{sala}}</code> en {{domain}}. Entras como <b>moderador</b> (token con <code>moderator: true</code>)
-con microfono y camara apagados. Al entrar se activa la moderacion de audio y video: ningun asistente
-puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
+<!-- Sala de moderacion. El <script> del final NO se toca (D8): solo la capa
+     visual. Contrato con el JS: #jitsi #lista #cnt #log #st-audio #st-video,
+     .gl button[data-cmd] (y ningun otro <button> dentro de .gl) y las clases
+     que crea el JS (div.p, div.n, span.mano, p.m, botones ok2 / d / sin clase),
+     estilizadas en theme.css, bloque "page: sala". -->
+<header class="salahead">
+  <p class="salahead__live"><span class="live-dot" aria-hidden="true"></span><span class="eyebrow">Moderación en vivo</span></p>
+  <h1 class="salahead__title">{{titulo}}</h1>
+  <p class="salahead__meta">Sala <code>{{sala}}</code> · {{domain}}</p>
+  <details class="disclosure">
+    <summary>¿Cómo funciona la moderación?</summary>
+    <div class="disclosure__body">
+      <p>Entras como <b>moderador</b> (token con <code>moderator: true</code>) con micrófono y cámara apagados.
+        Al entrar se activa la moderación de audio y video: ningún asistente puede hablar ni encender
+        cámara o pantalla hasta que lo apruebes.</p>
+    </div>
+  </details>
+</header>
 
 <div class="sala">
   <div id="jitsi"></div>
-  <div class="lado">
-    <h2>Toda la sala</h2>
-    <div class="gl">
-      <button class="d" data-cmd="mute-all-audio">Silenciar a todos</button>
-      <button class="d" data-cmd="mute-all-video">Apagar todas las camaras</button>
-      <button data-cmd="mod-on">Activar moderacion A/V</button>
-      <button data-cmd="mod-off" class="d">Desactivar moderacion A/V</button>
-      <button data-cmd="dar-palabra-todos" class="ok2">Dar la palabra a todos</button>
-      <button data-cmd="quitar-palabra-todos" class="d">Quitar la palabra a todos</button>
-    </div>
-    <p class="m" style="margin:6px 0 0"><small>Moderacion: audio <b id="st-audio">?</b> / video <b id="st-video">?</b></small></p>
-    <p class="m" style="margin:4px 0 0"><small>"Pedir la palabra" (por participante) es una
-      <b>peticion</b>: al asistente le aparece un aviso y el decide. "Dar la palabra a todos"
-      los habilita de inmediato.</small></p>
 
-    <h2>Participantes <small id="cnt"></small></h2>
-    <p class="m" style="margin-bottom:6px"><small>Mano levantada primero. "Dar palabra" aprueba el audio y le pide activar el micro.</small></p>
-    <div id="lista"><p class="m">Conectando...</p></div>
+  <aside class="sala__lado" aria-label="Controles de moderación">
+    <section class="card sala__card" aria-labelledby="sala-st-t">
+      <h2 class="sala__card-title" id="sala-st-t">Estado de la moderación</h2>
+      <p class="sala__estados" aria-live="polite">
+        <span class="sala__estado">Audio <b class="badge badge--neutral" id="st-audio">?</b></span>
+        <span class="sala__estado">Video <b class="badge badge--neutral" id="st-video">?</b></span>
+      </p>
+    </section>
 
-    <h2>Registro</h2>
-    <div id="log"></div>
-  </div>
+    <section class="card sala__card gl" aria-labelledby="sala-gl-t">
+      <h2 class="sala__card-title" id="sala-gl-t">Toda la sala</h2>
+      <div class="sala__grupo">
+        <p class="eyebrow">Palabra</p>
+        <div class="sala__fila">
+          <button type="button" class="btn btn--sm btn--soft-success" data-cmd="dar-palabra-todos" aria-label="Dar la palabra a todos">Dar a todos</button>
+          <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="quitar-palabra-todos" aria-label="Quitar la palabra a todos">Quitar a todos</button>
+        </div>
+      </div>
+      <div class="sala__grupo">
+        <p class="eyebrow">Silenciar</p>
+        <div class="sala__fila">
+          <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="mute-all-audio" aria-label="Silenciar a todos">Micrófonos</button>
+          <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="mute-all-video" aria-label="Apagar todas las cámaras">Cámaras</button>
+        </div>
+      </div>
+      <div class="sala__grupo">
+        <p class="eyebrow">Moderación A/V</p>
+        <div class="sala__fila">
+          <button type="button" class="btn btn--sm btn--secondary" data-cmd="mod-on" aria-label="Activar moderación A/V">Activar</button>
+          <button type="button" class="btn btn--sm btn--secondary btn--text-danger" data-cmd="mod-off" aria-label="Desactivar moderación A/V">Desactivar</button>
+        </div>
+      </div>
+      <p class="field__hint">«Pedir la palabra» (por participante) es una <b>petición</b>: al asistente le aparece
+        un aviso y él decide. «Dar a todos» los habilita de inmediato.</p>
+    </section>
+
+    <section class="card sala__card" aria-labelledby="sala-pa-t">
+      <h2 class="sala__card-title" id="sala-pa-t">Participantes <span class="badge badge--neutral num" id="cnt"></span></h2>
+      <p class="sala__ayuda">Mano levantada primero. «Pedir la palabra» aprueba el audio y le pide activar el micro.</p>
+      <div id="lista">
+        <div class="skeleton" aria-hidden="true"></div>
+        <div class="skeleton" aria-hidden="true"></div>
+        <div class="skeleton" aria-hidden="true"></div>
+        <p class="sala__conectando" role="status">Conectando…</p>
+      </div>
+    </section>
+
+    <details class="disclosure card sala__card sala__registro">
+      <summary>Registro técnico</summary>
+      <div id="log"></div>
+    </details>
+  </aside>
 </div>
 
 <script src="https://{{domain}}/external_api.js"></script>

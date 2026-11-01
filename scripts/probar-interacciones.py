@@ -395,7 +395,128 @@ def qr_g(b, base, estado):
     ctx.close()
 
 
-GRUPOS_EXTRA = {"login": login_g, "publica": publica, "panel": panel_g, "qr": qr_g}
+# DOM que crea pintar() (mismas clases); Jitsi esta bloqueado en la prueba.
+MOCK_LISTA = r"""
+() => {
+  function boton(t, c){ var b=document.createElement('button'); b.type='button'; b.textContent=t; if(c) b.className=c; return b; }
+  var cont = document.getElementById('lista'); cont.textContent = '';
+  [['Apto 302 - Ana', 1], ['Apto 504 - Luis', 0]].forEach(function(x){
+    var d=document.createElement('div'); d.className='p';
+    var n=document.createElement('div'); n.className='n';
+    if (x[1]) { var m=document.createElement('span'); m.className='mano'; m.textContent='[mano] '; n.appendChild(m); }
+    n.appendChild(document.createTextNode(x[0])); d.appendChild(n);
+    d.appendChild(boton('Pedir la palabra','ok2')); d.appendChild(boton('Silenciar','d'));
+    d.appendChild(boton('Habilitar camara','')); d.appendChild(boton('Apagar camara','d'));
+    cont.appendChild(d);
+  });
+}
+"""
+
+
+def sala_g(b, base, estado):
+    print("[sala: contrato JS y capa visual]")
+    for w in (360, 1280):
+        ctx = b.new_context(storage_state=estado, viewport={"width": w, "height": 900})
+        solo_local(ctx, base)
+        p = ctx.new_page()
+        p.goto(base + "/admin/reunion/1/sala")
+        ids = p.evaluate("['jitsi','lista','cnt','log','st-audio','st-video'].filter(i => !document.getElementById(i))")
+        ok(not ids, "%dpx: ids del contrato presentes (faltan %s)" % (w, ids))
+        cmds = p.evaluate("[...document.querySelectorAll('.gl button')].map(b => b.getAttribute('data-cmd'))")
+        ok(sorted(cmds) == sorted(["mute-all-audio", "mute-all-video", "mod-on", "mod-off",
+                                   "dar-palabra-todos", "quitar-palabra-todos"]),
+           "%dpx: .gl contiene SOLO los 6 botones data-cmd" % w)
+        ok(p.evaluate("[...document.querySelectorAll('.gl button')].every(b => b.getAttribute('aria-label'))"),
+           "%dpx: botones globales con aria-label completo" % w)
+        ok(p.locator("#lista .skeleton").count() == 3, "%dpx: esqueleto inicial en #lista" % w)
+        ok(not p.evaluate("document.querySelector('.salahead details').open"), "%dpx: explicacion plegada" % w)
+        cols = p.evaluate("getComputedStyle(document.querySelector('.sala')).gridTemplateColumns.split(' ').length")
+        ok(cols == (2 if w >= 1024 else 1), "%dpx: %d columna(s) (video | panel)" % (w, cols))
+        p.evaluate(MOCK_LISTA)
+        bg = p.evaluate("[...document.querySelectorAll('#lista .p')].map(e => getComputedStyle(e).backgroundColor)")
+        ok(bg[0] != bg[1], "%dpx: la fila con [mano] se destaca (%s)" % (w, bg))
+        h = p.evaluate("Math.min(...[...document.querySelectorAll('#lista .p button, .gl button')].map(b => b.offsetHeight))")
+        ok(h >= 32, "%dpx: botones de la sala >= 32px (%d)" % (w, h))
+        sw = p.evaluate("document.documentElement.scrollWidth")
+        ok(sw <= w, "%dpx: sin scroll horizontal con participantes (%d)" % (w, sw))
+        ctx.close()
+
+
+# Sustituto de external_api.js: registra executeCommand y permite emitir
+# eventos. Asi el <script> REAL de la sala (sin tocar) se ejecuta contra el
+# DOM rediseñado y se comprueba que cada boton sigue mandando su comando.
+FAKE_API = r"""
+window.__cmds = []; window.__mod = {audio: true, video: true};
+window.JitsiMeetExternalAPI = function (domain, o) {
+  window.__api = this; this.o = o; this.l = {};
+  var f = document.createElement('iframe'); f.style.height = o.height + 'px'; f.style.width = o.width;
+  o.parentNode.appendChild(f);
+};
+var P = JitsiMeetExternalAPI.prototype;
+P.addListener = function (e, f) { (this.l[e] = this.l[e] || []).push(f); };
+P.emit = function (e, d) { (this.l[e] || []).forEach(function (f) { f(d); }); };
+P.executeCommand = function () { window.__cmds.push([].slice.call(arguments)); };
+P.isModerationOn = function (m) { return Promise.resolve(!!window.__mod[m]); };
+P.getRoomsInfo = function () { return Promise.resolve({rooms: [{isMainRoom: true, participants: [
+  {id: 'yo1', displayName: 'Administracion'}, {id: 'b1', displayName: 'Apto 302 - Ana'}]}]}); };
+"""
+
+
+def sala_js_g(b, base, estado):
+    print("[sala: el JS sin cambios funciona sobre el DOM nuevo (API de Jitsi simulado)]")
+    ctx = b.new_context(storage_state=estado, viewport={"width": 1280, "height": 900})
+    solo_local(ctx, base)
+    ctx.route("**/external_api.js", lambda r: r.fulfill(status=200, content_type="application/javascript", body=FAKE_API))
+    p = ctx.new_page()
+    errores = []
+    p.on("pageerror", lambda e: errores.append(str(e)))
+    p.goto(base + "/admin/reunion/1/sala")
+    ok(p.evaluate("!!window.__api"), "el script crea JitsiMeetExternalAPI")
+    ok(p.evaluate("window.__api.o.parentNode.id") == "jitsi" and p.evaluate("window.__api.o.height") == 560,
+       "parentNode #jitsi, height 560")
+    ok(p.evaluate("document.querySelector('#jitsi iframe').offsetHeight") == 560, "iframe de 560px dentro de #jitsi")
+    p.evaluate("window.__api.emit('videoConferenceJoined', {id: 'yo1', displayName: 'Administracion'})")
+    p.wait_for_timeout(1800)
+    c = p.evaluate("window.__cmds")
+    ok(["toggleModeration", True, "audio"] in c and ["toggleModeration", True, "video"] in c,
+       "al unirse activa la moderacion A/V")
+    ok(p.inner_text("#st-audio") == "ACTIVA" and p.inner_text("#st-video") == "ACTIVA", "#st-audio/#st-video = ACTIVA")
+    ok(p.locator("#lista .p").count() == 1 and "Apto 302 - Ana" in p.inner_text("#lista .p .n"),
+       "#lista pinta al participante (div.p > div.n)")
+    ok(p.inner_text("#cnt") == "(1)", "#cnt = (1)")
+    p.evaluate("window.__api.emit('raiseHandUpdated', {id: 'b1', handRaised: 123})")
+    ok(p.locator("#lista .p .mano").count() == 1 and p.inner_text("#lista .mano").startswith("[mano]"),
+       "mano levantada: span.mano '[mano] '")
+    bg = p.evaluate("getComputedStyle(document.querySelector('#lista .p')).backgroundColor")
+    ok(bg != "rgba(0, 0, 0, 0)", "fila con mano destacada (%s)" % bg)
+    esperado = {"Pedir la palabra": ["askToUnmute", "b1"], "Silenciar": ["muteRemoteParticipant", "b1", "audio"],
+                "Habilitar camara": ["approveVideo", "b1"], "Apagar camara": ["muteRemoteParticipant", "b1", "video"]}
+    for txt, cmd in esperado.items():
+        p.evaluate("window.__cmds = []")
+        p.locator("#lista .p button", has_text=txt).first.click()
+        ok(p.evaluate("window.__cmds") == [cmd], "participante '%s' -> %s" % (txt, cmd))
+    glob = {"mute-all-audio": [["muteEveryone", "audio"]], "mute-all-video": [["muteEveryone", "video"]],
+            "mod-on": [["toggleModeration", True, "audio"], ["toggleModeration", True, "video"]],
+            "mod-off": [["toggleModeration", False, "audio"], ["toggleModeration", False, "video"]],
+            "dar-palabra-todos": [["toggleModeration", False, "audio"]],
+            "quitar-palabra-todos": [["toggleModeration", True, "audio"]]}
+    for dc, cmds in glob.items():
+        p.evaluate("window.__cmds = []")
+        p.click(".gl button[data-cmd='%s']" % dc)
+        ok(p.evaluate("window.__cmds") == cmds, ".gl %s -> %s" % (dc, cmds))
+    p.evaluate("window.__mod = {audio: false, video: true}")
+    p.click(".gl button[data-cmd='dar-palabra-todos']")
+    p.wait_for_timeout(1800)
+    ok(p.inner_text("#st-audio") == "apagada", "tras 'Dar a todos' el estado de audio pasa a 'apagada'")
+    ok("toggleModeration" in p.evaluate("document.getElementById('log').textContent"), "#log registra los comandos")
+    p.evaluate("window.__api.emit('participantLeft', {id: 'b1'})")
+    ok(p.inner_text("#lista > p.m") == "Nadie mas en la sala." and p.inner_text("#cnt") == "(0)",
+       "sin participantes: p.m 'Nadie mas en la sala.'")
+    ok(not errores, "sin errores de JS (%s)" % errores)
+    ctx.close()
+
+
+GRUPOS_EXTRA = {"login": login_g, "publica": publica, "panel": panel_g, "qr": qr_g, "sala": sala_g, "sala_js": sala_js_g}
 
 
 def main():
