@@ -74,7 +74,7 @@ def main():
         sys.exit("ERROR: JWT_APP_SECRET no esta definido en %s" % args.env_file)
     iss = first(env.get("JWT_ACCEPTED_ISSUERS")) or env.get("JWT_APP_ID", "")
     aud = first(env.get("JWT_ACCEPTED_AUDIENCES")) or env.get("JWT_APP_ID", "")
-    pub = env.get("PUBLIC_URL", "meet.urbcerroazul.com").replace("https://", "").rstrip("/")
+    pub = env.get("PUBLIC_URL", "meet.bytracking.net").replace("https://", "").rstrip("/")
     if not iss or not aud:
         sys.exit("ERROR: no se pudo deducir iss/aud del .env")
 

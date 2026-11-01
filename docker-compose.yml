@@ -1,7 +1,7 @@
 name: jitsi-meet
 
 # =====================================================================
-# Jitsi Meet - Cerro Azul (meet.urbcerroazul.com)
+# Jitsi Meet - Cerro Azul (meet.bytracking.net)
 #
 # Stack standalone: NO toca los contenedores existentes (Monitor Legal,
 # Minuta Segura, Hermes). El reverse proxy es el Caddy existente, que

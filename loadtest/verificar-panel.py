@@ -19,7 +19,7 @@ import sys
 import urllib.error
 import urllib.request
 
-BASE = "https://meet.urbcerroazul.com"
+BASE = "https://meet.bytracking.net"
 PAGES = [
     ("login", "/admin/login"),
     ("healthz", "/healthz"),

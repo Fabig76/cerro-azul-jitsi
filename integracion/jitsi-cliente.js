@@ -2,7 +2,7 @@
 // integracion/jitsi-cliente.js — Cerro Azul Jitsi, Fase 6
 //
 // Cliente reutilizable para embeber la sala de Jitsi
-// (meet.urbcerroazul.com) dentro de votacionph.us.
+// (meet.bytracking.net) dentro de votacionph.us.
 //
 // - ES module plano, sin dependencias. Carga el iframe API oficial
 //   (https://<dominio>/external_api.js) solo cuando hace falta.
@@ -48,7 +48,7 @@ const cargas = new Map();
  * Se puede llamar al cargar la pagina para adelantar la descarga (no crea
  * ningun iframe ni pide permisos).
  *
- * @param {string} dominio  p. ej. 'meet.urbcerroazul.com'
+ * @param {string} dominio  p. ej. 'meet.bytracking.net'
  * @returns {Promise<void>}
  */
 export function cargarApiJitsi(dominio) {
@@ -116,7 +116,7 @@ export function cargarApiJitsi(dominio) {
  *   };
  *
  * @param {Object} opciones
- * @param {string} opciones.dominio        'meet.urbcerroazul.com'
+ * @param {string} opciones.dominio        'meet.bytracking.net'
  * @param {string} opciones.roomName       sala devuelta por la API del panel
  * @param {string} opciones.jwt            JWT devuelto por la API del panel
  * @param {boolean} [opciones.soyModerador=false]  barra de admin o de asistente

@@ -13,13 +13,13 @@
 // llama a la API del panel con la API key (ver README) -> devuelve
 // {jwt, roomName, soyModerador, domain} -> se crea la sala.
 //
-// El navegador NUNCA llama directo a meet.urbcerroazul.com/api/...: la
+// El navegador NUNCA llama directo a meet.bytracking.net/api/...: la
 // API key no puede estar en el navegador.
 // =====================================================================
 
 import { crearSalaJitsi, cargarApiJitsi } from './jitsi-cliente.js';
 
-const DOMINIO = 'meet.urbcerroazul.com';
+const DOMINIO = 'meet.bytracking.net';
 const boton = document.getElementById('entrar-asamblea');
 const estado = document.getElementById('estado-jitsi');
 const contenedor = document.getElementById('jitsi');

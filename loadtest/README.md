@@ -10,7 +10,7 @@ Este directorio **prepara** la prueba; no la ejecuta nadie automáticamente.
 | `run.sh` | Envoltorio de Malleus: comprobaciones previas, muestreo del JVB durante la prueba y tabla de resultados. **`--dry-run` por defecto**; solo lanza con `--run` |
 | `make-token.py` | Firma el JWT de la sala de prueba (en el servidor de Jitsi; solo stdlib) |
 | `summarize.py` | Genera la tabla de resultados (la llama `run.sh`; también `run.sh --summarize DIR`) |
-| `malleus-sala-prueba.md` | Los comandos concretos para `meet.urbcerroazul.com` |
+| `malleus-sala-prueba.md` | Los comandos concretos para `meet.bytracking.net` |
 | `results/` | Un subdirectorio por prueba (ignorado por git) |
 
 ## La herramienta: Malleus
@@ -79,7 +79,7 @@ Ver `malleus-sala-prueba.md` para los comandos exactos. En resumen:
 # 1. En el servidor de Jitsi: token para la sala de prueba (no se imprime)
 python3 loadtest/make-token.py /opt/jitsi-meet/.env --room cargatest0 --hours 3 --out /root/cargatest0.jwt
 # 2. Copiarlo a la VM de control (scp) y allí:
-loadtest/run.sh --server ssh:root@meet.urbcerroazul.com --jwt-file ~/cargatest0.jwt \
+loadtest/run.sh --server ssh:root@meet.bytracking.net --jwt-file ~/cargatest0.jwt \
     --hub http://<grid>:4444/wd/hub --torture ~/jitsi-meet-torture            # dry-run
 # 3. Prueba de humo: 10 clientes, 5 minutos
 loadtest/run.sh ...mismos argumentos... --participants 10 --duration 300 --join-delay 1000 --run

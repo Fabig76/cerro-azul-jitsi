@@ -45,7 +45,7 @@ A = load_kv(ADMIN_ENV_FILE)
 SK = E.get("APP_SECRET") or secrets.token_hex(32)
 KID = E.get("JWT_APP_ID") or "jitsi-admin-panel"
 KSEC = E.get("JWT_APP_SECRET") or SK
-PUB = E.get("PUBLIC_URL") or "meet.urbcerroazul.com"
+PUB = E.get("PUBLIC_URL") or "meet.bytracking.net"
 
 def csv_list(v):
     return [x.strip() for x in (v or "").split(",") if x.strip()]

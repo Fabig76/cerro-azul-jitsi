@@ -30,14 +30,14 @@
 #                            (solo vale para --dry-run)
 #
 # Uso tipico (ver loadtest/malleus-sala-prueba.md):
-#   loadtest/run.sh --server ssh:root@meet.urbcerroazul.com \
+#   loadtest/run.sh --server ssh:root@meet.bytracking.net \
 #       --hub http://grid.interno:4444/wd/hub --torture ~/jitsi-meet-torture \
 #       --jwt-file ~/cargatest0.jwt                     # dry-run
 #   loadtest/run.sh ... --participants 10 --duration 300 --run   # humo
 #   loadtest/run.sh ... --run                                     # 600
 #
 # Opciones (default entre parentesis):
-#   --instance URL (https://meet.urbcerroazul.com)  --room-prefix P (cargatest)
+#   --instance URL (https://meet.bytracking.net)  --room-prefix P (cargatest)
 #   --participants N (600) --conferences N (1) --senders N (1)
 #   --audio-senders N (3)  --duration S (2700 = 45 min)
 #   --join-delay MS (300: 600 clientes en 3 min; el cliente i entra en i*MS)
@@ -54,7 +54,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-INSTANCE="https://meet.urbcerroazul.com"
+INSTANCE="https://meet.bytracking.net"
 ROOM_PREFIX="cargatest"
 PARTICIPANTS=600
 CONFERENCES=1

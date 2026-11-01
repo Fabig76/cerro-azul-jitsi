@@ -1,4 +1,4 @@
-# Malleus contra la sala de prueba de meet.urbcerroazul.com
+# Malleus contra la sala de prueba de meet.bytracking.net
 
 Comandos concretos para este proyecto. Contexto, criterios y lectura del informe en
 `loadtest/README.md`. Nada de esto se ejecuta solo.
@@ -7,7 +7,7 @@ Comandos concretos para este proyecto. Contexto, criterios y lectura del informe
 
 | Variable | Valor |
 |---|---|
-| Instancia | `https://meet.urbcerroazul.com` |
+| Instancia | `https://meet.bytracking.net` |
 | Prefijo de sala (Malleus) | `cargatest` → sala **`cargatest0`** |
 | Emisor del JWT (`iss`) | primer valor de `JWT_ACCEPTED_ISSUERS` (hoy `cerroazul-panel`) |
 | Audiencia (`aud`) | primer valor de `JWT_ACCEPTED_AUDIENCES` (hoy `cerroazul`) |
@@ -34,7 +34,7 @@ python3 loadtest/make-token.py .env --room cargatest0 --hours 3 --out /root/carg
 Copiarlo a la VM de control por un canal cifrado:
 
 ```bash
-scp root@meet.urbcerroazul.com:/root/cargatest0.jwt ~/cargatest0.jwt && chmod 600 ~/cargatest0.jwt
+scp root@meet.bytracking.net:/root/cargatest0.jwt ~/cargatest0.jwt && chmod 600 ~/cargatest0.jwt
 ```
 
 ## 1. En la VM de control: preparar Malleus
@@ -51,8 +51,8 @@ curl -s http://<grid>:4444/status        # "ready": true
 ```bash
 cd ~/cerro-azul-jitsi
 loadtest/run.sh \
-    --server ssh:root@meet.urbcerroazul.com \
-    --instance https://meet.urbcerroazul.com \
+    --server ssh:root@meet.bytracking.net \
+    --instance https://meet.bytracking.net \
     --room-prefix cargatest \
     --jwt-file ~/cargatest0.jwt \
     --hub http://<grid>:4444/wd/hub \
@@ -65,7 +65,7 @@ JVB sano, `MAX_PARTICIPANTS` ≥ 610, Grid ready, malleus.sh y mvn presentes).
 ## 3. Prueba de humo: 10 clientes, 5 minutos
 
 ```bash
-loadtest/run.sh --server ssh:root@meet.urbcerroazul.com --jwt-file ~/cargatest0.jwt \
+loadtest/run.sh --server ssh:root@meet.bytracking.net --jwt-file ~/cargatest0.jwt \
     --hub http://<grid>:4444/wd/hub --torture ~/jitsi-meet-torture \
     --participants 10 --audio-senders 1 --duration 300 --join-delay 1000 --run
 ```
@@ -82,7 +82,7 @@ comprueba (**VERIFICAR**, son las incógnitas de esta configuración):
 ## 4. La prueba de 600
 
 ```bash
-loadtest/run.sh --server ssh:root@meet.urbcerroazul.com --jwt-file ~/cargatest0.jwt \
+loadtest/run.sh --server ssh:root@meet.bytracking.net --jwt-file ~/cargatest0.jwt \
     --hub http://<grid>:4444/wd/hub --torture ~/jitsi-meet-torture \
     --participants 600 --senders 1 --audio-senders 3 \
     --duration 2700 --join-delay 300 --port-mbps 1000 --run
@@ -93,7 +93,7 @@ El comando de Malleus que se ejecuta (el token se muestra como `<JWT>`):
 ```text
 ~/jitsi-meet-torture/scripts/malleus.sh --conferences=1 --participants=600 --senders=1 \
     --audio-senders=3 --duration=2700 --join-delay=300 --room-name-prefix=cargatest \
-    --hub-url=http://<grid>:4444/wd/hub --instance-url=https://meet.urbcerroazul.com \
+    --hub-url=http://<grid>:4444/wd/hub --instance-url=https://meet.bytracking.net \
     --headless --extra-sender-params=jwt=<JWT> --extra-receiver-params=jwt=<JWT> --use-lite-mode
 ```
 
@@ -117,6 +117,6 @@ loadtest/run.sh --summarize loadtest/results/<fecha>
 
 ```bash
 shred -u ~/cargatest0.jwt                                  # VM de control
-ssh root@meet.urbcerroazul.com 'shred -u /root/cargatest0.jwt'
+ssh root@meet.bytracking.net 'shred -u /root/cargatest0.jwt'
 # En el servidor: devolver MAX_PARTICIPANTS al valor decidido y recrear prosody/jicofo
 ```

@@ -14,7 +14,7 @@ set -uo pipefail
 TORTURE=/root/jitsi-meet-torture
 REPO=/root/cerro-azul-jitsi
 HUB=http://localhost:4444/wd/hub
-URL=https://meet.urbcerroazul.com
+URL=https://meet.bytracking.net
 JWT=$(cat /tmp/jwt-carga.txt)
 ROOM=cargatest0
 

@@ -1,7 +1,7 @@
 # Integración Jitsi ↔ votacionph.us (Fase 6)
 
 Archivos para que **votacionph.us** (`Fabig76/asambleas-virtuales`) embeba la
-sala de audio/video de `meet.urbcerroazul.com`. Jitsi es solo el canal de
+sala de audio/video de `meet.bytracking.net`. Jitsi es solo el canal de
 audio/video: asistencia, votos y quórum viven en votacionph. Si alguien pierde
 el audio, sigue pudiendo votar.
 
@@ -23,7 +23,7 @@ Referencia del endpoint: [`../admin-panel/README.md`](../admin-panel/README.md).
 
 1. **Variables de entorno** (en su `.env`, nunca en el repo ni en el JS):
    ```
-   JITSI_PANEL_URL=https://meet.urbcerroazul.com
+   JITSI_PANEL_URL=https://meet.bytracking.net
    JITSI_API_KEY=<la key de asistente>
    JITSI_API_KEY_ADMIN=<la key de admin; solo si votacionph tiene administradores>
    ```
@@ -78,7 +78,7 @@ import { crearSalaJitsi } from './jitsi-cliente.js';
 boton.onclick = async () => {               // SIEMPRE dentro de un clic
   const t = await pedirToken();             // a TU backend, no al panel
   const sala = crearSalaJitsi({
-    dominio: 'meet.urbcerroazul.com',
+    dominio: 'meet.bytracking.net',
     roomName: t.roomName,
     jwt: t.jwt,
     soyModerador: t.soyModerador,
@@ -133,7 +133,7 @@ Comandos verificados en `jitsi/web:stable-11031` (ver README raíz, Fase 2).
 
 ## Cabeceras: qué tiene que permitir cada lado
 
-**meet.urbcerroazul.com** (este repo, `infra/caddy/meet.urbcerroazul.com.caddy`):
+**meet.bytracking.net** (este repo, `infra/caddy/meet.bytracking.net.caddy`):
 ```
 header Content-Security-Policy "frame-ancestors 'self' https://votacionph.us"
 ```
@@ -142,15 +142,15 @@ Solo `votacionph.us` (y el propio dominio) pueden embeber Jitsi. El panel
 
 **votacionph.us** (su Caddyfile / su CSP) debe permitir **embeber** Jitsi:
 ```
-Content-Security-Policy: ...; frame-src https://meet.urbcerroazul.com; script-src ... https://meet.urbcerroazul.com; ...
+Content-Security-Policy: ...; frame-src https://meet.bytracking.net; script-src ... https://meet.bytracking.net; ...
 ```
-- `frame-src` (o `child-src`) con `https://meet.urbcerroazul.com`: deja
+- `frame-src` (o `child-src`) con `https://meet.bytracking.net`: deja
   cargar el iframe.
-- `script-src` con `https://meet.urbcerroazul.com`: deja cargar
+- `script-src` con `https://meet.bytracking.net`: deja cargar
   `external_api.js`.
 - Si tienen `Permissions-Policy`, debe permitir `camera`, `microphone`,
-  `display-capture` y `autoplay` para `https://meet.urbcerroazul.com`
-  (p. ej. `microphone=(self "https://meet.urbcerroazul.com")`).
+  `display-capture` y `autoplay` para `https://meet.bytracking.net`
+  (p. ej. `microphone=(self "https://meet.bytracking.net")`).
 
 > ⚠️ **No cambien su `frame-ancestors 'none'`.** `frame-ancestors` dice
 > **quién puede embeber SU página** (protege a votacionph de clickjacking);
@@ -159,7 +159,7 @@ Content-Security-Policy: ...; frame-src https://meet.urbcerroazul.com; script-sr
 > abre un agujero.
 
 Si la consola del navegador muestra *"Refused to frame
-'https://meet.urbcerroazul.com/' because an ancestor violates ... frame-ancestors"*
+'https://meet.bytracking.net/' because an ancestor violates ... frame-ancestors"*
 → falta el cambio de **este** lado (Caddy de meet). Si muestra *"Refused to
 frame ... because it violates ... frame-src"* → falta el cambio en
 **votacionph**.

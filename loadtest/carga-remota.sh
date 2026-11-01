@@ -15,7 +15,7 @@ TORTURE=/root/jitsi-meet-torture
 # (ssh -N -L 4444:localhost:4444 vps2938), no por la IP publica:
 # asi no hay que abrir el 4444 al mundo.
 HUB=http://127.0.0.1:4444/wd/hub
-URL=https://meet.urbcerroazul.com
+URL=https://meet.bytracking.net
 JWT=$(cat /tmp/jwt-carga.txt)
 ROOM=cargatest0
 

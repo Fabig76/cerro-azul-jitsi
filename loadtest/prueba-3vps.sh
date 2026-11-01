@@ -16,7 +16,7 @@ set -uo pipefail
 
 REPO=/root/cerro-azul-jitsi
 TORTURE=/root/jitsi-meet-torture
-URL=https://meet.urbcerroazul.com
+URL=https://meet.bytracking.net
 JWT=$(cat /tmp/jwt-carga.txt)
 
 POR_VPS="${1:-60}"
