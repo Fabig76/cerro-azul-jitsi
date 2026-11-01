@@ -211,13 +211,28 @@ def nueva_sala():
     """
     return SALA_PREFIX + secrets.token_hex(8)
 
-def jitsi_url(sala, token):
+# Barra de herramientas segun el rol (Fase 3.3).
+# El admin ve la barra completa; el asistente, una reducida. Es solo
+# presentacion: quien manda sobre el audio/video es la moderacion A/V y el
+# JWT (Fase 2).
+TOOLBAR_ADMIN = ["microphone", "camera", "desktop", "participants-pane",
+                 "raisehand", "chat", "tileview", "settings", "hangup"]
+TOOLBAR_ASISTENTE = ["microphone", "raisehand", "chat", "settings", "hangup"]
+
+
+def jitsi_url(sala, token, moderator=False):
     # JWT en el fragmento (#jwt=...): no viaja al servidor en la peticion
     # HTTP ni queda en logs de Caddy/nginx ni en el Referer.
-    return ("https://" + PUB + "/" + sala
-            + "#jwt=" + token
-            + "&config.prejoinPage.enabled=false"
-            + "&config.deeplinking.disabled=true")
+    url = ("https://" + PUB + "/" + sala
+           + "#jwt=" + token
+           + "&config.prejoinPage.enabled=false"
+           + "&config.deeplinking.disabled=true")
+    # La barra se pasa como config.toolbarButtons en el fragmento. El
+    # cliente la lee de config.toolbarButtons (no de interfaceConfig, que
+    # esta obsoleto en stable-11031). El valor es un array JSON.
+    botones = TOOLBAR_ADMIN if moderator else TOOLBAR_ASISTENTE
+    url += "&config.toolbarButtons=" + json.dumps(botones, separators=(",", ":"))
+    return url
 
 def get_reunion(rid):
     with db() as c:
@@ -439,7 +454,8 @@ def unirse():
     pid = secrets.token_hex(8)
     token = sign_jwt(r["sala_jitsi"], visible, mod=False, exp=exp, pid=pid)
     log.info("unirse slug=" + slug + " user=" + visible + " mod=False pid=" + pid)
-    return redirect(jitsi_url(r["sala_jitsi"], token))
+    # El asistente entra con la barra restringida (Fase 3.3).
+    return redirect(jitsi_url(r["sala_jitsi"], token, moderator=False))
 
 # --- Moderacion A/V (Fase 2) -------------------------------------------
 # Las acciones de moderacion (toggleModeration, askToUnmute, approveVideo,
@@ -500,7 +516,8 @@ def entrar_moderador(rid):
     if exp <= datetime.now(timezone.utc):
         return pagina_finalizada(r)
     log.info("entrar moderador id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
-    return redirect(jitsi_url(r["sala_jitsi"], token))
+    # El administrador entra con la barra completa (Fase 3.3).
+    return redirect(jitsi_url(r["sala_jitsi"], token, moderator=True))
 
 # Crear el esquema al IMPORTAR el modulo, no solo con __main__.
 # Gunicorn importa 'app:app' en un proceso workers: si init_db() solo

@@ -44,8 +44,16 @@ services:
       # (config.startWithAudioMuted / config.startWithVideoMuted).
       - START_WITH_AUDIO_MUTED
       - START_WITH_VIDEO_MUTED
+      # Fase 3 - sala grande. Default 0 aqui: la plantilla del web tiene
+      # default "true" para las tres, asi que un .env sin estas lineas
+      # volveria a activar breakout, prejoin y P2P en silencio.
+      - ENABLE_BREAKOUT_ROOMS=${ENABLE_BREAKOUT_ROOMS:-0}
+      - ENABLE_PREJOIN_PAGE=${ENABLE_PREJOIN_PAGE:-0}
+      - ENABLE_P2P=${ENABLE_P2P:-0}
       - TZ
     volumes:
+      # Aqui viven web/config/custom-config.js y custom-interface_config.js
+      # (Fase 3): el entrypoint los concatena a config.js/interface_config.js.
       - ./web/config:/config
       - ./web/crash:/crash
       - ./web/letsencrypt:/etc/letsencrypt
@@ -103,6 +111,9 @@ services:
       - ENABLE_GUESTS
       - ENABLE_LOBBY
       - ENABLE_AV_MODERATION
+      # Fase 3: Prosody es quien aplica MAX_PARTICIPANTS (muc_max_occupants).
+      # Sin definir en el .env = sin limite. Ver .env.example.
+      - MAX_PARTICIPANTS
       # token_affiliation va en el componente MUC (XMPP_MUC_MODULES), no en
       # el VirtualHost (XMPP_MODULES). Ver .env.example.
       - XMPP_MUC_MODULES
@@ -156,7 +167,13 @@ services:
       # en entrar seria moderador). El rol lo da token_affiliation en Prosody.
       - JICOFO_ENABLE_AUTH
       - ENABLE_AUTO_OWNER
+      # Jicofo stable-11031 NO lee MAX_PARTICIPANTS (se deja por si una
+      # version futura lo usa; hoy no tiene efecto). Los suyos son
+      # MAX_BRIDGE_PARTICIPANTS y VISITORS_MAX_PARTICIPANTS (este ultimo
+      # solo con ENABLE_VISITORS=1). Sin definir = sin limite.
       - MAX_PARTICIPANTS
+      - MAX_BRIDGE_PARTICIPANTS
+      - VISITORS_MAX_PARTICIPANTS
       - TZ
     volumes:
       - ./jicofo/config:/config

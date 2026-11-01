@@ -286,7 +286,58 @@ for k in START_WITH_AUDIO_MUTED START_WITH_VIDEO_MUTED; do
     fi
 done
 
-# --- 7. Valores de ejemplo sin cambiar ---------------------------------
+# --- 7. Sala grande (Fase 3) -------------------------------------------
+echo
+echo "-- Sala grande (Fase 3) --"
+# OJO: sin definir, el compose pasa 0 al web (${VAR:-0}); por eso aqui un
+# valor vacio se trata como 0 y solo se falla si alguien lo pone a 1.
+for k in ENABLE_PREJOIN_PAGE ENABLE_P2P; do
+    v="$(getval "$k")"
+    if is_true "$enable_auth" && is_true "$v"; then
+        fail "$k='$v' con ENABLE_AUTH=1: debe ser 0"
+        case "$k" in
+            ENABLE_PREJOIN_PAGE)
+                echo "              En la prejoin el asistente puede encender micro/camara"
+                echo "              antes de que la moderacion A/V este activa." ;;
+            ENABLE_P2P)
+                echo "              En P2P el medio va directo entre navegadores, fuera del"
+                echo "              JVB donde se aplica la moderacion A/V." ;;
+        esac
+    elif is_true "$v"; then
+        warn "$k='$v': en una sala grande deberia ser 0"
+    else
+        ok "$k=${v:-sin definir (compose pasa 0)}"
+    fi
+done
+
+v="$(getval ENABLE_BREAKOUT_ROOMS)"
+if [ -n "$v" ] && [ "$v" != "0" ] && [ "$v" != "false" ]; then
+    warn "ENABLE_BREAKOUT_ROOMS='$v': a 500 personas cada sala de breakout es"
+    echo "              otra conferencia que Jicofo/JVB sostienen (multiplica la carga)."
+else
+    ok "ENABLE_BREAKOUT_ROOMS=${v:-sin definir (compose pasa 0)}"
+fi
+
+# Limites: solo se avisa, no se falla. Sin definir = sin limite.
+for k in MAX_PARTICIPANTS MAX_BRIDGE_PARTICIPANTS VISITORS_MAX_PARTICIPANTS; do
+    if has "$k"; then
+        v="$(getval "$k")"
+        case "$k" in
+            MAX_PARTICIPANTS)        donde="Prosody (muc_max_occupants)" ;;
+            MAX_BRIDGE_PARTICIPANTS) donde="Jicofo (max-bridge-participants)" ;;
+            *)                       donde="Jicofo (visitors, solo con ENABLE_VISITORS=1)" ;;
+        esac
+        if printf '%s' "$v" | grep -qE '^[0-9]+$' && [ "$v" -ge 500 ]; then
+            ok "$k=$v ($donde)"
+        else
+            warn "$k=$v limita en $donde: para 500 personas subirlo o quitarlo (Fase 5)"
+        fi
+    else
+        ok "$k sin definir (sin limite artificial)"
+    fi
+done
+
+# --- 8. Valores de ejemplo sin cambiar ---------------------------------
 echo
 echo "-- Valores de ejemplo sin reemplazar --"
 placeholders=$(grep -E '^[A-Z_]+=' "$ENV_FILE" | grep -iE 'CAMBIAR|TU-DOMINIO|IP-PUBLICA|tu-dominio' | cut -d= -f1 | tr '\n' ' ')

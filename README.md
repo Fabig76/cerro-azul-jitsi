@@ -213,7 +213,8 @@ docker compose ps
 │   ├── prosody-plugins/            # 86 modulos .lua (del .deb de unstable)
 │   ├── prosody-plugins-custom/     # modulos propios (mod_http_health)
 │   └── config/                     # generado por la imagen, NO versionar
-├── web/config/, jicofo/config/, jvb/config/   # generados, NO versionar
+├── web/config/custom-*.js        # Fase 3: config de sala grande (SI versionado)
+├── web/config/ (resto), jicofo/config/, jvb/config/   # generados, NO versionar
 └── infra/caddy/meet.urbcerroazul.com.caddy    # bloque Caddy (fuente de verdad)
 ```
 
@@ -476,6 +477,151 @@ Entre que entra un asistente y el admin activa la moderación, el asistente
 el admin entra primero. El plugin `mod_muc_wait_for_host` (ya presente en
 `prosody/prosody-plugins/`) haría esperar a los asistentes hasta que entre el
 moderador; no está activado porque no se ha probado con `token_affiliation`.
+
+## Fase 3 — Sala grande (estabilidad)
+
+Una asamblea es **una sala de hasta 500 personas con un solo ponente** (el
+admin: 1 cámara + pantalla compartida) y el resto escuchando. Los valores por
+defecto de Jitsi están pensados para reuniones pequeñas donde todos envían y
+reciben vídeo; a 500 personas eso satura el JVB y, sobre todo, los móviles de
+los asistentes. Se recorta todo lo que no aporta en una asamblea.
+
+### Qué se recorta y dónde
+
+| Capa | Fichero | Qué hace |
+|---|---|---|
+| Env del web | `.env` → `docker-compose.yml` | `ENABLE_P2P=0`, `ENABLE_PREJOIN_PAGE=0`, `ENABLE_BREAKOUT_ROOMS=0` (el compose pasa `0` si faltan: la plantilla del web tiene default `true`) |
+| Cliente | `web/config/custom-config.js` | Claves `config.*` de la tabla de abajo |
+| Interfaz | `web/config/custom-interface_config.js` | `DISABLE_VIDEO_BACKGROUND` (fondo difuminado = CPU en móviles) |
+| Panel admin | `admin-panel/app/page_sala.html` | `toolbarButtons` del admin por `configOverwrite` |
+
+El entrypoint del web (`/etc/cont-init.d/10-config`) regenera
+`/config/config.js` en cada arranque y **concatena al final**
+`/config/custom-config.js` (igual con `custom-interface_config.js`). Como el
+compose monta `./web/config:/config`, los ficheros sobreviven a
+`docker compose up -d --force-recreate web` (probado ejecutando `10-config`
+dos veces en un contenedor desechable). El resto de `web/config/` es generado
+y está en `.gitignore`.
+
+### Claves (verificadas contra `jitsi/web:stable-11031`)
+
+Jitsi **ignora en silencio** una clave que no conoce. Cada una se comprobó en
+las plantillas de la imagen o en `app.bundle.min.js` / `lib-jitsi-meet.min.js`.
+
+| Clave | Valor | Por qué |
+|---|---|---|
+| `p2p.enabled` | `false` | Todo el medio por el JVB (donde se aplica la moderación); sin renegociación al entrar el tercero |
+| `startWithAudioMuted` / `startWithVideoMuted` | `true` | Este cliente entra con micro y cámara apagados |
+| `startAudioMuted` / `startVideoMuted` | `0` | **Número**, no booleano: “a partir del participante N todos entran silenciados”; `0` = todos. Se envía a Jicofo; `true` no es un entero válido |
+| `prejoinConfig.enabled` | `false` | Sin pantalla previa (nombre viene del JWT) |
+| `channelLastN` | `4` | Cada asistente recibe como mucho 4 vídeos (el ponente usa 2) |
+| `maxFullResolutionParticipants` | `1` | Solo el vídeo del escenario en resolución completa |
+| `resolution` / `constraints` | `360` (máx. 720) | Cámara del ponente; los documentos van por la pantalla |
+| `desktopSharingFrameRate` | `5–15 fps` | Documentos, no vídeo |
+| `audioQuality` | `stereo: false` | Voz en mono |
+| `disableAudioLevels` | `true` | Ahorra CPU en clientes con cientos de participantes |
+| `enableNoAudioDetection` / `enableNoisyMicDetection` | `false` | Avisos inútiles con todos silenciados |
+| `disableReactions` / `disablePolls` | `true` | Spam en pantalla y tráfico extra |
+| `disableJoinLeaveSounds` / `disableIncomingMessageSound` | `true` | 500 entradas/salidas sonando |
+| `notifications` | lista blanca | Solo moderación y conexión (incluye `notify.hostAskedUnmute`, necesario para “Pedir la palabra”) |
+| `disableThirdPartyRequests` | `true` | Privacidad, sin gravatar |
+| `disableInviteFunctions` | `true` | El acceso es por enlace con JWT del panel |
+| `requireDisplayName` | `true` | El admin necesita saber a quién da la palabra |
+| `defaultLanguage` | `'es'` | |
+| `analytics` | `disabled: true` | Sin analítica ni rtcstats |
+| `toolbarButtons` | barra del admin | En esta versión la barra va en `config.js`; `interfaceConfig.TOOLBAR_BUTTONS` está obsoleto y solo se usa si `config.toolbarButtons` no es un array |
+
+**Descartada:** `enableLayerSuspension` — venía en el plan pero **no existe**
+en ningún bundle de `stable-11031`. No reintroducirla.
+
+`startAudioMuted`/`startVideoMuted` **no impiden** que el asistente encienda el
+micro: eso lo hace la moderación A/V de la Fase 2. Estas claves son la capa de
+UI.
+
+Comprobar las claves (p. ej. al cambiar `JITSI_IMAGE_VERSION`). Una sola
+ejecución de `docker run`, no levanta el stack:
+
+```bash
+./scripts/verify-custom-config.sh               # sale 1 si alguna clave no existe
+./scripts/verify-custom-config.sh --check-only  # solo informa (CI)
+```
+
+### Límite de participantes
+
+| Variable | Quién la aplica (stable-11031) |
+|---|---|
+| `MAX_PARTICIPANTS` | **Prosody** (`muc_max_occupants`). Jicofo **no** la lee en esta versión |
+| `MAX_BRIDGE_PARTICIPANTS` | Jicofo (`max-bridge-participants`, por JVB) |
+| `VISITORS_MAX_PARTICIPANTS` | Jicofo, solo con `ENABLE_VISITORS=1` (aquí `0`) |
+
+Hasta la Fase 2 el compose pasaba `MAX_PARTICIPANTS` solo a Jicofo y JVB (que
+no la usan), así que **el 200 del `.env` no se aplicaba**. Desde la Fase 3 llega
+a Prosody: si el `.env` del VPS conserva `MAX_PARTICIPANTS=200`, la sala
+quedaría limitada a 200 al recrear prosody.
+
+**Ojo: quitar la variable NO la desactiva.** Sin `MAX_PARTICIPANTS` la plantilla
+no renderiza `muc_max_occupants` y Prosody aplica su valor por defecto, que es
+**200** (verificado renderizando la plantilla con y sin la variable). Para subir
+el límite hay que **fijarla en 500**, no borrarla. `validate-env.sh` avisa si
+están por debajo de 500.
+
+### Barra por rol
+
+La barra es solo UI (la moderación A/V es el control real), pero evita
+confundir a los asistentes.
+
+- **Admin** (`page_sala.html`, único que entra con `moderator: true`):
+  `microphone, camera, desktop, participants-pane, raisehand, chat, tileview, settings, hangup`.
+  Es también el valor por defecto del sitio en `custom-config.js`.
+- **Asistente**: en el proyecto donde el asistente entra embebiendo Jitsi:
+
+```js
+// Barra reducida del asistente. Solo UI: quien habla lo decide la
+// moderacion A/V del admin.
+const botonesAsistente = ['microphone', 'raisehand', 'chat', 'settings', 'hangup'];
+
+const api = new JitsiMeetExternalAPI('meet.urbcerroazul.com', {
+  roomName: sala,
+  jwt: tokenAsistente,           // moderator: false
+  parentNode: document.getElementById('jitsi'),
+  configOverwrite: {
+    startWithAudioMuted: true,
+    startWithVideoMuted: true,
+    prejoinConfig: { enabled: false },
+    disableDeepLinking: true,
+    toolbarButtons: botonesAsistente
+  }
+});
+```
+
+> Los asistentes que entran por la página pública de **este** panel
+> (`/reunion/<slug>` → `/unirse`) van a la URL directa de Jitsi, no a un
+> iframe: ven la barra por defecto del sitio (la del admin; cámara y pantalla
+> quedan bloqueadas por la moderación). Para darles la barra reducida habría
+> que añadir `&config.toolbarButtons=[...]` al fragmento en `jitsi_url()` para
+> tokens sin moderador (pendiente).
+
+### Verificar que se aplicó
+
+```bash
+./scripts/validate-env.sh /opt/jitsi-meet/.env
+docker compose up -d --force-recreate web
+curl -s https://meet.urbcerroazul.com/config.js | grep -E 'p2p|channelLastN'
+# Debe mostrar, al final del fichero:
+#   config.p2p.enabled = false;
+#   config.channelLastN = 4;
+curl -s https://meet.urbcerroazul.com/interface_config.js | grep DISABLE_VIDEO_BACKGROUND
+```
+
+### Volver atrás
+
+```bash
+rm web/config/custom-config.js web/config/custom-interface_config.js
+docker compose up -d --force-recreate web
+```
+
+(Las variables `ENABLE_P2P`/`ENABLE_PREJOIN_PAGE`/`ENABLE_BREAKOUT_ROOMS`
+siguen en `0` por el compose; para revertirlas, ponerlas a `1` en el `.env`.)
 
 ## Limitaciones Conocidas
 

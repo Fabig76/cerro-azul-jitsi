@@ -47,3 +47,9 @@ node_modules/
 *.tmp
 *.bak.1788*
 *.bak.1789*
+
+# Config generada por el entrypoint de jitsi/web en cada arranque.
+# Solo se versionan los custom-*.js de la Fase 3 (sala grande).
+web/config/*
+!web/config/custom-config.js
+!web/config/custom-interface_config.js

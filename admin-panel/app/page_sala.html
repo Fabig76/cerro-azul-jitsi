@@ -62,6 +62,16 @@ puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
     return;
   }
 
+  // Fase 3 - barra por rol. Esta pagina es SOLO del administrador (unico
+  // que entra con moderator: true), asi que lleva la barra completa:
+  // camara + pantalla para presentar y el panel de participantes para
+  // moderar. La barra reducida del asistente
+  // ['microphone','raisehand','chat','settings','hangup'] se aplica en el
+  // proyecto donde entra el asistente (snippet en el README, Fase 3).
+  // La barra es solo UI: quien puede hablar lo decide la moderacion A/V.
+  var botonesAdmin = ["microphone", "camera", "desktop", "participants-pane",
+                      "raisehand", "chat", "tileview", "settings", "hangup"];
+
   var api = new JitsiMeetExternalAPI(CFG.domain, {
     roomName: CFG.roomName,
     jwt: CFG.jwt,
@@ -72,7 +82,8 @@ puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
       startWithAudioMuted: true,
       startWithVideoMuted: true,
       prejoinConfig: { enabled: false },
-      disableDeepLinking: true
+      disableDeepLinking: true,
+      toolbarButtons: botonesAdmin
     }
   });
 

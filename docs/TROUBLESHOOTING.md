@@ -460,7 +460,10 @@ cd /opt/jitsi-meet
 docker compose down
 sudo rm -rf prosody/config/conf.d prosody/config/prosody.cfg.lua
 sudo rm -rf jicofo/config jvb/config
-sudo rm -rf web/config
+# web/config: NO borrar el directorio entero, tiene los custom-*.js
+# versionados (Fase 3). Borrar solo lo generado y restaurar con git:
+sudo find web/config -mindepth 1 ! -name 'custom-*.js' -delete
+git checkout -- web/config/
 docker compose up -d
 ```
 
