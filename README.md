@@ -478,6 +478,24 @@ el admin entra primero. El plugin `mod_muc_wait_for_host` (ya presente en
 `prosody/prosody-plugins/`) haría esperar a los asistentes hasta que entre el
 moderador; no está activado porque no se ha probado con `token_affiliation`.
 
+## Criterios de aceptación (estado)
+
+Los criterios que pedía el plan del analista y en qué fase se resuelven:
+
+| Criterio | Estado | Fase |
+|---|---|---|
+| El sitio sobrevive a un reinicio completo del servidor | **hecho** (vhost persistido en el Caddyfile del host; verificado reiniciando el contenedor de Caddy) | 0 |
+| Un clon limpio levanta el stack completo; el CI pasa en verde | **hecho** (`scripts/test-ci-local.sh` simula el CI; clon real probado) | 1 |
+| Sin JWT válido para esa sala no se puede entrar | **hecho** (SASL `FAILURE: token required`) | 2 |
+| Solo quien trae `moderator: true` es moderador | **hecho** (`token_affiliation`; `enable-auto-owner=false`) | 2 |
+| Ningún asistente transmite sin aprobación | **hecho** (el JVB recibe `force-mute` para ese endpoint) | 2 |
+| El administrador da y quita la palabra | **hecho** ("Pedir la palabra" por participante y "Dar la palabra a todos") | 2 / 3 |
+| Audio en ambos sentidos con UDP bloqueado (TURN en 443) | **pendiente** | 4 |
+| Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** | 6 |
+| Prueba de carga con 600 clientes | **pendiente** | 7 |
+| Alertas: apagar el web dispara alerta en < 2 min | **hecho** (watchdog cada 2 min → Telegram; probado a mano) | 0 |
+| Respaldo restaurado en un servidor limpio | **pendiente** | 7 |
+
 ## Fase 3 — Sala grande (estabilidad)
 
 Una asamblea es **una sala de hasta 500 personas con un solo ponente** (el
@@ -485,6 +503,15 @@ admin: 1 cámara + pantalla compartida) y el resto escuchando. Los valores por
 defecto de Jitsi están pensados para reuniones pequeñas donde todos envían y
 reciben vídeo; a 500 personas eso satura el JVB y, sobre todo, los móviles de
 los asistentes. Se recorta todo lo que no aporta en una asamblea.
+
+### Estado de cada punto de la fase
+
+| Punto | Qué pedía el plan | Estado | Dónde |
+|---|---|---|---|
+| 3.1 | Vars de sala grande en `.env` | **hecho** | `.env.example`, `docker-compose.yml` |
+| 3.2 | `custom-config.js` con la config de sala grande | **hecho** (27 claves, 1 descartada) | `web/config/custom-config.js` |
+| 3.3 | Barra de herramientas según el rol | **hecho** | `admin-panel/app/app.py` (`jitsi_url`), `page_sala.html` |
+| 3.4 | Entrada masiva (rate limits) | **hecho** (documentado; no se activan) | más abajo |
 
 ### Qué se recorta y dónde
 
@@ -564,6 +591,40 @@ no renderiza `muc_max_occupants` y Prosody aplica su valor por defecto, que es
 **200** (verificado renderizando la plantilla con y sin la variable). Para subir
 el límite hay que **fijarla en 500**, no borrarla. `validate-env.sh` avisa si
 están por debajo de 500.
+
+### 3.4 Entrada masiva (rate limits de Prosody)
+
+En una asamblea, cientos de personas entran en los mismos minutos. Prosody
+trae un módulo de rate limit **desactivado por defecto**
+(`PROSODY_ENABLE_RATE_LIMITS=0`), y sus valores por defecto en `stable-11031`
+son:
+
+| Variable | Default | Qué limita |
+|---|---|---|
+| `PROSODY_ENABLE_RATE_LIMITS` | `0` | activa/desactiva el módulo |
+| `PROSODY_RATE_LIMIT_LOGIN_RATE` | `3` | **logins por segundo y IP** |
+| `PROSODY_RATE_LIMIT_SESSION_RATE` | `200` | sesiones por segundo y IP |
+| `PROSODY_RATE_LIMIT_TIMEOUT` | `60` | segundos de penalización |
+| `PROSODY_RATE_LIMIT_CACHE_SIZE` | `10000` | tamaño de la caché |
+| `PROSODY_RATE_LIMIT_ALLOW_RANGES` | `10.0.0.0/8` | rangos exentos |
+
+**Decisión: NO activarlos.** El módulo está apagado y por eso hoy no hay
+ningún límite artificial de entrada (mismo criterio que con los límites de
+participantes). Además, si se activaran tal cual, `LOGIN_RATE=3` (3 logins por
+segundo **y por IP**) sería peligroso: los asistentes del conjunto salen por la
+misma IP pública (NAT) y se bloquearían entre sí al entrar en masa.
+
+Si en la prueba de carga (Fase 7) se ven desconexiones o errores de rate limit
+en el log de Prosody, se activan **subiendo primero** `LOGIN_RATE` y
+`SESSION_RATE`, y **`RATE_LIMIT_ALLOW_RANGES` con la IP pública del
+conjunto** para eximir a los asistentes:
+
+```bash
+PROSODY_ENABLE_RATE_LIMITS=1
+PROSODY_RATE_LIMIT_LOGIN_RATE=50
+PROSODY_RATE_LIMIT_SESSION_RATE=500
+PROSODY_RATE_LIMIT_ALLOW_RANGES=10.0.0.0/8,<IP_PUBLICA_DEL_CONJUNTO>
+```
 
 ### Barra por rol
 

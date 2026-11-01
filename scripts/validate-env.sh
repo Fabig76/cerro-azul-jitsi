@@ -337,6 +337,32 @@ for k in MAX_PARTICIPANTS MAX_BRIDGE_PARTICIPANTS VISITORS_MAX_PARTICIPANTS; do
     fi
 done
 
+# Rate limits de Prosody (Fase 3.4). El modulo viene DESACTIVADO por
+# defecto. Si alguien lo activa con los valores por defecto, el
+# login_rate (logins por segundo Y POR IP) bloquea a los asistentes entre
+# si: en un conjunto todos salen por la misma IP publica (NAT).
+v="$(getval PROSODY_ENABLE_RATE_LIMITS)"
+if is_true "$v"; then
+    lr="$(getval PROSODY_RATE_LIMIT_LOGIN_RATE)"
+    sr="$(getval PROSODY_RATE_LIMIT_SESSION_RATE)"
+    ar="$(getval PROSODY_RATE_LIMIT_ALLOW_RANGES)"
+    if [ -z "$lr" ] || [ "$lr" -lt 20 ] 2>/dev/null; then
+        fail "PROSODY_ENABLE_RATE_LIMITS=1 con LOGIN_RATE='${lr:-3}': los asistentes"
+        echo "              comparten IP publica (NAT) y se bloquearian entre si."
+        echo "              Subir PROSODY_RATE_LIMIT_LOGIN_RATE a 50 o mas."
+    else
+        ok "rate limits activos (LOGIN_RATE=$lr, SESSION_RATE=${sr:-200})"
+    fi
+    if [ -z "$ar" ] || [ "$ar" = "10.0.0.0/8" ]; then
+        warn "PROSODY_RATE_LIMIT_ALLOW_RANGES=${ar:-10.0.0.0/8}: conviene anadir"
+        echo "              la IP publica del conjunto para eximir a los asistentes."
+    else
+        ok "PROSODY_RATE_LIMIT_ALLOW_RANGES=$ar"
+    fi
+else
+    ok "rate limits de Prosody desactivados (sin limite artificial de entrada)"
+fi
+
 # --- 8. Valores de ejemplo sin cambiar ---------------------------------
 echo
 echo "-- Valores de ejemplo sin reemplazar --"
