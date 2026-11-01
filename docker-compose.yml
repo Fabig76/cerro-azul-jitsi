@@ -123,6 +123,11 @@ services:
       - TURN_HOST
       - TURN_PORT
       - TURN_TRANSPORT
+      # TURN sobre TLS (turns). Sin estas dos, Prosody NO genera el
+      # bloque 'turns' y los clientes no prueban el TURN cifrado, que es
+      # la variante que entra en las redes corporativas.
+      - TURNS_HOST
+      - TURNS_PORT
       - STUN_HOST
       - STUN_PORT
     volumes:

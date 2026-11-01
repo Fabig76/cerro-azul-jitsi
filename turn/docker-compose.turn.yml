@@ -1,0 +1,55 @@
+# =====================================================================
+# docker-compose.turn.yml - Servidor TURN de Cerro Azul (Fase 4)
+#
+# Se despliega en un servidor APARTE del de Jitsi, por una razon
+# tecnica: el TURN necesita el puerto 443 y en el servidor de Jitsi ese
+# puerto (TCP) lo usa Caddy. En el servidor del TURN el 443 esta libre,
+# asi que se puede ofrecer TURN sobre TLS en 443, que es la variante
+# que entra en las redes mas restrictivas (corporativas).
+#
+# Uso (en el servidor del TURN):
+#   cp turnserver.conf ./turnserver.conf
+#   # poner el secreto real en static-auth-secret
+#   docker compose -f docker-compose.turn.yml up -d
+#
+# El secreto DEBE ser el mismo TURN_CREDENTIALS que usa Jitsi.
+# =====================================================================
+services:
+  coturn:
+    image: coturn/coturn:4.6.3-r3
+    container_name: coturn
+    restart: unless-stopped
+
+    # network_mode: host (y NO 'ports:'). Con host networking el TURN
+    # abre directamente en el host el puerto de escucha y el rango de
+    # relay (49160-49200/udp), sin tener que publicar 41 puertos uno a
+    # uno. Es la forma habitual de desplegar coturn. Por eso aqui no
+    # hay seccion 'ports:'.
+    network_mode: host
+
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      # Certificado para el TURN sobre TLS (turns). Autofirmado mientras
+      # no exista el registro DNS 'turn.<dominio>' (los clientes WebRTC
+      # no validan el cert del servidor TURN: la seguridad la da el
+      # secreto compartido).
+      - ./certs:/etc/coturn/certs:ro
+
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --log-file=stdout
+      --verbose
+      --no-stdout-log
+
+    # El contenedor corre como nobody y solo lee el config de coturn.
+    user: "65534:65534"
+
+    healthcheck:
+      # Si no esta escuchando el puerto de TURN no sirve de nada.
+      # La imagen de coturn no trae netstat ni ss, asi que se mira
+      # /proc/net: el puerto 3478 en hexadecimal es 0D96.
+      test: ["CMD-SHELL", "grep -qi ':0D96' /proc/net/tcp /proc/net/udp || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
