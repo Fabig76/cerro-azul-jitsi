@@ -174,6 +174,13 @@ MARCADORES = ["<!--ERR-->", "<!--LISTA-->", "<!--AVISO_JWT-->", "<!--DESC-->", "
 SITE_PRUEBA = "Conjunto Prueba Verificación"
 OWNER_PRUEBA = "Administración Prueba P.H."
 MARCA_VIEJA = "Cerro Azul"
+# Responsable que debe salir en el aviso de la sala. Solo se fija cuando este
+# script arranca su propio contenedor (con OWNER_PRUEBA); contra un panel ya
+# arrancado (--base, o verificar-panel-prod.py) solo se exige que no este vacio.
+OWNER_ESPERADO = None
+# En produccion el nombre del conjunto SI puede ser "Cerro Azul" (viene de
+# admin.env): verificar-panel-prod.py pone esto a False.
+PROHIBIR_MARCA_VIEJA = True
 IDS_SALA = ["jitsi", "lista", "cnt", "log", "st-audio", "st-video"]
 
 
@@ -183,9 +190,9 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
     if st != esperado_st:
         fallo("%s: HTTP %s (esperado %s)" % (nombre, st, esperado_st))
     txt = raw.decode("utf-8", "replace")
-    if MARCA_VIEJA in txt:
+    if PROHIBIR_MARCA_VIEJA and MARCA_VIEJA in txt:
         fallo("%s: aparece '%s' (marca fija)" % (nombre, MARCA_VIEJA))
-    print("  marca:        %s" % ("'" + MARCA_VIEJA + "' PRESENTE" if MARCA_VIEJA in txt
+    print("  marca:        %s" % ("'" + MARCA_VIEJA + "' presente" + ("" if PROHIBIR_MARCA_VIEJA else " (de admin.env, permitido)") if MARCA_VIEJA in txt
                                   else "sin marca fija; site=" + ("si" if SITE_PRUEBA in txt else "no")))
     a = parse(raw)
     nodos = list(a.raiz.todos())
@@ -261,9 +268,12 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
         i_grab = txt.find("/admin/static/grabacion.js?v=")
         i_cong = txt.rfind("<script>\n")
         orden = 0 <= i_ext < i_grab < i_cong
-        print("  grabacion:    zona=%s #jitsi-dentro=%s en-.gl=%s orden-scripts=%s responsable=%s" % (
-            bool(zona), dentro, grab_en_gl, orden, OWNER_PRUEBA in txt))
-        if not (zona and dentro) or grab_en_gl or not orden or OWNER_PRUEBA not in txt:
+        resp = re.search(r'id="grab-aviso-resp">([^<]*)<', txt)
+        resp = resp.group(1).strip() if resp else ""
+        resp_ok = bool(resp) and (OWNER_ESPERADO is None or OWNER_ESPERADO in resp)
+        print("  grabacion:    zona=%s #jitsi-dentro=%s en-.gl=%s orden-scripts=%s responsable=%r" % (
+            bool(zona), dentro, grab_en_gl, orden, resp))
+        if not (zona and dentro) or grab_en_gl or not orden or not resp_ok:
             fallo("sala: estructura de grabacion incorrecta")
     print()
     return a
@@ -344,6 +354,8 @@ def arrancar(ctx, port, nombre):
         f.write("JITSI_API_KEY=" + API_KEY + "\n")
         f.write("JITSI_SITE_NAME=" + SITE_PRUEBA + "\n")
         f.write('JITSI_LEGAL_OWNER="' + OWNER_PRUEBA + '"\n')
+    global OWNER_ESPERADO
+    OWNER_ESPERADO = OWNER_PRUEBA
     os.chmod(inst, 0o777)
     subprocess.run(["docker", "rm", "-f", nombre], capture_output=True)
     subprocess.run(["docker", "run", "-d", "--name", nombre, "-p", "127.0.0.1:%d:8081" % port,

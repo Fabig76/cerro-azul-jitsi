@@ -31,6 +31,8 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("vpl", os.path.join(AQUI, "verificar-panel-local.py"))
 vpl = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vpl)
+# En produccion el nombre del conjunto viene de admin.env (puede ser el real).
+vpl.PROHIBIR_MARCA_VIEJA = False
 
 FIRMAR = r'''
 import sys, logging
@@ -93,8 +95,8 @@ def flujo_sesion():
         st, h, raw = pub.get("/reunion/noexiste-verif")
         vpl.contrato("reunion no encontrada", st, raw, esperado_st=404)
         st, h, _ = pub.post("/unirse", {"slug": slug, "apto": "", "nombre": "Verificador"})
-        ok = st == 302 and "#jwt=" in h.get("Location", "")
-        print("  /unirse -> %s %s" % (st, "jitsi#jwt OK" if ok else "?"))
+        ok = st == 302 and "?jwt=" in h.get("Location", "")  # query desde 4535fd9
+        print("  /unirse -> %s %s" % (st, "jitsi?jwt OK" if ok else "?"))
         if not ok:
             vpl.fallo("/unirse en produccion")
         st, h, raw = c.get("/admin/reunion/" + rid + "/sala")

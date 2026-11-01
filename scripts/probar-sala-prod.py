@@ -98,18 +98,8 @@ def main():
             bp.goto(BASE + "/reunion/" + slug)
             bp.fill("[name=nombre]", "Residente B")
             bp.click("button[type=submit]")
-            ok(esperar(lambda: "#jwt=" in bp.url, 20) is not None, "/unirse -> Jitsi con el JWT en el fragmento (#jwt=)")
-            unido = esperar(lambda: bp.evaluate("APP.conference.isJoined()")
-                            or "Se requiere autenticación" in bp.inner_text("body") and "auth", 60)
-            if unido is not True:
-                # Fallo PREVIO al rediseño (jitsi_url no cambió): stable-11031
-                # solo lee el JWT de la query. Se avisa y, para poder probar la
-                # moderacion, B usa el MISMO token en ?jwt=.
-                print("  AVISO  con #jwt= Jitsi pide autenticacion (fallo previo, ver DISENO-AUDITORIA)")
-                AVISOS.append("#jwt= rechazado")
-                base_url, frag = bp.url.split("#", 1)
-                tok = re.search(r"jwt=([^&]+)", frag).group(1)
-                bp.goto(base_url + "?jwt=" + tok + "#" + re.sub(r"jwt=[^&]+&?", "", frag))
+            # Desde 4535fd9 el JWT va en la query (?jwt=): stable-11031 no lo lee del fragmento.
+            ok(esperar(lambda: "?jwt=" in bp.url, 20) is not None, "/unirse -> Jitsi con el JWT en la query (?jwt=)")
             if not ok(esperar(lambda: bp.evaluate("APP.conference.isJoined()"), 60), "B unido a la conferencia"):
                 bp.screenshot(path="/tmp/b-no-unido.png")
                 print("    texto visible de B:", bp.inner_text("body")[:400].replace("\n", " | "))
