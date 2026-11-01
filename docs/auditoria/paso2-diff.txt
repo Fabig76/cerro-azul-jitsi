@@ -1,0 +1,146 @@
+5c5
+<   theme.css:    35533 bytes
+---
+>   theme.css:    35980 bytes
+9c9
+<   theme.js:     5373 bytes
+---
+>   theme.js:     5493 bytes
+15c15
+<   tpl.html           <style>=1 style=""=0
+---
+>   tpl.html           <style>=0 style=""=0
+24c24
+<   ids:          []
+---
+>   ids:          ['contenido']
+27,28c27,28
+<   buttons:      1
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      2
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+31c31
+<   <style>:      1   style="": 0
+---
+>   <style>:      0   style="": 0
+36c36
+<   ids:          []
+---
+>   ids:          ['contenido']
+39,40c39,40
+<   buttons:      1
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      2
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+43c43
+<   <style>:      1   style="": 0
+---
+>   <style>:      0   style="": 0
+51,52c51,53
+<   ids:          []
+<   forms:        2
+---
+>   ids:          ['apariencia-t', 'contenido']
+>   forms:        3
+>     form method=post action=/admin/logout names=[]
+55,56c56,57
+<   buttons:      2
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      6
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+59c60
+<   <style>:      1   style="": 1
+---
+>   <style>:      0   style="": 1
+69,70c70,72
+<   ids:          []
+<   forms:        4
+---
+>   ids:          ['apariencia-t', 'contenido']
+>   forms:        5
+>     form method=post action=/admin/logout names=[]
+75,76c77,78
+<   buttons:      4
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      8
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+79c81
+<   <style>:      1   style="": 3
+---
+>   <style>:      0   style="": 3
+88,91c90,94
+<   ids:          []
+<   forms:        0
+<   buttons:      0
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   ids:          ['apariencia-t', 'contenido']
+>   forms:        1
+>     form method=post action=/admin/logout names=[]
+>   buttons:      4
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+94c97
+<   <style>:      1   style="": 5
+---
+>   <style>:      0   style="": 5
+101c104
+<   ids:          []
+---
+>   ids:          ['contenido']
+104,105c107,108
+<   buttons:      1
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      2
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+108c111
+<   <style>:      1   style="": 0
+---
+>   <style>:      0   style="": 0
+116c119
+<   ids:          []
+---
+>   ids:          ['contenido']
+118,119c121,122
+<   buttons:      0
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      1
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+122c125
+<   <style>:      1   style="": 0
+---
+>   <style>:      0   style="": 0
+129c132
+<   ids:          []
+---
+>   ids:          ['contenido']
+131,132c134,135
+<   buttons:      0
+<   scripts src:  ['/admin/static/theme.js?v=20261101a']
+---
+>   buttons:      1
+>   scripts src:  ['/admin/static/theme.js?v=20261101b']
+135c138
+<   <style>:      1   style="": 0
+---
+>   <style>:      0   style="": 0
+140,143c143,147
+<   ids:          ['cnt', 'jitsi', 'lista', 'log', 'st-audio', 'st-video']
+<   forms:        0
+<   buttons:      6
+<   scripts src:  ['/admin/static/theme.js?v=20261101a', 'https://meet.urbcerroazul.com/external_api.js']
+---
+>   ids:          ['apariencia-t', 'cnt', 'contenido', 'jitsi', 'lista', 'log', 'st-audio', 'st-video']
+>   forms:        1
+>     form method=post action=/admin/logout names=[]
+>   buttons:      10
+>   scripts src:  ['/admin/static/theme.js?v=20261101b', 'https://meet.urbcerroazul.com/external_api.js']
+146c150
+<   <style>:      2   style="": 3
+---
+>   <style>:      1   style="": 3

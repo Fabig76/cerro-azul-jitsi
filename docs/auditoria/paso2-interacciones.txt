@@ -1,0 +1,56 @@
+[tema]
+  OK     auto + sistema claro -> fondo #F5F5F7 (rgb(245, 245, 247))
+  OK     Oscuro guarda ca-tema=dark
+  OK     data-theme=dark aplicado
+  OK     theme-color actualizado (#000000,#000000)
+  OK     tema aplicado antes del <body> (sin parpadeo)
+  OK     persiste entre paginas: fondo negro (rgb(0, 0, 0))
+  OK     segmentado marca Oscuro (aria-pressed)
+  OK     Auto borra ca-tema
+  OK     pie: Automático
+  OK     pie: -> Claro
+  OK     pie: -> Oscuro
+  OK     pie: -> Automático
+  OK     aria-label anuncia el estado (Apariencia: automático. Pulsa para cambiar)
+  OK     localStorage bloqueado: sin errores JS ([])
+[menu, foco, skip link]
+  OK     primer Tab: skip link
+  OK     skip link visible con foco
+  OK     skip link lleva a #contenido
+  OK     menu se abre con Enter
+  OK     Esc cierra el menu
+  OK     Esc devuelve el foco al boton
+  OK     clic fuera cierra el menu
+  OK     foco visible: anillo de 3px (solid 3px)
+[tamanos y desbordamiento]
+  OK      360px /admin/login               sin scroll horizontal (360)
+  OK     /admin/login texto >= 12px []
+  OK     /admin/login campos >= 16px (anti-zoom iOS) []
+  OK     /admin/login controles >= 44px en tactil []
+  OK      360px /admin                     sin scroll horizontal (360)
+  FALLO  /admin texto >= 12px ['CODE.:10.5px']
+  OK     /admin campos >= 16px (anti-zoom iOS) []
+  OK     /admin controles >= 44px en tactil []
+  OK      360px /admin/qr/1                sin scroll horizontal (360)
+  OK     /admin/qr/1 texto >= 12px []
+  FALLO  /admin/qr/1 campos >= 16px (anti-zoom iOS) ['']
+  OK     /admin/qr/1 controles >= 44px en tactil []
+  OK      360px /admin/reunion/1/sala      sin scroll horizontal (360)
+  FALLO  /admin/reunion/1/sala texto >= 12px ['DIV.:11px']
+  OK     /admin/reunion/1/sala campos >= 16px (anti-zoom iOS) []
+  OK     /admin/reunion/1/sala controles >= 44px en tactil []
+  OK      360px /reunion/usndsyfmpzw       sin scroll horizontal (360)
+  OK     /reunion/usndsyfmpzw texto >= 12px []
+  OK     /reunion/usndsyfmpzw campos >= 16px (anti-zoom iOS) []
+  OK     /reunion/usndsyfmpzw controles >= 44px en tactil []
+  OK      768px /admin/login               sin scroll horizontal (768)
+  OK      768px /admin                     sin scroll horizontal (768)
+  OK      768px /admin/qr/1                sin scroll horizontal (768)
+  OK      768px /admin/reunion/1/sala      sin scroll horizontal (768)
+  OK      768px /reunion/usndsyfmpzw       sin scroll horizontal (768)
+  OK     1280px /admin/login               sin scroll horizontal (1280)
+  OK     1280px /admin                     sin scroll horizontal (1280)
+  OK     1280px /admin/qr/1                sin scroll horizontal (1280)
+  OK     1280px /admin/reunion/1/sala      sin scroll horizontal (1280)
+  OK     1280px /reunion/usndsyfmpzw       sin scroll horizontal (1280)
+=== 3 FALLO(S) ===

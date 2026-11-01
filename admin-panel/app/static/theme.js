@@ -39,6 +39,8 @@
   }
 
   function listo() {
+    var js = document.querySelectorAll("[data-js-only]");
+    for (var q = 0; q < js.length; q++) js[q].hidden = false;
     controles(leer());
     document.addEventListener("click", function (e) {
       var s = e.target.closest ? e.target.closest("[data-theme-set]") : null;

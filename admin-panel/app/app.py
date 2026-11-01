@@ -90,7 +90,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261101a"
+ASSET_V = "20261101b"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -283,16 +283,19 @@ def escape_html(s):
                   .replace(">", "&gt;")
                   .replace(q, "&quot;"))
 
-def render_page(t, body, kind="public", width="narrow"):
+def render_page(t, body, kind="public", width="narrow", legacy=True):
     """Inyecta 'body' en tpl.html.
 
     kind:  "admin" (cabecera con menu), "public" (banda de marca + pie con
            conmutador de tema) o "auth" (login: fondo aurora, sin cabecera).
     width: "narrow", "content" o "wide" (ancho maximo del contenido).
+    legacy: la pagina aun usa el marcado viejo (se envuelve en .c.legacy
+           para los alias de compatibilidad de theme.css). Temporal.
     """
     with open(os.path.join(TPL_DIR, "tpl.html")) as f:
         tpl = f.read()
-    return render_template_string(tpl, t=t, body=body, kind=kind, width=width, v=ASSET_V)
+    return render_template_string(tpl, t=t, body=body, kind=kind, width=width,
+                                  legacy=legacy, v=ASSET_V)
 
 # RUTAS
 

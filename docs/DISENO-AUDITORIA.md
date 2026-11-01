@@ -23,7 +23,8 @@ Herramientas de verificación (creadas en el paso 0):
 | Paso | Commit | Qué cambió | Verificación | Evidencia |
 |---|---|---|---|---|
 | 0 | `399da6a` | Scripts de verificación y capturas; spec versionado | Línea base local y de producción, capturas "antes" | `auditoria/paso0-*.txt` |
-| 1 | (ver git log) | `static/theme.css` + `theme.js`, `/admin/static`, `ASSET_V`, `render_page(kind,width)`, `COPY` en Dockerfile, `<link>`/`<script>` en `tpl.html` | 6.4 OK; diff = solo `<link>`/`<script>` nuevos y estáticos 404→200; capturas ≈ iguales | `auditoria/paso1-*.txt` |
+| 1 | `921c42b` (+`eaf8470` scripts) | `static/theme.css` + `theme.js`, `/admin/static`, `ASSET_V`, `render_page(kind,width)`, `COPY` en Dockerfile, `<link>`/`<script>` en `tpl.html` | 6.4 OK; diff = solo `<link>`/`<script>` nuevos y estáticos 404→200; capturas ≈ iguales | `auditoria/paso1-*.txt` |
+| 2 | (ver git log) | `tpl.html` nuevo (appbar + menú con tema y cerrar sesión, banda pública, pie con conmutador, skip link, `<main id=contenido>`), sin `<style>`; páginas viejas envueltas en `.c.legacy` | 6.4 OK, interacciones 33/36 (3 fallos = marcado viejo de pasos 5-6), capturas | `auditoria/paso2-*.txt` |
 
 ---
 
@@ -81,3 +82,36 @@ Herramientas de verificación (creadas en el paso 0):
   - Login **real** (usuario + contraseña + `?next=`) con la imagen desplegada en un contenedor temporal
     del VPS (contraseña de prueba, puerto 18091 por túnel ssh, borrado al terminar): contraseña mala → error
     visible; correcta → 302 `/admin`; crear con CSRF → 302.
+
+## Paso 2 — Layout + tema
+
+**Cambios:**
+- `tpl.html` reescrito según 4.1: `<title>{{ t }} · Cerro Azul</title>`; `body.page.page--{kind}.page--{width}`;
+  skip link; `kind=admin` → `.appbar` (marca SVG en línea + menú `<details>` con control segmentado de tema y
+  **Cerrar sesión**, D5); `kind=public` → banda `.hero` con la marca; `kind!=admin` → pie con `.theme-cycle`.
+  **Se elimina el `<style>`**. Los controles de tema llevan `hidden data-js-only` y `theme.js` los muestra:
+  sin JS no aparece un botón que no hace nada (el tema sigue al sistema por CSS).
+- El menú no lleva `role="menu"` (el spec lo sugería): contiene un grupo de botones y un formulario, y
+  `role="menu"` obligaría a navegación con flechas que no existe; `<details>` ya se anuncia como desplegable.
+- `render_page(..., legacy=True)`: las páginas aún no migradas se envuelven en `<div class="c legacy">`;
+  cada paso pone `legacy=False` en lo que migra. El botón "Cerrar sesión" del panel se mantiene (D5 dice que
+  se quita en el paso 5), por lo que en este paso hay dos formularios de logout en el panel.
+- `theme.css`: marca, `[hidden]`, corrección de `.legacy button.d` (salía azul) y sombra del skip link oculto
+  (asomaba como una mancha en la banda). `ASSET_V = 20261101b`.
+
+**Verificación:**
+- `verificar-panel-local.py` → **OK**. Diff con el paso 1 (`auditoria/paso2-diff.txt`): ids nuevos
+  `contenido`, `apariencia-t`; +1 form `POST /admin/logout` y +4 botones (menú/tema) en páginas de admin,
+  +1 botón (tema) en públicas; `<style>` 1 → 0 en todas salvo la sala (su `<style>` propio, paso 6).
+  Sala: 6 ids y 6 `data-cmd` intactos; `<script>` IDÉNTICO.
+- `scripts/probar-interacciones.py` (nuevo; `auditoria/paso2-interacciones.txt`): tema auto/claro/oscuro,
+  persistencia entre páginas, **tema aplicado antes de crear `<body>`** (sin parpadeo), `theme-color`, ciclo del
+  pie, `aria-label`, `localStorage` bloqueado sin errores; skip link (primer Tab, visible, salta a `#contenido`);
+  menú con Enter, Esc devuelve el foco, clic fuera cierra; anillo de foco de 3 px; sin scroll horizontal
+  a 360/768/1280 en las 5 páginas. **3 fallos esperados** del marcado viejo: `<code>` a 10,5 px en el panel,
+  campo del link del QR a 12 px y `#log` a 11 px en la sala (pasos 5 y 6).
+- Capturas `paso2`: cabecera translúcida, menú abierto, banda de degradado en la pública con la tarjeta
+  superpuesta, aurora del login en oscuro. La prueba de 44 px detectó que la animación `pop` (`scale .96`)
+  falseaba la medida: se mide `offsetHeight`.
+- Nota de método: `rate_login` cuenta también los logins correctos (5 por IP / 15 min); entre tandas de
+  pruebas se reinicia el contenedor local.

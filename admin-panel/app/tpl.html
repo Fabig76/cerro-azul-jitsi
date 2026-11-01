@@ -3,56 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{{ t }}</title>
+  <title>{{ t }} · Cerro Azul</title>
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="/admin/static/theme.css?v={{ v }}">
   <script src="/admin/static/theme.js?v={{ v }}"></script>
-  <style>
-    :root { --bg:#0f172a; --c:#1e293b; --b:#334155; --t:#e2e8f0;
-            --m:#94a3b8; --a:#3b82f6; --h:#2563eb; --ok:#10b981; --er:#ef4444; }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:system-ui,sans-serif; background:var(--bg); color:var(--t);
-           min-height:100vh; display:flex; align-items:center; justify-content:center;
-           padding:20px; }
-    .c { background:var(--c); border:1px solid var(--b); border-radius:12px;
-         padding:32px; max-width:640px; width:100%; }
-    h1 { font-size:22px; margin-bottom:6px; }
-    h2 { font-size:16px; margin:20px 0 10px; }
-    .m { color:var(--m); font-size:13px; margin-bottom:20px; }
-    label { display:block; font-size:13px; margin:10px 0 4px; }
-    input, textarea, select { width:100%; padding:9px 11px;
-      background:var(--bg); color:var(--t); border:1px solid var(--b);
-      border-radius:6px; font-size:14px; }
-    input:focus, textarea:focus { outline:none; border-color:var(--a); }
-    textarea { min-height:70px; font-family:inherit; resize:vertical; }
-    button { background:var(--a); color:#fff; border:none; padding:9px 18px;
-             border-radius:6px; font-size:14px; cursor:pointer; margin-top:14px; }
-    button:hover { background:var(--h); }
-    .d { background:var(--er); }
-    .r { background:var(--bg); border:1px solid var(--b); border-radius:8px;
-         padding:14px; margin-bottom:10px; }
-    .r h3 { font-size:15px; margin-bottom:3px; }
-    .r .mt { color:var(--m); font-size:12px; margin-bottom:6px; }
-    .r .ac { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
-    .r .ac a, .r .ac button { margin:0; padding:5px 10px; font-size:12px;
-                               text-decoration:none; }
-    .b { display:inline-block; background:var(--ok); color:#fff; padding:2px 7px;
-         border-radius:4px; font-size:11px; margin-left:6px; }
-    .e { color:var(--er); background:#7f1d1d33; padding:9px; border-radius:6px;
-         margin:10px 0; font-size:13px; }
-    .o { color:var(--ok); background:#065f4633; padding:9px; border-radius:6px;
-         margin:10px 0; font-size:13px; }
-    .qr { text-align:center; margin:18px 0; }
-    .qr img { background:#fff; padding:8px; border-radius:6px; max-width:240px; }
-    small { color:var(--m); font-size:11px; }
-    a { color:var(--a); }
-  </style>
 </head>
-<body>
-  <div class="c">
-    {{ body|safe }}
+{%- set kind = kind|default('public') %}
+{%- set width = width|default('narrow') %}
+<body class="page page--{{ kind }} page--{{ width }}">
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+{%- if kind == 'admin' %}
+  <header class="appbar">
+    <div class="appbar__inner">
+      <a class="brand" href="/admin" aria-label="Cerro Azul Reuniones: ir al panel">
+        <span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 19 9 8.5l3.6 5.4 2.6-3.6L21.5 19z"/></svg></span>
+        <span class="brand__name">Cerro Azul</span>
+        <span class="brand__product">Reuniones</span>
+      </a>
+      <details class="menu">
+        <summary class="btn btn--ghost btn--icon menu__trigger" aria-label="Menú">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+        </summary>
+        <div class="menu__popover">
+          <div class="menu__section" data-js-only hidden>
+            <span class="eyebrow" id="apariencia-t">Apariencia</span>
+            <div class="segmented" role="group" aria-labelledby="apariencia-t">
+              <button type="button" data-theme-set="auto" aria-pressed="true">Auto</button>
+              <button type="button" data-theme-set="light" aria-pressed="false">Claro</button>
+              <button type="button" data-theme-set="dark" aria-pressed="false">Oscuro</button>
+            </div>
+          </div>
+          <hr class="menu__sep" data-js-only hidden>
+          <form method="post" action="/admin/logout">
+            <button class="menu__item" type="submit">Cerrar sesión
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/></svg>
+            </button>
+          </form>
+        </div>
+      </details>
+    </div>
+  </header>
+{%- elif kind == 'public' %}
+  <div class="hero">
+    <div class="hero__inner">
+      <span class="brand__mark brand__mark--hero" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 19 9 8.5l3.6 5.4 2.6-3.6L21.5 19z"/></svg></span>
+      <span>Cerro Azul</span>
+    </div>
   </div>
+{%- endif %}
+  <main id="contenido" class="container container--{{ width }}" tabindex="-1">
+{%- if legacy %}
+    <div class="c legacy">
+      {{ body|safe }}
+    </div>
+{%- else %}
+    {{ body|safe }}
+{%- endif %}
+  </main>
+{%- if kind != 'admin' %}
+  <footer class="footer">
+    <span>Cerro Azul</span>
+    <span aria-hidden="true" data-js-only hidden>·</span>
+    <button class="theme-cycle" type="button" data-js-only hidden>Apariencia: <span data-theme-label>Automático</span>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+    </button>
+  </footer>
+{%- endif %}
 </body>
 </html>
