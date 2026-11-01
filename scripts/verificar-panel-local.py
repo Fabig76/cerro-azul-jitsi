@@ -168,7 +168,12 @@ def parse(raw):
     return a
 
 
-MARCADORES = ["<!--ERR-->", "<!--LISTA-->", "<!--AVISO_JWT-->", "<!--DESC-->"]
+MARCADORES = ["<!--ERR-->", "<!--LISTA-->", "<!--AVISO_JWT-->", "<!--DESC-->", "<!--SUB-->", "<!--DE-SITE-->"]
+# Marca de prueba (Fase 9: el panel es multi-conjunto). Ninguna pagina debe
+# decir "Cerro Azul": todo sale de JITSI_SITE_NAME / JITSI_LEGAL_OWNER.
+SITE_PRUEBA = "Conjunto Prueba Verificación"
+OWNER_PRUEBA = "Administración Prueba P.H."
+MARCA_VIEJA = "Cerro Azul"
 IDS_SALA = ["jitsi", "lista", "cnt", "log", "st-audio", "st-video"]
 
 
@@ -178,6 +183,10 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
     if st != esperado_st:
         fallo("%s: HTTP %s (esperado %s)" % (nombre, st, esperado_st))
     txt = raw.decode("utf-8", "replace")
+    if MARCA_VIEJA in txt:
+        fallo("%s: aparece '%s' (marca fija)" % (nombre, MARCA_VIEJA))
+    print("  marca:        %s" % ("'" + MARCA_VIEJA + "' PRESENTE" if MARCA_VIEJA in txt
+                                  else "sin marca fija; site=" + ("si" if SITE_PRUEBA in txt else "no")))
     a = parse(raw)
     nodos = list(a.raiz.todos())
     ids = sorted({n.attrs["id"] for n in nodos if n.attrs.get("id")})
@@ -242,6 +251,20 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
         jitsi = [n for n in nodos if n.attrs.get("id") == "jitsi"]
         if jitsi and jitsi[0].hijos:
             fallo("sala: #jitsi no esta vacio")
+        # Grabacion (Fase 9): tarjeta fuera de .gl, zona grabada con #jitsi
+        # dentro, aviso legal con el responsable configurado, script cargado
+        # ENTRE external_api.js y el script congelado.
+        zona = [n for n in nodos if n.attrs.get("id") == "grab-zona"]
+        dentro = bool(zona) and any(m.attrs.get("id") == "jitsi" for m in zona[0].todos())
+        grab_en_gl = any(n.attrs.get("id", "").startswith("grab") for g in gl for n in g.todos())
+        i_ext = txt.find("/external_api.js")
+        i_grab = txt.find("/admin/static/grabacion.js?v=")
+        i_cong = txt.rfind("<script>\n")
+        orden = 0 <= i_ext < i_grab < i_cong
+        print("  grabacion:    zona=%s #jitsi-dentro=%s en-.gl=%s orden-scripts=%s responsable=%s" % (
+            bool(zona), dentro, grab_en_gl, orden, OWNER_PRUEBA in txt))
+        if not (zona and dentro) or grab_en_gl or not orden or OWNER_PRUEBA not in txt:
+            fallo("sala: estructura de grabacion incorrecta")
     print()
     return a
 
@@ -319,6 +342,8 @@ def arrancar(ctx, port, nombre):
         f.write("JITSI_ADMIN_PASSWORD_HASH=" + hashlib.sha256(PASSWORD.encode()).hexdigest() + "\n")
         f.write("FLASK_SECRET_KEY=" + secrets.token_hex(32) + "\n")
         f.write("JITSI_API_KEY=" + API_KEY + "\n")
+        f.write("JITSI_SITE_NAME=" + SITE_PRUEBA + "\n")
+        f.write('JITSI_LEGAL_OWNER="' + OWNER_PRUEBA + '"\n')
     os.chmod(inst, 0o777)
     subprocess.run(["docker", "rm", "-f", nombre], capture_output=True)
     subprocess.run(["docker", "run", "-d", "--name", nombre, "-p", "127.0.0.1:%d:8081" % port,
@@ -359,6 +384,11 @@ def recorrido(base, rate_limit=True):
     print("  /admin/static/theme.css -> %s %s" % (st, h.get("Content-Type", "")))
     st, h, _ = c.get("/admin/static/theme.js")
     print("  /admin/static/theme.js  -> %s %s" % (st, h.get("Content-Type", "")))
+    for f in ("grabacion.js", "grabacion-worker.js"):
+        st, h, _ = c.get("/admin/static/" + f)
+        print("  /admin/static/%-20s -> %s %s" % (f, st, h.get("Content-Type", "")))
+        if st != 200:
+            fallo("/admin/static/" + f + " -> " + str(st))
     print()
 
     st, h, raw = c.get("/admin/login")
@@ -432,8 +462,9 @@ def recorrido(base, rate_limit=True):
     contrato("reunion no encontrada", st, raw, esperado_st=404)
     st, h, _ = pub.post("/unirse", {"slug": slug_fut, "apto": "302", "nombre": "Ana"})
     loc = h.get("Location", "")
-    ok = st == 302 and loc.startswith("https://" + PUB + "/asamblea-") and "#jwt=" in loc
-    print("  /unirse futura -> %s %s" % (st, "jitsi#jwt OK" if ok else loc[:60]))
+    # Desde 4535fd9 el JWT va en la query (?jwt=), no en el fragmento.
+    ok = st == 302 and loc.startswith("https://" + PUB + "/asamblea-") and "?jwt=" in loc
+    print("  /unirse futura -> %s %s" % (st, "jitsi?jwt OK" if ok else loc[:60]))
     if not ok:
         fallo("/unirse no redirige a Jitsi con jwt")
     st, h, _ = pub.post("/unirse", {"slug": slug_fut, "apto": "", "nombre": ""})
@@ -446,7 +477,7 @@ def recorrido(base, rate_limit=True):
     st, h, raw = c.get("/admin/reunion/2/sala")
     print("  sala de reunion pasada -> %s" % st)
     st, h, _ = c.get("/admin/reunion/1/entrar")
-    print("  entrar -> %s %s" % (st, "jitsi#jwt" if "#jwt=" in h.get("Location", "") else "?"))
+    print("  entrar -> %s %s" % (st, "jitsi?jwt" if "?jwt=" in h.get("Location", "") else "?"))
     st, h, raw = c.get("/admin/reunion/1/moderador.json")
     print("  moderador.json -> %s %s" % (st, sorted(json.loads(raw).keys()) if st == 200 else ""))
     st, h, _ = c.post("/api/reuniones/1/token", b"{}", {"Content-Type": "application/json"})

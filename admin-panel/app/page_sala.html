@@ -18,9 +18,35 @@
 </header>
 
 <div class="sala">
-  <div id="jitsi"></div>
+  <!-- Zona grabada (SPEC-GRABACION §4.1): la grabacion se recorta a este
+       contenedor. La franja legal va DENTRO para que salga en cada fotograma.
+       #jitsi conserva su id y queda vacio para el iframe (contrato). -->
+  <div class="grab-zona" id="grab-zona">
+    <div class="grab-aviso" id="grab-aviso" hidden>
+      <p class="grab-aviso__texto"><span class="grab-aviso__dot" aria-hidden="true"></span><span id="grab-aviso-texto">Esta reunión se está grabando en audio y vídeo. Al participar, usted lo autoriza.</span></p>
+      <p class="grab-aviso__pie">Responsable: <span id="grab-aviso-resp">{{legal_owner}}</span></p>
+    </div>
+    <div id="jitsi"></div>
+  </div>
 
   <aside class="sala__lado" aria-label="Controles de moderación">
+    <!-- Grabacion local (SPEC-GRABACION). FUERA de .gl: el script congelado
+         escucha todos los <button> de .gl. Ids con prefijo grab-. -->
+    <section class="card sala__card grab" id="grab" aria-labelledby="grab-t"
+             data-fin="{{fin_ms}}" data-fin-txt="{{fin_txt}}" data-tz-min="{{tz_min}}">
+      <h2 class="sala__card-title" id="grab-t">Grabación <span class="badge badge--danger grab__rec" id="grab-rec" hidden><span class="live-dot" aria-hidden="true"></span>REC</span></h2>
+      <div id="grab-cuerpo" aria-live="polite">
+        <p class="field__hint">Comprobando si este navegador puede grabar…</p>
+      </div>
+      <details class="disclosure grab__copias" id="grab-copias" hidden>
+        <summary>Copias en este computador <span class="badge badge--neutral num" id="grab-copias-n"></span></summary>
+        <div class="disclosure__body">
+          <p class="field__hint">Copia de seguridad interna de Chrome. Se borra sola a los 7 días. No ocupa espacio en el servidor.</p>
+          <ul class="grab__lista" id="grab-copias-lista"></ul>
+        </div>
+      </details>
+    </section>
+
     <section class="card sala__card" aria-labelledby="sala-st-t">
       <h2 class="sala__card-title" id="sala-st-t">Estado de la moderación</h2>
       <p class="sala__estados" aria-live="polite">
@@ -74,7 +100,43 @@
   </aside>
 </div>
 
+<!-- Dialogo de instrucciones antes del dialogo de Chrome (SPEC-GRABACION §3.4) -->
+<dialog class="dialog grab-dlg" id="grab-dlg" aria-labelledby="grab-dlg-t">
+  <form method="dialog">
+    <h2 class="dialog__title" id="grab-dlg-t">Antes de grabar</h2>
+    <p class="dialog__text">Chrome te va a preguntar qué compartir. Para que la grabación tenga sonido:</p>
+    <ol class="grab-pasos">
+      <li>Comprueba que ofrece <b>esta pestaña</b> («<span id="grab-dlg-tab"></span>»). Si muestra varias opciones, elige <b>Pestaña de Chrome</b> y esta pestaña.</li>
+      <li>Deja <b>marcada</b> la casilla <b>«Compartir también el audio de la pestaña»</b>.
+        <span class="grab-pasos__casilla" aria-hidden="true"><span class="grab-pasos__check">✓</span>Compartir también el audio de la pestaña</span>
+        <b class="grab-pasos__peligro">Sin esto la grabación sale SIN VOZ.</b></li>
+      <li>Pulsa <b>Compartir</b>.</li>
+    </ol>
+    <p class="dialog__text">Después comprobaremos el sonido automáticamente (oirás un bip corto). Usa auriculares para que no haya eco.</p>
+    <label class="grab-dlg__check" id="grab-dlg-saltar-l" hidden><input type="checkbox" id="grab-dlg-saltar"> No volver a mostrar estas instrucciones</label>
+    <div class="dialog__actions">
+      <button class="btn btn--secondary" value="cancel">Cancelar</button>
+      <button class="btn btn--primary" value="ok" id="grab-dlg-ok">Continuar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Confirmaciones de la grabacion (detener, grabar sin sonido, borrar copia) -->
+<dialog class="dialog" id="grab-conf" aria-labelledby="grab-conf-t" aria-describedby="grab-conf-d">
+  <form method="dialog">
+    <h2 class="dialog__title" id="grab-conf-t"></h2>
+    <p class="dialog__text" id="grab-conf-d"></p>
+    <div class="dialog__actions">
+      <button class="btn btn--secondary" value="cancel" id="grab-conf-no">Cancelar</button>
+      <button class="btn btn--danger" value="ok" id="grab-conf-si">Aceptar</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="https://{{domain}}/external_api.js"></script>
+<!-- Grabacion: va ENTRE external_api.js y el script congelado (D8). Envuelve
+     el constructor JitsiMeetExternalAPI para quedarse con la instancia. -->
+<script src="/admin/static/grabacion.js?v={{asset_v}}"></script>
 <script>
 (function () {
   "use strict";

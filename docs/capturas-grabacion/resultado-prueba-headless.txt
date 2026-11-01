@@ -1,0 +1,53 @@
+sala: /admin/reunion/1/sala
+
+=== A. Grabación normal (20 s) ===
+  detección: detección: ok (video/webm;codecs=vp8,opus)
+  ok: comprobaciones superadas y grabando
+    detección: ok (video/webm;codecs=vp8,opus)
+    bip de prueba: máx -6.7 dBFS, 6 lecturas ≥ -45 dBFS (2 seguidas) → ok · serie dBFS cada 50 ms: - - - - - - - - - -7 - - - - - - - - - -10 -11 - - - - - - - - -9 -12 - - - - - - - - -10
+    grabando Asamblea-b-ordinaria-b-noviembre-cia-2026-11-01-0339.webm (video/webm;codecs=vp8,opus, 836x612, recortado a la reunión, micro sí, guardado OPFS)
+  ok: franja legal visible: True
+  ok: puerta del micro al abrir en Jitsi: en la grabación
+  ok: recordatorio de hora de fin
+  ok: «Seguir grabando» lo oculta (vuelve a los 15 min) y la grabación sigue
+  peso mostrado: 415 KB · ≈ 71,1 MB/hora
+  ok: subject: ● GRABANDO · Asamblea <b>ordinaria</b> noviembre & "cía"
+  ok: chat: Esta reunión se está grabando en audio y vídeo. Al participar, usted lo autoriza. Responsable: Administración Prueba P.H.
+  archivo: Asamblea-b-ordinaria-b-noviembre-cia-2026-11-01-0339.webm (493828 bytes)
+  ffprobe: [{'codec_name': 'vp8', 'codec_type': 'video', 'width': 836, 'height': 612}, {'codec_name': 'opus', 'codec_type': 'audio'}]  duración≈22.2 s  max_volume=0.0 dB mean_volume=-15.9 dB
+  ok: pistas ['audio:opus', 'video:vp8']
+  ok: vídeo 836x612 (recortado a la zona)
+  ok: primer fotograma ya con la franja (zona 836x612)
+  ok: duración 22.2 s
+  ok: audio con señal (max 0.0 dB)
+  fotograma: /tmp/grab/fotograma-5s.png
+  ok: mensaje de fin en el chat
+  ok: subject restaurado: Asamblea <b>ordinaria</b> noviembre & "cía"
+
+=== B. Cierre brusco y recuperación ===
+  ok: aviso de recuperación al volver
+  recuperada: Asamblea-b-ordinaria-b-noviembre-cia-2026-11-01-0340-recuperada.webm 199421 bytes, duración≈9.95 s, pistas=2
+  ok: nombre de la recuperada
+  ok: la recuperada se reproduce hasta el corte (9.95 s, esperado ≈ 10-13)
+
+=== B2. Zona de la reunión fuera de la pantalla ===
+  ok: aviso de zona fuera de la vista
+  ok: sin recorte mientras no se ve
+  ok: sin atasco (siguen llegando trozos): 103 KB → 239 KB · ≈ 44,4 MB/hora
+  ok: vuelve a recortar al reaparecer la zona
+  archivo: duración≈26.32 s, max_volume=-0.0 dB
+  ok: la grabación cubre todo el tramo, también sin la zona a la vista (26.32 s, esperado ≈ 26)
+
+=== C. Casos negativos ===
+  ok: sin-audio → «No marcaste», sin grabar
+  ok: mudo → «no capta el sonido», sin grabar
+  ok: mudo → «Grabar sin sonido» con confirmación graba con aviso rojo
+  ok: otra → «otra ventana o pestaña», sin grabar
+  ok: cancelar → «No se compartió nada», sin grabar
+  ok: sin CropTarget → «abre esta página en Google Chrome»
+  ok: móvil → «La reunión NO se está grabando» y botón deshabilitado
+  ok: copia de hace 8 días borrada sola
+
+  entradas en OPFS al final de la prueba: 8
+
+=== RESULTADO: OK ===

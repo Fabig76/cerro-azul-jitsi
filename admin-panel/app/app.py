@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Panel admin Jitsi - Cerro Azul"""
+"""Panel admin Jitsi (reuniones con moderacion y grabacion local)"""
 import os
 import io
 import json
@@ -68,6 +68,27 @@ JWT_EXP_MARGIN_MIN = int(A.get("JWT_EXP_MARGIN_MIN") or "30")
 # Prefijo de las salas nuevas (el resto son 16 hex aleatorios).
 SALA_PREFIX = A.get("SALA_PREFIX") or "asamblea-"
 
+# --- Marca (multi-conjunto) ----------------------------------------------
+# El panel se reutiliza en otros conjuntos: ningun nombre fijo en las
+# plantillas. Todo sale de admin.env, con defaults neutros si faltan.
+def _texto(nombre, defecto=""):
+    """Valor de admin.env sin comillas envolventes ni espacios; o el defecto."""
+    v = (A.get(nombre) or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        v = v[1:-1].strip()
+    return v or defecto
+
+SITE_NAME = _texto("JITSI_SITE_NAME", "Panel de reuniones")
+SITE_SUBTITLE = _texto("JITSI_SITE_SUBTITLE")
+# Responsable del tratamiento: aparece en el aviso de grabacion.
+LEGAL_OWNER = _texto("JITSI_LEGAL_OWNER", SITE_NAME)
+# Texto pequeno junto a la marca en la cabecera del admin y bajo el titulo
+# del login. Si no hay subtitulo, "Reuniones" / "Panel de reuniones", salvo
+# que el propio nombre ya lo diga (el default "Panel de reuniones").
+_YA_DICE_REUNIONES = "reunion" in SITE_NAME.lower().replace("ó", "o")
+BRAND_PRODUCT = SITE_SUBTITLE or ("" if _YA_DICE_REUNIONES else "Reuniones")
+LOGIN_SUB = SITE_SUBTITLE or ("" if _YA_DICE_REUNIONES else "Panel de reuniones")
+
 def jwt_config_problems():
     """Lista de incoherencias panel <-> Prosody que harian fallar los tokens."""
     probs = []
@@ -90,7 +111,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261101m"
+ASSET_V = "20261102g"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -337,7 +358,7 @@ def render_page(t, body, kind="public", width="narrow"):
     with open(os.path.join(TPL_DIR, "tpl.html")) as f:
         tpl = f.read()
     return render_template_string(tpl, t=t, body=body, kind=kind, width=width,
-                                  v=ASSET_V)
+                                  v=ASSET_V, site=SITE_NAME, product=BRAND_PRODUCT)
 
 # Iconos SVG en linea de los avisos (sin ficheros ni fuentes de iconos).
 _SVG = '<svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true">'
@@ -400,6 +421,13 @@ def login():
                 log.warning("login FAIL user=" + u + " ip=" + ip)
                 err = "Usuario o contraseña incorrectos."
     body = open(os.path.join(TPL_DIR, "page_login.html")).read()
+    body = body.replace("{{site}}", escape_html(SITE_NAME))
+    # "... autorizado de <entidad>." solo si el nombre esta configurado: con
+    # el default ("Panel de reuniones") la frase quedaria rara.
+    body = body.replace("<!--DE-SITE-->", " de " + escape_html(SITE_NAME)
+                        if A.get("JITSI_SITE_NAME") else "")
+    body = body.replace("<!--SUB-->", '<p class="authcard__sub">' + escape_html(LOGIN_SUB) + "</p>"
+                        if LOGIN_SUB else "")
     if err:
         # err es siempre una constante del codigo, no entrada del usuario.
         body = body.replace("<!--ERR-->", alerta("error", err, role="alert"))
@@ -664,6 +692,15 @@ def sala_moderacion(rid):
     body = body.replace("{{sala}}", escape_html(r["sala_jitsi"]))
     body = body.replace("{{domain}}", escape_html(PUB))
     body = body.replace("{{cfg_json}}", cfg_js)
+    # Grabacion local (SPEC-GRABACION): el cuerpo no pasa por Jinja, asi que
+    # los marcadores se sustituyen aqui. Hora de fin prevista para los avisos
+    # de duracion (ms UTC + texto en hora local) y responsable del aviso legal.
+    fin = fin_reunion(r)
+    body = body.replace("{{asset_v}}", ASSET_V)
+    body = body.replace("{{legal_owner}}", escape_html(LEGAL_OWNER))
+    body = body.replace("{{fin_ms}}", str(int(fin.timestamp() * 1000)))
+    body = body.replace("{{fin_txt}}", escape_html(hora_12(fin.astimezone(TZ_COL))))
+    body = body.replace("{{tz_min}}", str(int(TZ_COL.utcoffset(None).total_seconds() // 60)))
     log.info("sala moderacion id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
     return render_page("Moderación · " + r["titulo"], body, kind="admin", width="wide")
 

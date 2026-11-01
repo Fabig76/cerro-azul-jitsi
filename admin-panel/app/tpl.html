@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{{ t }} · Cerro Azul</title>
+  <title>{{ t }} · {{ site }}</title>
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -17,10 +17,12 @@
 {%- if kind == 'admin' %}
   <header class="appbar">
     <div class="appbar__inner">
-      <a class="brand" href="/admin" aria-label="Cerro Azul Reuniones: ir al panel">
+      <a class="brand" href="/admin" aria-label="{{ site }}{{ (' ' ~ product) if product }}: ir al panel">
         <span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 19 9 8.5l3.6 5.4 2.6-3.6L21.5 19z"/></svg></span>
-        <span class="brand__name">Cerro Azul</span>
-        <span class="brand__product">Reuniones</span>
+        <span class="brand__name">{{ site }}</span>
+{%- if product %}
+        <span class="brand__product">{{ product }}</span>
+{%- endif %}
       </a>
       <details class="menu">
         <summary class="btn btn--ghost btn--icon menu__trigger" aria-label="Menú">
@@ -49,7 +51,7 @@
   <div class="hero">
     <div class="hero__inner">
       <span class="brand__mark brand__mark--hero" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 19 9 8.5l3.6 5.4 2.6-3.6L21.5 19z"/></svg></span>
-      <span>Cerro Azul</span>
+      <span>{{ site }}</span>
     </div>
   </div>
 {%- endif %}
@@ -58,7 +60,7 @@
   </main>
 {%- if kind != 'admin' %}
   <footer class="footer">
-    <span>Cerro Azul</span>
+    <span>{{ site }}</span>
     <span aria-hidden="true" data-js-only hidden>·</span>
     <button class="theme-cycle" type="button" data-js-only hidden>Apariencia: <span data-theme-label>Automático</span>
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>

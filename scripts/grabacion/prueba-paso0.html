@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba paso 0 · grabación</title>
+<!-- Pagina de verificacion LOCAL (no se despliega). Ver docs/GRABACION-PASO0.md.
+     Abrir con un servidor local (cuenta como contexto seguro):
+       cd scripts/grabacion && python3 -m http.server 8765
+       -> http://localhost:8765/prueba-paso0.html
+     Sin dependencias externas. No envia nada a ningun servidor. -->
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem; line-height: 1.45; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  td, th { border: 1px solid #8884; padding: .3rem .5rem; text-align: left; vertical-align: top; }
+  td:first-child { width: 34%; }
+  .ok { color: #1a7f37; font-weight: 600; } .no { color: #c9190b; font-weight: 600; } .q { color: #b25000; font-weight: 600; }
+  button { font: inherit; padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; }
+  #zona { border: 3px solid #c9190b; margin: 1rem 0; }
+  #franja { background: #c9190b; color: #fff; padding: .3rem .6rem; font-weight: 600; }
+  #zona iframe { display: block; width: 100%; height: 220px; border: 0; }
+  #lado { background: #8882; padding: .5rem; margin-bottom: 1rem; }
+  pre { background: #8882; padding: .6rem; white-space: pre-wrap; font-size: .8rem; }
+  .nota { color: #888; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1>Paso 0 · Verificación de la grabación en este PC</h1>
+<p>Sigue <b>docs/GRABACION-PASO0.md</b>. Usa auriculares. Al terminar pulsa <b>«Copiar resultados»</b> y pégalos en el documento.</p>
+
+<div id="zona">
+  <div id="franja">Esta reunión se está grabando (zona recortada: solo esto debe salir en el vídeo)</div>
+  <iframe id="ifr" title="Contenido de prueba"></iframe>
+</div>
+<div id="lado">PANEL LATERAL (esto NO debe salir en el vídeo si el recorte funciona)</div>
+
+<h2>1. Capacidades (automático)</h2>
+<table id="t-cap"></table>
+
+<h2>2. Captura de esta pestaña</h2>
+<p>Pulsa el botón. En el diálogo de Chrome <b>haz una captura de pantalla</b> del diálogo (⌘⇧4 en Mac, Win+Mayús+S en Windows) antes de pulsar «Compartir».
+  Anota si la casilla de audio venía marcada.</p>
+<button id="b-cap">A) Compartir esta pestaña (como el panel)</button>
+<button id="b-sinaudio">B) Repetir DESMARCANDO la casilla de audio</button>
+<button id="b-otra">C) Repetir eligiendo OTRA pestaña (si Chrome lo permite)</button>
+<table id="t-capt"></table>
+
+<h2>3. Micrófono: segunda captura con cancelación de eco</h2>
+<p>Simula a Jitsi (una captura del micro) y abre una <b>segunda</b> captura como hace el panel.</p>
+<button id="b-mic">Probar micrófono doble</button>
+<table id="t-mic"></table>
+
+<h2>4. Grabación corta de 15 s (para revisar el archivo)</h2>
+<p>Pon algo de sonido en otra pestaña NO sirve: el sonido debe salir de ESTA pestaña. La página emite un tono suave cada segundo mientras graba. Habla por el micro durante la prueba.</p>
+<button id="b-rec-webm">Grabar 15 s en WebM (formato elegido)</button>
+<button id="b-rec-mp4">Grabar 15 s en MP4 nativo (Q5: solo para saber si existe)</button>
+<table id="t-rec"></table>
+
+<h2>5. Otros</h2>
+<button id="b-ff">Firefox: probar getDisplayMedia solo audio (video:false)</button>
+<button id="b-opfs">Escritura OPFS en un worker</button>
+<table id="t-otros"></table>
+
+<h2>Resultados</h2>
+<button id="b-copiar">Copiar resultados</button> <span id="copiado" class="nota"></span>
+<pre id="res"></pre>
+
+<script>
+"use strict";
+var R = {};          // resultados para copiar
+var HANDLE = "paso0-" + Math.random().toString(16).slice(2);
+try { navigator.mediaDevices.setCaptureHandleConfig({ handle: HANDLE, permittedOrigins: ["*"] }); } catch (e) { /* no compatible */ }
+document.getElementById("ifr").srcdoc = '<body style="margin:0;font:20px system-ui;display:grid;place-items:center;height:100vh;background:#1d2b3a;color:#fff">' +
+  'Contenido de la reunión (iframe) <span id=t></span><script>setInterval(function(){t.textContent=new Date().toLocaleTimeString()},500)<\/script></body>';
+
+function fila(tabla, k, v, cls) {
+  R[tabla + "." + k] = v;
+  var t = document.getElementById(tabla), tr = document.createElement("tr");
+  var a = document.createElement("td"); a.textContent = k;
+  var b = document.createElement("td"); b.textContent = v; if (cls) b.className = cls;
+  tr.appendChild(a); tr.appendChild(b); t.appendChild(tr);
+  pintarRes();
+}
+function pintarRes() { document.getElementById("res").textContent = JSON.stringify(R, null, 1); }
+function si(x) { return x ? "sí" : "NO"; }
+function dB(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i] * a[i]; var r = Math.sqrt(s / a.length); return r > 0 ? 20 * Math.log10(r) : -Infinity; }
+
+var OPC = {
+  video: { displaySurface: "browser", width: { max: 1280 }, height: { max: 720 }, frameRate: { ideal: 15, max: 15 } },
+  audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+  preferCurrentTab: true, selfBrowserSurface: "include", surfaceSwitching: "exclude", monitorTypeSurfaces: "exclude", systemAudio: "exclude"
+};
+
+// 1. Capacidades
+(async function () {
+  var ua = navigator.userAgent, ver = ua;
+  if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+    try {
+      var h = await navigator.userAgentData.getHighEntropyValues(["fullVersionList", "platformVersion"]);
+      ver = (h.fullVersionList || []).map(function (b) { return b.brand + " " + b.version; }).join(", ") + " · " + navigator.userAgentData.platform + " " + h.platformVersion;
+    } catch (e) { /* idem */ }
+  }
+  fila("t-cap", "Navegador y sistema", ver);
+  fila("t-cap", "Contexto seguro (https/localhost)", si(window.isSecureContext), window.isSecureContext ? "ok" : "no");
+  fila("t-cap", "getDisplayMedia", si(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia));
+  fila("t-cap", "CropTarget (recorte)", si(typeof CropTarget !== "undefined"), typeof CropTarget !== "undefined" ? "ok" : "no");
+  fila("t-cap", "Capture Handle", si(window.MediaStreamTrack && MediaStreamTrack.prototype.getCaptureHandle));
+  fila("t-cap", "OPFS", si(navigator.storage && navigator.storage.getDirectory));
+  fila("t-cap", "Wake Lock", si(navigator.wakeLock));
+  fila("t-cap", "Web Locks", si(navigator.locks));
+  ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm", "video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4"].forEach(function (m) {
+    var s = window.MediaRecorder && MediaRecorder.isTypeSupported(m);
+    fila("t-cap", "MediaRecorder " + m, si(s), s ? "ok" : "q");
+  });
+  if (navigator.storage && navigator.storage.estimate) {
+    var e = await navigator.storage.estimate();
+    fila("t-cap", "Espacio libre para la web (cuota − uso)", ((e.quota - e.usage) / 1e9).toFixed(1) + " GB ≈ " + ((e.quota - e.usage) / 4.93e8).toFixed(1) + " h de grabación");
+  }
+})();
+
+// 2. Captura
+var ctx = null;
+async function capturar(prefijo) {
+  ctx = ctx || new AudioContext(); ctx.resume();
+  var t0 = performance.now(), s;
+  try { s = await navigator.mediaDevices.getDisplayMedia(OPC); }
+  catch (e) { fila("t-capt", prefijo + " getDisplayMedia", e.name + ": " + e.message, "no"); return null; }
+  fila("t-capt", prefijo + " tiempo hasta «Compartir»", Math.round(performance.now() - t0) + " ms");
+  var v = s.getVideoTracks()[0], st = v.getSettings();
+  var h = null; try { h = v.getCaptureHandle(); } catch (e) { /* idem */ }
+  fila("t-capt", prefijo + " displaySurface", String(st.displaySurface), st.displaySurface === "browser" ? "ok" : "no");
+  fila("t-capt", prefijo + " Capture Handle de esta pestaña", h ? (h.handle === HANDLE ? "sí (coincide)" : "otro: " + h.handle) : "vacío", h && h.handle === HANDLE ? "ok" : "q");
+  fila("t-capt", prefijo + " tamaño", (st.width || "?") + "x" + (st.height || "?") + " @ " + (st.frameRate || "?") + " fps");
+  fila("t-capt", prefijo + " pistas de audio", String(s.getAudioTracks().length), s.getAudioTracks().length ? "ok" : "no");
+  try {
+    await v.cropTo(await CropTarget.fromElement(document.getElementById("zona")));
+    fila("t-capt", prefijo + " cropTo (recorte a la zona roja)", "funciona", "ok");
+  } catch (e) { fila("t-capt", prefijo + " cropTo", e.name + ": " + e.message, "no"); }
+  return s;
+}
+function bip(pista) {
+  return new Promise(function (res) {
+    var src = ctx.createMediaStreamSource(new MediaStream([pista])), an = ctx.createAnalyser(), z = ctx.createGain();
+    an.fftSize = 2048; z.gain.value = 0; src.connect(an); an.connect(z); z.connect(ctx.destination);
+    var o = ctx.createOscillator(), g = ctx.createGain(), t0 = ctx.currentTime + 0.05;
+    o.frequency.value = 1000; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.1, t0 + 0.01);
+    g.gain.setValueAtTime(0.1, t0 + 0.59); g.gain.linearRampToValueAtTime(0, t0 + 0.6);
+    o.connect(g); g.connect(ctx.destination); o.start(t0); o.stop(t0 + 0.62);
+    var buf = new Float32Array(2048), serie = [], ini = Date.now();
+    var iv = setInterval(function () {
+      an.getFloatTimeDomainData(buf); var d = dB(buf); serie.push(isFinite(d) ? Math.round(d) : "-");
+      if (Date.now() - ini >= 2000) { clearInterval(iv); src.disconnect(); res(serie); }
+    }, 50);
+  });
+}
+async function pruebaCaptura(prefijo) {
+  var s = await capturar(prefijo);
+  if (!s) return;
+  var a = s.getAudioTracks()[0];
+  if (a) {
+    var serie = await bip(a);
+    var altas = serie.filter(function (x) { return x !== "-" && x >= -45; }).length;
+    var max = Math.max.apply(null, serie.map(function (x) { return x === "-" ? -999 : x; }));
+    fila("t-capt", prefijo + " bip: lecturas ≥ −45 dBFS (≥ 3 = OK)", altas + " · máx " + max + " dBFS", altas >= 3 ? "ok" : "no");
+    fila("t-capt", prefijo + " bip: serie cada 50 ms", serie.join(" "));
+  }
+  s.getTracks().forEach(function (t) { t.stop(); });
+}
+document.getElementById("b-cap").onclick = function () { pruebaCaptura("A"); };
+document.getElementById("b-sinaudio").onclick = function () { pruebaCaptura("B (sin casilla)"); };
+document.getElementById("b-otra").onclick = function () { pruebaCaptura("C (otra pestaña)"); };
+
+// 3. Micro doble
+document.getElementById("b-mic").onclick = async function () {
+  try {
+    var j = await navigator.mediaDevices.getUserMedia({ audio: true });
+    var id = j.getAudioTracks()[0].getSettings().deviceId;
+    fila("t-mic", "1.ª captura (como Jitsi)", j.getAudioTracks()[0].label || "(sin nombre)", "ok");
+    var m = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    var st = m.getAudioTracks()[0].getSettings();
+    fila("t-mic", "2.ª captura del mismo micro", "sí · echoCancellation=" + st.echoCancellation + " noiseSuppression=" + st.noiseSuppression, st.echoCancellation ? "ok" : "q");
+    fila("t-mic", "¿Las dos siguen vivas?", j.getAudioTracks()[0].readyState + " / " + m.getAudioTracks()[0].readyState);
+    j.getTracks().concat(m.getTracks()).forEach(function (t) { t.stop(); });
+  } catch (e) { fila("t-mic", "Error", e.name + ": " + e.message, "no"); }
+};
+
+// 4. Grabacion corta
+async function grabar(mime, ext) {
+  if (!MediaRecorder.isTypeSupported(mime)) { fila("t-rec", mime, "no soportado", "q"); return; }
+  var s = await capturar("REC " + ext);
+  if (!s || !s.getAudioTracks().length) return;
+  var dest = ctx.createMediaStreamDestination(), mez = ctx.createGain();
+  mez.connect(dest); ctx.createMediaStreamSource(new MediaStream([s.getAudioTracks()[0]])).connect(mez);
+  var mic = null;
+  try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } }); ctx.createMediaStreamSource(mic).connect(mez); }
+  catch (e) { fila("t-rec", "micro", e.name, "q"); }
+  var o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 440; g.gain.value = 0; o.connect(g); g.connect(ctx.destination); o.start();
+  var on = false, ivT = setInterval(function () { on = !on; g.gain.value = on ? 0.03 : 0; }, 1000);
+  var trozos = [], r = new MediaRecorder(new MediaStream([s.getVideoTracks()[0], dest.stream.getAudioTracks()[0]]), { mimeType: mime, videoBitsPerSecond: 1e6, audioBitsPerSecond: 96000 });
+  r.ondataavailable = function (e) { if (e.data.size) trozos.push(e.data); };
+  r.onerror = function (e) { fila("t-rec", "MediaRecorder error", (e.error && (e.error.name + ": " + e.error.message)) || "?", "no"); };
+  r.onstop = function () {
+    clearInterval(ivT); o.stop();
+    s.getTracks().forEach(function (t) { t.stop(); }); if (mic) mic.getTracks().forEach(function (t) { t.stop(); });
+    var b = new Blob(trozos, { type: mime }), n = "paso0-" + ext + "-" + Date.now() + "." + ext;
+    fila("t-rec", mime, trozos.length + " trozos · " + (b.size / 1e6).toFixed(2) + " MB en 15 s ≈ " + (b.size / 1e6 * 240).toFixed(0) + " MB/hora → " + n, "ok");
+    var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = n; document.body.appendChild(a); a.click(); a.remove();
+  };
+  r.start(5000);
+  fila("t-rec", "grabando " + ext, "15 s… habla por el micro");
+  setTimeout(function () { r.stop(); }, 15000);
+}
+document.getElementById("b-rec-webm").onclick = function () { grabar("video/webm;codecs=vp8,opus", "webm"); };
+document.getElementById("b-rec-mp4").onclick = function () { grabar("video/mp4;codecs=avc1.42E01F,mp4a.40.2", "mp4"); };
+
+// 5. Otros
+document.getElementById("b-ff").onclick = async function () {
+  try { var s = await navigator.mediaDevices.getDisplayMedia({ video: false, audio: true });
+    fila("t-otros", "getDisplayMedia({video:false})", "aceptado · pistas de audio: " + s.getAudioTracks().length, "q"); s.getTracks().forEach(function (t) { t.stop(); }); }
+  catch (e) { fila("t-otros", "getDisplayMedia({video:false})", e.name + ": " + e.message, "ok"); }
+};
+document.getElementById("b-opfs").onclick = function () {
+  var src = "onmessage=async function(){try{var r=await navigator.storage.getDirectory();var f=await r.getFileHandle('paso0.bin',{create:true});" +
+    "var h=await f.createSyncAccessHandle();var b=new Uint8Array(5e6);var t=performance.now();for(var i=0;i<20;i++){h.write(b,{at:i*b.length});h.flush();}" +
+    "var ms=performance.now()-t;h.close();await r.removeEntry('paso0.bin');postMessage('100 MB en '+Math.round(ms)+' ms')}catch(e){postMessage('ERROR '+e.name+': '+e.message)}}";
+  var w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+  w.onmessage = function (e) { fila("t-otros", "OPFS createSyncAccessHandle en worker", e.data, /ERROR/.test(e.data) ? "no" : "ok"); w.terminate(); };
+  w.postMessage(1);
+};
+document.getElementById("b-copiar").onclick = function () {
+  navigator.clipboard.writeText(JSON.stringify(R, null, 1)).then(function () { document.getElementById("copiado").textContent = "Copiado."; },
+    function () { document.getElementById("copiado").textContent = "Selecciona el texto de abajo y cópialo a mano."; });
+};
+</script>
+</body>
+</html>

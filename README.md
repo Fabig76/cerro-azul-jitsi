@@ -287,7 +287,9 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   │   ├── page_reunion.html       # Pagina publica de reunion
 │   │   └── static/                 # Tema visual (Fase 8)
 │   │       ├── theme.css           # Sistema de diseno: tokens, componentes, claro/oscuro
-│   │       └── theme.js            # Tema, menus, estado de carga, dialogos
+│   │       ├── theme.js            # Tema, menus, estado de carga, dialogos
+│   │       ├── grabacion.js        # Grabacion local en el PC del admin (Fase 9)
+│   │       └── grabacion-worker.js # Escritura incremental en OPFS (Fase 9)
 │   ├── README.md                   # Rutas del panel y API interna (Fase 6)
 │   └── instance/
 │       └── admin.env.example        # Template de credenciales admin
@@ -301,7 +303,11 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   ├── SPEC-DISENO.md              # Spec del rediseno visual (Fase 8)
 │   ├── SPEC-DISENO-mockups.md      # Wireframes de cada pantalla
 │   ├── DISENO-AUDITORIA.md         # Que se cambio, como se verifico y evidencia
-│   └── capturas-rediseno/          # 54 capturas: 5 paginas x 3 anchos x 2 temas
+│   ├── capturas-rediseno/          # 54 capturas: 5 paginas x 3 anchos x 2 temas
+│   ├── SPEC-GRABACION.md           # Spec de la grabacion local (Fase 9)
+│   ├── GRABACION-ADMIN.md          # Guia del administrador: grabar y convertir a MP4
+│   ├── GRABACION-PASO0.md          # Checklist de verificacion en los PCs reales
+│   └── capturas-grabacion/         # Capturas de la tarjeta y dialogos (1280 / 390 px)
 └── scripts/
     └── setup-vps.sh                # Script de despliegue
 ```
@@ -944,6 +950,35 @@ Caddy solo enruta al panel `/admin*`, `/reunion/*`, `/unirse`, `/healthz` y `/ap
 - `docs/capturas-rediseno/` — **54 capturas**: 5 páginas × 360/768/1280 px × claro/oscuro, más la sala real con dos clientes conectados.
 
 **Contratos que no se pueden romper** (el JS de la sala depende de ellos): `#jitsi`, `#lista`, `#cnt`, `#log`, `#st-audio`, `#st-video`, `.gl button[data-cmd]`, y las clases que el JS crea (`.p`, `.n`, `.mano`, `.m`, `.ok2`, `.d`).
+
+## Fase 9 — Grabación local y panel multi-conjunto
+
+### Panel multi-conjunto (sin marca fija)
+
+Ninguna plantilla lleva el nombre del conjunto. Todo sale de `admin-panel/instance/admin.env` (ver `admin.env.example`), con valores por defecto neutros. El panel funciona igual si faltan las variables:
+
+| Variable | Uso | Default |
+|---|---|---|
+| `JITSI_SITE_NAME` | Cabecera, login, `<title>`, banda y pie de las páginas públicas | `Panel de reuniones` |
+| `JITSI_SITE_SUBTITLE` | Texto junto a la marca / bajo el título del login | `Reuniones` |
+| `JITSI_LEGAL_OWNER` | Responsable del tratamiento en el aviso de grabación | `JITSI_SITE_NAME` |
+
+El dominio ya era variable (`PUBLIC_URL` en el `.env` de Jitsi).
+
+### Grabación en el PC del administrador
+
+Botón **Grabar esta reunión** en la sala de moderación (`/admin/reunion/<id>/sala`). Graba **vídeo + audio** (720p/15 fps, WebM VP8/Opus, ≈ 0,5 GB/h) de la pestaña recortada a la reunión, mezcla el micro del admin (solo cuando está abierto en Jitsi) y **guarda en el PC del admin**. **Cero subida al servidor**: no hay ninguna ruta que reciba grabaciones. Solo Chrome de escritorio (macOS y Windows). Sin límite de duración.
+
+| Pieza | Qué es |
+|---|---|
+| `admin-panel/app/static/grabacion.js` | Detección, 4 comprobaciones anti-grabación-muda, mezcla, `MediaRecorder`, avisos, recuperación. Se carga **entre** `external_api.js` y el script congelado de la sala, cuyo código **no cambia** (envuelve el constructor de la API) |
+| `admin-panel/app/static/grabacion-worker.js` | Escritura incremental en OPFS cada 5 s (sobrevive a un cierre brusco de Chrome; copias 7 días) |
+| `page_sala.html` | Tarjeta «Grabación», diálogos, `.grab-zona` (envuelve `#jitsi` + franja legal) |
+| `scripts/grabacion/convertir-mp4.{command,bat}` | Conversión a MP4 (H.264 + AAC, `+faststart`) en el PC del admin |
+| `scripts/grabacion/prueba-paso0.html` | Página de verificación para los PCs reales |
+| `scripts/grabacion/probar-grabacion-headless.py` | Prueba automática de punta a punta en Chromium (API de Jitsi simulada) |
+
+Documentos: [`docs/SPEC-GRABACION.md`](docs/SPEC-GRABACION.md) (diseño + §10 implementación), [`docs/GRABACION-ADMIN.md`](docs/GRABACION-ADMIN.md) (guía de uso y conversión, también con HandBrake), [`docs/GRABACION-PASO0.md`](docs/GRABACION-PASO0.md) (**checklist pendiente en Mac y Windows**).
 
 ## Licencia
 

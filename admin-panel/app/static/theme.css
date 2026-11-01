@@ -357,6 +357,14 @@ code, .mono {
 .brand__mark--lg { width: 4rem; height: 4rem; border-radius: 50%; box-shadow: var(--shadow-2); }
 .brand__product { color: var(--text-muted); font-weight: var(--weight-regular); }
 @media (max-width: 359.98px) { .brand__product { display: none; } }
+/* Multi-conjunto (Fase 9): el nombre viene de JITSI_SITE_NAME y puede ser
+   largo. La marca cede espacio y se recorta con "…"; el menú nunca sale de
+   la pantalla. En móvil, el subtítulo se oculta para dejar sitio al nombre. */
+.brand { min-width: 0; flex: 0 1 auto; }
+.brand__mark { flex: none; }
+.brand__name, .brand__product { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.appbar .menu { flex: none; }
+@media (max-width: 479.98px) { .brand__product { display: none; } }
 
 /* Banda de marca de las páginas públicas (hoja de iOS: la tarjeta se superpone) */
 .hero {
@@ -1019,9 +1027,108 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 
 @media (min-width: 1024px) {
   .sala { grid-template-columns: minmax(0, 1fr) 22.5rem; }
-  #jitsi { position: sticky; top: calc(var(--header-h) + var(--space-4)); }
+  /* El sticky paso de #jitsi a .grab-zona (SPEC-GRABACION H4): la franja
+     legal y la reunion se mueven juntas y siguen a la vista al hacer scroll. */
+  .grab-zona { position: sticky; top: calc(var(--header-h) + var(--space-4)); }
   #lista { max-height: 50vh; overflow: auto; }
 }
+
+/* page: sala · grabación (SPEC-GRABACION). Todo con tokens. La zona grabada
+   (.grab-zona) envuelve #jitsi; la tarjeta .grab está fuera de .gl. */
+.grab-zona { display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius-lg); }
+.sala--grabando .grab-zona { box-shadow: 0 0 0 2px var(--danger); }
+/* Mientras graba en ventanas estrechas (768-1023 px) la zona también se queda
+   fija arriba: si sale de la pantalla el recorte puede grabar fotogramas
+   congelados (riesgo R9). */
+@media (max-width: 1023.98px) {
+  .sala--grabando .grab-zona { position: sticky; top: var(--header-h); z-index: 1; }
+}
+.grab-aviso { background: var(--danger-fill); color: var(--on-fill); padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; flex-direction: column; gap: 0; }
+.grab-aviso[hidden] { display: none; }
+.grab-aviso + #jitsi { border-top-left-radius: 0; border-top-right-radius: 0; }
+.grab-aviso__texto { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); line-height: var(--lh-sm);
+  font-weight: var(--weight-semibold); }
+.grab-aviso__dot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--on-fill);
+  animation: pulse 1600ms var(--ease-in-out) infinite; }
+.grab-aviso__pie { font-size: var(--text-xs); line-height: var(--lh-xs); padding-left: calc(.5rem + var(--space-2)); opacity: .9;
+  overflow-wrap: anywhere; }
+
+.grab { display: flex; flex-direction: column; }
+.grab__rec { gap: var(--space-1); margin-left: auto; }
+.grab__rec[hidden] { display: none; }
+.grab__rec .live-dot { width: .375rem; height: .375rem; }
+#grab-cuerpo { display: flex; flex-direction: column; gap: var(--space-3); }
+#grab-cuerpo > p { margin: 0; }
+.grab__intro { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); }
+.grab__acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.grab__acciones .btn { flex: 1 1 auto; }
+.grab .alert .grab__acciones { margin-top: var(--space-2); }
+.grab__avisos { display: flex; flex-direction: column; gap: var(--space-2); }
+.grab__avisos:empty { display: none; }
+.grab__enlace { align-self: flex-start; background: none; border: 0; padding: var(--space-1) 0; font: inherit;
+  font-size: var(--text-sm); color: var(--danger); text-decoration: underline; cursor: pointer; }
+.grab__enlace:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Lista de comprobaciones (M2b) */
+.grab__checks { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); line-height: var(--lh-sm); }
+.grab__check { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); }
+.grab__check::before { content: "○"; flex: none; width: 1.25rem; text-align: center; font-weight: var(--weight-bold); }
+.grab__check[data-st="run"] { color: var(--text); }
+.grab__check[data-st="run"]::before { content: "◌"; animation: pulse 1200ms var(--ease-in-out) infinite; }
+.grab__check[data-st="ok"] { color: var(--text); }
+.grab__check[data-st="ok"]::before { content: "✓"; color: var(--success); }
+.grab__check[data-st="warn"] { color: var(--warn-soft-text); }
+.grab__check[data-st="warn"]::before { content: "!"; color: var(--warn); }
+.grab__check[data-st="err"] { color: var(--danger-soft-text); }
+.grab__check[data-st="err"]::before { content: "✕"; color: var(--danger); }
+
+/* Estado grabando (M3) */
+.grab__vivo { display: flex; align-items: center; gap: var(--space-2); }
+.grab__vivo .eyebrow { color: var(--danger); }
+.grab__tiempo { margin-left: auto; font-size: var(--text-xl); line-height: var(--lh-xl); font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums; }
+.grab__datos { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-sm);
+  line-height: var(--lh-sm); align-items: center; }
+.grab__datos dt { color: var(--text-muted); }
+.grab__datos dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.grab-vu { display: inline-flex; align-items: flex-end; gap: 3px; height: 1rem; vertical-align: middle; }
+.grab-vu span { width: .375rem; border-radius: 2px; background: var(--border); }
+.grab-vu span:nth-child(1) { height: 30%; } .grab-vu span:nth-child(2) { height: 45%; }
+.grab-vu span:nth-child(3) { height: 60%; } .grab-vu span:nth-child(4) { height: 80%; }
+.grab-vu span:nth-child(5) { height: 100%; }
+.grab-vu span[data-on] { background: var(--success); }
+.grab-vu span:nth-child(4)[data-on] { background: var(--warn); }
+.grab-vu span:nth-child(5)[data-on] { background: var(--danger); }
+.grab__leer { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm);
+  line-height: var(--lh-sm); }
+.grab__leer p + p { margin-top: var(--space-2); }
+.grab__leer .eyebrow { display: block; margin-bottom: var(--space-1); }
+.grab__nombre { font-family: var(--font-mono); font-size: var(--text-xs); line-height: var(--lh-xs); overflow-wrap: anywhere; }
+
+/* Copias internas (OPFS) */
+.grab__copias { margin-top: var(--space-3); }
+.grab__copias > summary { font-size: var(--text-sm); }
+.grab__copias > summary .badge { align-self: center; }
+.grab__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.grab__lista li { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); line-height: var(--lh-sm); }
+.grab__lista li[data-incompleta] { background: var(--warn-soft); color: var(--warn-soft-text); }
+.grab__lista .grab__acciones .btn { flex: 0 0 auto; }
+
+/* Diálogo de instrucciones (M2) */
+.grab-dlg { width: min(32rem, calc(100vw - 2 * var(--space-4))); max-height: calc(100dvh - 2 * var(--space-4)); overflow: auto; }
+.grab-pasos { margin: var(--space-4) 0; padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3); }
+.grab-pasos li { padding-left: var(--space-1); }
+.grab-pasos li::marker { font-weight: var(--weight-bold); color: var(--accent); }
+.grab-pasos__casilla { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 var(--space-1);
+  padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); font-size: var(--text-sm); }
+.grab-pasos__check { display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem;
+  border-radius: 3px; background: var(--accent-fill); color: var(--on-fill); font-size: var(--text-xs); line-height: 1; }
+.grab-pasos__peligro { display: block; color: var(--danger); }
+.grab-dlg__check { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); font-size: var(--text-sm); }
+.grab-dlg__check[hidden] { display: none; }
 
 /* ---------- 7. Movimiento reducido e impresión ---------- */
 @media (prefers-reduced-motion: reduce) {
