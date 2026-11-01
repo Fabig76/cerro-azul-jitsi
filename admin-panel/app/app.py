@@ -90,7 +90,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261101d"
+ASSET_V = "20261101k"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)
@@ -218,7 +218,9 @@ def fecha_col(fecha_utc):
 def hora_12(d):
     """7:00 p. m. (uso colombiano)."""
     h = d.hour % 12 or 12
-    return f"{h}:{d.minute:02d} " + ("a. m." if d.hour < 12 else "p. m.")
+    # Espacios de no separacion: "p. m." nunca se parte en dos lineas.
+    nb = chr(160)
+    return f"{h}:{d.minute:02d}" + nb + ("a." if d.hour < 12 else "p.") + nb + "m."
 
 
 def fecha_txt(fecha_utc, anio=False):
@@ -420,42 +422,96 @@ def panel():
     body = body.replace("<!--LISTA-->", listar_reuniones(csrf))
     aviso = ""
     if JWT_PROBLEMS:
-        aviso = ('<div class="e"><b>Configuracion JWT incoherente</b> - Jitsi rechazara los tokens o no los exigira:<br>'
-                 + "<br>".join(escape_html(x) for x in JWT_PROBLEMS) + "</div>")
+        aviso = alerta("error", "Configuración JWT incoherente",
+                       "Jitsi rechazará los tokens o no los exigirá:<br>"
+                       + "<br>".join(escape_html(x) for x in JWT_PROBLEMS))
     body = body.replace("<!--AVISO_JWT-->", aviso)
-    return render_page("Panel", body, kind="admin", width="content")
+    return render_page("Reuniones", body, kind="admin", width="content", legacy=False)
+
+def estado_reunion(r, ahora=None):
+    """D3: (texto, variante de badge) con los datos que ya existen.
+
+    Proxima antes del inicio; En curso desde el inicio hasta que se cierra
+    el acceso (fin previsto + JWT_EXP_MARGIN_MIN, igual que /unirse);
+    Finalizada despues."""
+    ahora = ahora or datetime.now(TZ_UTC)
+    ini = fin_reunion(r) - timedelta(minutes=int(r["duracion_min"] or 60))
+    if ahora < ini:
+        return "Próxima", "info"
+    if ahora <= exp_reunion(r):
+        return "En curso", "success"
+    return "Finalizada", "neutral"
+
+
+_ICONO_EXT = ('<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">'
+              '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>')
+_ICONO_MAS = ('<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">'
+              '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>')
+
 
 def listar_reuniones(csrf):
     with db() as c:
         rows = c.execute("SELECT * FROM reuniones WHERE activo=1 ORDER BY fecha_utc DESC LIMIT 50").fetchall()
     if not rows:
-        return "<h2>Reuniones</h2><p class=m>No hay reuniones creadas.</p>"
-    out = ["<h2>Reuniones programadas</h2>"]
+        return ('<div class="list list--empty">'
+                + vacio("calendario", "Aún no hay reuniones", "Crea la primera con el formulario.")
+                + "</div>")
+    ahora = datetime.now(TZ_UTC)
+    out = ['<ul class="list" role="list">']
     for r in rows:
+        rid = str(r["id"])
         slug = r["slug"]
-        sala = r["sala_jitsi"]
+        titulo = escape_html(r["titulo"])
         link_publico = "https://" + PUB + "/reunion/" + slug
-        link_qr = "/admin/qr/" + str(r["id"])
+        link_qr = "/admin/qr/" + rid
         # Fase 2: el token de moderador SOLO sale de rutas con login.
         # (Antes era '?presenter=1' en la pagina publica: cualquiera que
         # editara la URL entraba como moderador.)
-        link_sala = "/admin/reunion/" + str(r["id"]) + "/sala"
-        link_entrar = "/admin/reunion/" + str(r["id"]) + "/entrar"
-        out.append('<div class="r">')
-        out.append("  <h3>" + escape_html(r["titulo"]) + "</h3>")
-        out.append("  <div class=mt><b>" + escape_html(r["fecha_utc"]) + " UTC</b> - duracion " + str(r["duracion_min"]) + " min - sala <code>" + escape_html(sala) + "</code></div>")
-        out.append("  <small>Link publico: <code>" + link_publico + "</code></small>")
-        out.append('  <div class="ac">')
-        out.append('    <a href="' + link_qr + '" target=_blank>Ver QR</a>')
-        out.append('    <a href="' + link_publico + '" target=_blank>Pagina publica</a>')
-        out.append('    <a href="' + link_sala + '" target=_blank>Sala de moderacion</a>')
-        out.append('    <a href="' + link_entrar + '" target=_blank>Entrar como administrador</a>')
-        out.append('    <form method="post" action="/admin/reunion/' + str(r['id']) + '/eliminar" style="display:inline">')
-        out.append("      <input type=hidden name=csrf value=" + csrf + ">")
-        out.append('      <button class="d" onclick="return confirm(\'Eliminar esta reunion?\')">Eliminar</button>')
-        out.append("    </form>")
+        link_sala = "/admin/reunion/" + rid + "/sala"
+        link_entrar = "/admin/reunion/" + rid + "/entrar"
+        estado, variante = estado_reunion(r, ahora)
+        d = fecha_col(r["fecha_utc"])
+        if d is not None:
+            tile = ('<div class="datetile' + (" datetile--past" if variante == "neutral" else "")
+                    + '" aria-hidden="true"><span class="datetile__month">' + MESES[d.month - 1]
+                    + '</span><span class="datetile__day">' + str(d.day) + "</span></div>")
+        else:
+            tile = '<div class="datetile datetile--past" aria-hidden="true"></div>'
+        punto = '<span class="badge__dot" aria-hidden="true"></span>' if variante == "success" else ""
+        out.append('<li class="list__item">')
+        out.append('  <div class="list__leading">' + tile + "</div>")
+        out.append('  <div class="list__content">')
+        out.append('    <p class="list__title" title="' + titulo + '">' + titulo + "</p>")
+        out.append('    <p class="list__meta num">' + escape_html(fecha_txt(r["fecha_utc"])) + " · "
+                   + str(r["duracion_min"]) + " min</p>")
+        out.append('    <span class="badge badge--' + variante + '">' + punto + estado + "</span>")
+        out.append('    <p class="list__link">' + PUB + "/reunion/" + slug + "</p>")
         out.append("  </div>")
-        out.append("</div>")
+        out.append('  <div class="list__trailing">')
+        out.append('    <a class="btn btn--primary btn--sm" href="' + link_sala + '" target="_blank">Moderar</a>')
+        out.append('    <a class="btn btn--secondary btn--sm" href="' + link_qr + '" target="_blank">Ver QR</a>')
+        out.append('    <details class="menu">')
+        out.append('      <summary class="btn btn--secondary btn--sm btn--icon menu__trigger"'
+                   ' aria-label="Más acciones: ' + titulo + '">' + _ICONO_MAS + "</summary>")
+        out.append('      <div class="menu__popover">')
+        out.append('        <a class="menu__item" href="' + link_publico + '" target="_blank">Página pública'
+                   + _ICONO_EXT + "</a>")
+        out.append('        <a class="menu__item" href="' + link_entrar + '" target="_blank">'
+                   "Entrar como administrador" + _ICONO_EXT + "</a>")
+        out.append('        <hr class="menu__sep">')
+        out.append('        <form method="post" action="/admin/reunion/' + rid + '/eliminar">')
+        out.append('          <input type="hidden" name="csrf" value="' + csrf + '">')
+        # data-confirm: dialogo de theme.js; onclick: respaldo sin JS.
+        out.append('          <button class="menu__item menu__item--danger" type="submit"'
+                   ' data-confirm-title="¿Eliminar esta reunión?"'
+                   ' data-confirm="«' + titulo + '». El link y el QR dejarán de funcionar."'
+                   ' onclick="return confirm(\'¿Eliminar esta reunión?\')">Eliminar</button>')
+        out.append("        </form>")
+        out.append("      </div>")
+        out.append("    </details>")
+        out.append("  </div>")
+        out.append("</li>")
+    out.append("</ul>")
     return chr(10).join(out)
 
 @app.route("/admin/reunion", methods=["POST"])
@@ -513,12 +569,12 @@ def qr_view(rid):
         return send_file(buf, mimetype="image/png", download_name="reunion-" + slug + ".png")
     body = open(os.path.join(TPL_DIR, "page_qr_view.html")).read()
     body = body.replace("{{titulo}}", escape_html(row["titulo"]))
-    body = body.replace("{{fecha_utc}}", escape_html(row["fecha_utc"]))
+    body = body.replace("{{fecha_utc}}", escape_html(fecha_txt(row["fecha_utc"], anio=True)))
     body = body.replace("{{duracion}}", str(row["duracion_min"]))
     body = body.replace("{{sala}}", escape_html(row["sala_jitsi"]))
     body = body.replace("{{link_publico}}", link_publico)
     body = body.replace("{{qr_url}}", "/admin/qr/" + str(rid) + "?format=png")
-    return render_page("Reunion creada", body, kind="admin", width="content")
+    return render_page("Reunión creada", body, kind="admin", width="content", legacy=False)
 
 @app.route("/reunion/<slug>")
 def reunion_publica(slug):

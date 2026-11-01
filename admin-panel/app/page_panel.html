@@ -1,26 +1,57 @@
-<h1>Panel de reuniones</h1>
-<p class="m">Sesion iniciada como <b>{{user}}</b></p>
-<!--AVISO_JWT-->
+<div class="pagehead">
+  <div class="pagehead__text">
+    <h1>Reuniones</h1>
+    <p class="pagehead__sub">Sesión iniciada como <b>{{user}}</b></p>
+  </div>
+  <a class="btn btn--primary panel__nueva" href="#nueva">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nueva reunión
+  </a>
+</div>
+<div class="panel__aviso"><!--AVISO_JWT--></div>
 
-<h2>Crear nueva reunion</h2>
-<form method="post" action="/admin/reunion">
-  <input type="hidden" name="csrf" value="{{csrf}}">
-  <label>Titulo <small>(obligatorio)</small></label>
-  <input name="titulo" required maxlength="120" placeholder="Ej: Asamblea ordinaria octubre">
-  <label>Descripcion <small>(opcional)</small></label>
-  <textarea name="descripcion" maxlength="500" placeholder="Agenda, temario, etc."></textarea>
-  <label>Fecha <small>(AAAA-MM-DD, hora Colombia UTC-5)</small></label>
-  <input name="fecha" type="date" required>
-  <label>Hora <small>(HH:MM, 24h)</small></label>
-  <input name="hora" type="time" required>
-  <label>Duracion estimada <small>(minutos)</small></label>
-  <input name="duracion" type="number" value="60" min="15" max="480">
-  <p class="m" style="margin:8px 0 0"><small>El acceso de los asistentes se cierra 30 min despues del fin previsto: pon una duracion holgada.</small></p>
-  <button type="submit">Crear reunion y generar QR</button>
-</form>
-<!--LISTA-->
+<div class="panel">
+  <section class="panel__lista" aria-labelledby="lista-t">
+    <h2 class="visually-hidden" id="lista-t">Reuniones programadas</h2>
+    <!--LISTA-->
+  </section>
 
-<h2>Sesion</h2>
-<form method="post" action="/admin/logout">
-  <button class="d">Cerrar sesion</button>
-</form>
+  <section class="card panel__form" id="nueva" aria-labelledby="nueva-t">
+    <header class="card__header">
+      <h2 class="card__title" id="nueva-t">Nueva reunión</h2>
+      <p class="card__subtitle">Genera el link y el QR para compartir.</p>
+    </header>
+    <form method="post" action="/admin/reunion" class="form" data-loading>
+      <input type="hidden" name="csrf" value="{{csrf}}">
+      <div class="field">
+        <label class="field__label" for="f-titulo">Título</label>
+        <input class="field__input" id="f-titulo" name="titulo" required maxlength="120"
+               placeholder="Ej.: Asamblea ordinaria de noviembre" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-descripcion">Descripción <span class="field__opt">Opcional</span></label>
+        <textarea class="field__input" id="f-descripcion" name="descripcion" maxlength="500"
+                  placeholder="Orden del día, temario…"></textarea>
+      </div>
+      <div class="field">
+        <div class="field-row">
+          <div class="field">
+            <label class="field__label" for="f-fecha">Fecha</label>
+            <input class="field__input" id="f-fecha" name="fecha" type="date" required aria-describedby="f-fecha-hint">
+          </div>
+          <div class="field">
+            <label class="field__label" for="f-hora">Hora</label>
+            <input class="field__input" id="f-hora" name="hora" type="time" required aria-describedby="f-fecha-hint">
+          </div>
+        </div>
+        <p class="field__hint" id="f-fecha-hint">Hora de Colombia.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-duracion">Duración estimada (minutos)</label>
+        <input class="field__input num" id="f-duracion" name="duracion" type="number" value="60" min="15" max="480"
+               inputmode="numeric" aria-describedby="f-duracion-hint">
+        <p class="field__hint" id="f-duracion-hint">El acceso de los asistentes se cierra 30 minutos después del fin previsto: pon una duración holgada.</p>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Crear reunión y generar QR</button>
+    </form>
+  </section>
+</div>

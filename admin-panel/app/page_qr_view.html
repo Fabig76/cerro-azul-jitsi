@@ -1,26 +1,57 @@
-<h1>Reunion creada</h1>
-<p class="m">Comparte este link o el QR con los participantes. Se generara automaticamente una sala cuando entren.</p>
+<header class="qrhead">
+  <p class="qrhead__eyebrow">
+    <span class="qrhead__check" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+    <span class="eyebrow">Reunión creada</span>
+  </p>
+  <h1 class="qrhead__title">{{titulo}}</h1>
+  <p class="pagehead__sub">Comparte este link o el QR con los participantes. La sala se crea sola cuando entren.</p>
+  <p class="print-only qrhead__fecha">{{fecha_utc}}</p>
+</header>
 
-<div class="o">
-  <b>Titulo:</b> {{titulo}}<br>
-  <b>Fecha:</b> {{fecha_utc}}<br>
-  <b>Duracion:</b> {{duracion}} min<br>
-  <b>Sala:</b> <code>{{sala}}</code>
+<div class="qrview">
+  <figure class="qrcard">
+    <img class="qrcard__img" src="{{qr_url}}" alt="Código QR de la reunión" width="280" height="280">
+    <figcaption class="qrcard__caption">Escanéalo con la cámara del celular</figcaption>
+  </figure>
+
+  <div class="qrview__info">
+    <section class="card" aria-labelledby="det-t">
+      <h2 class="card__title" id="det-t">Detalles</h2>
+      <dl class="kv">
+        <dt>Fecha</dt><dd class="num">{{fecha_utc}}</dd>
+        <dt>Duración</dt><dd class="num">{{duracion}} min</dd>
+        <dt>Sala</dt><dd><code>{{sala}}</code></dd>
+        <dt>Link</dt><dd class="qrview__url"><a href="{{link_publico}}" target="_blank">{{link_publico}}</a></dd>
+      </dl>
+      <div class="field qrview__link">
+        <label class="field__label" for="f-link">Link directo</label>
+        <div class="copyfield">
+          <input class="field__input field__input--mono" id="f-link" type="text" value="{{link_publico}}" readonly
+                 onclick="this.select();" aria-describedby="f-link-hint">
+          <!-- Mejora progresiva: theme.js lo muestra y copia al portapapeles. -->
+          <button class="btn btn--secondary copyfield__btn" type="button" data-copy="#f-link" data-js-only hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+            <span data-copy-label>Copiar</span>
+          </button>
+        </div>
+        <p class="field__hint" id="f-link-hint">Toca el link para seleccionarlo o usa «Copiar».</p>
+        <p class="visually-hidden" role="status" aria-live="polite" data-copy-status></p>
+      </div>
+      <div class="qrview__acciones">
+        <a class="btn btn--primary" href="{{link_publico}}" target="_blank">Probar como participante
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+        <a class="btn btn--secondary" href="{{qr_url}}" download>Descargar QR
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></a>
+        <a class="btn btn--secondary" href="/admin">Volver al panel</a>
+      </div>
+    </section>
+
+    <div class="alert alert--info" role="note">
+      <svg class="alert__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+      <div class="alert__body">
+        <p class="alert__title">Consejo</p>
+        <p>Envía el QR por WhatsApp con un mensaje como «Te esperamos el martes a las 7 p. m. Escanea el QR o toca el link para entrar».</p>
+      </div>
+    </div>
+  </div>
 </div>
-
-<h2>Codigo QR</h2>
-<div class="qr">
-  <img src="{{qr_url}}" alt="QR de la reunion">
-</div>
-<p class="m">Los participantes pueden escanear este QR con la camara del celular.</p>
-
-<h2>Link directo</h2>
-<p>
-  <input type="text" value="{{link_publico}}" readonly onclick="this.select();" style="font-family:monospace; font-size:12px;">
-</p>
-<div class="ac" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-  <a href="{{link_publico}}" target="_blank" style="background:var(--a); color:#fff; padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Probar como participante</a>
-  <a href="/admin" style="background:var(--c); color:var(--t); border:1px solid var(--b); padding:9px 18px; border-radius:6px; text-decoration:none; font-size:14px;">Volver al panel</a>
-</div>
-
-<p class="m" style="margin-top:24px;"><small>Tip: envia el QR por WhatsApp con un mensaje tipo "Te esperamos el martes a las 7pm, escanea el QR o toca el link para entrar".</small></p>

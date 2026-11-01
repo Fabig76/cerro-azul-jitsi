@@ -1,4 +1,4 @@
-/* theme.js - tema, menus, carga de formularios y dialogo de confirmacion.
+/* theme.js - tema, menus, carga de formularios, copiar link y dialogo de confirmacion.
    Mejora progresiva: sin este fichero todo sigue funcionando (tema del
    sistema, <details> nativo, confirm() nativo). No toca la sala (.gl, #lista). */
 (function () {
@@ -78,6 +78,32 @@
       var bs = document.querySelectorAll('button[aria-busy="true"]');
       for (var k = 0; k < bs.length; k++) { bs[k].removeAttribute("aria-busy"); bs[k].disabled = false; }
     });
+
+    // Boton "Copiar" (vista QR): copia el valor del campo indicado en data-copy
+    var cps = document.querySelectorAll("button[data-copy]");
+    for (i = 0; i < cps.length; i++) {
+      cps[i].addEventListener("click", function (ev) {
+        var b = ev.currentTarget, campo = document.querySelector(b.getAttribute("data-copy"));
+        if (!campo) return;
+        var et = b.querySelector("[data-copy-label]"), st = document.querySelector("[data-copy-status]");
+        function hecho(okc) {
+          if (et) et.textContent = okc ? "Copiado" : "Selecciónalo";
+          if (st) st.textContent = okc ? "Link copiado al portapapeles" : "No se pudo copiar: selecciona el link";
+          if (okc) b.setAttribute("data-copied", ""); else campo.select();
+          clearTimeout(b._t);
+          b._t = setTimeout(function () { if (et) et.textContent = "Copiar"; b.removeAttribute("data-copied"); }, 2000);
+        }
+        function viejo() {
+          campo.select();
+          var r = false;
+          try { r = document.execCommand("copy"); } catch (e) { r = false; }
+          hecho(r);
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(campo.value).then(function () { hecho(true); }, viejo);
+        } else viejo();
+      });
+    }
 
     // Dialogo de confirmacion (sustituye al confirm() de respaldo)
     if (typeof HTMLDialogElement !== "function") return;

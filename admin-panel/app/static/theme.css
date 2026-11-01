@@ -899,6 +899,52 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 .chips { list-style: none; margin: 0; padding: 0; }
 .page--public .card--sheet > .empty { padding: var(--space-6) var(--space-2); }
 
+/* page: panel */
+.panel__aviso:empty { display: none; }
+.panel__aviso { margin-bottom: var(--space-6); }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); align-items: start; }
+.panel__form { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+.list--empty { padding: 0; }
+@media (min-width: 1024px) {
+  .panel { grid-template-columns: minmax(0, 1fr) 22.5rem; }
+  .panel__form { position: sticky; top: calc(var(--header-h) + var(--space-6)); }
+  .panel__nueva { display: none; }
+  /* En la columna de 22.5rem dos selectores nativos de fecha/hora no caben: se apilan. */
+  .panel__form .field-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 767.98px) {
+  .list__title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    line-clamp: 2; overflow-wrap: anywhere; }
+}
+@media (max-width: 479.98px) { .panel__nueva { width: 100%; } }
+.list .badge { margin-top: var(--space-1); }
+
+/* page: qr */
+.qrhead { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); }
+.qrhead__eyebrow { display: flex; align-items: center; gap: var(--space-2); }
+.qrhead__eyebrow .eyebrow { color: var(--success); }
+.qrhead__check { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%;
+  background: var(--success-soft); color: var(--success); }
+.qrhead__check .icon { width: 1rem; height: 1rem; stroke-width: 2.5; }
+.qrhead__title { overflow-wrap: anywhere; }
+.print-only { display: none; }
+.qrview { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.qrview__info { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.qrview__info .card__title { margin-bottom: var(--space-4); }
+.qrview__link { margin-top: var(--space-5); }
+.copyfield { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; }
+.copyfield .field__input { flex: 1 1 16rem; min-width: 0; }
+.copyfield__btn { flex: 1 0 auto; }
+@media (min-width: 1024px) { .copyfield__btn { flex-grow: 0; } }
+.qrview__url { font-family: var(--font-mono); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.copyfield__btn[data-copied] { background: var(--success-soft); color: var(--success-soft-text); box-shadow: none; }
+.qrview__acciones { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-5); }
+@media (min-width: 480px) { .qrview__acciones { flex-direction: row; flex-wrap: wrap; } }
+@media (min-width: 768px) {
+  .qrview { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-8); }
+  .qrcard { width: calc(280px + 2 * var(--space-5)); position: sticky; top: calc(var(--header-h) + var(--space-6)); }
+}
+
 /* ---------- 7. Movimiento reducido e impresión ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -907,6 +953,17 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+@media print {
+  .appbar, .footer, .skip-link, .hero, .qrview__info, .pagehead__sub, .menu { display: none !important; }
+  body, .page { background: var(--qr-bg) !important; }
+  .container { padding: 0; max-width: none; }
+  .print-only { display: block; }
+  .qrhead { align-items: center; text-align: center; }
+  .qrhead__eyebrow { display: none; }
+  .qrview { display: flex; justify-content: center; }
+  .qrcard { box-shadow: none; position: static; }
 }
 
 /* ---------- 8. Compatibilidad temporal (pasos 1-6; se borra en el paso 7) ----------

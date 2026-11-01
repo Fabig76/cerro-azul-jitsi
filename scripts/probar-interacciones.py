@@ -218,7 +218,7 @@ def publica(b, base, estado):
     p.goto(base + "/reunion/" + slug)
     txt = p.inner_text("main")
     ok("UTC" not in txt, "no se muestra 'UTC' al residente")
-    ok(bool(re.search(r"(lun|mar|mié|jue|vie|sáb|dom) \d+ \w+ · \d+:\d\d [ap]\. m\.", txt)),
+    ok(bool(re.search(r"(lun|mar|mié|jue|vie|sáb|dom) \d+ \w+ · \d+:\d\d\s[ap]\.\sm\.", txt)),
        "fecha en hora de Colombia (%s)" % re.findall(r"\w+ \d+ \w+ · [^\n]+", txt)[:1])
     etiquetas(p, "publica")
     h = p.evaluate("document.querySelector('button[type=submit]').offsetHeight")
@@ -243,7 +243,159 @@ def publica(b, base, estado):
     ctx.close()
 
 
-GRUPOS_EXTRA = {"login": login_g, "publica": publica}
+def crear(p, base, titulo, fecha, hora, dur="60"):
+    p.goto(base + "/admin")
+    p.fill("[name=titulo]", titulo)
+    p.fill("[name=fecha]", fecha)
+    p.fill("[name=hora]", hora)
+    p.fill("[name=duracion]", dur)
+    with p.expect_navigation():
+        p.click("form[action='/admin/reunion'] button[type=submit]")
+    return p.url
+
+
+def fila(p, titulo):
+    return p.locator(".list__item", has=p.locator(".list__title", has_text=titulo))
+
+
+def panel_g(b, base, estado):
+    print("[panel, D3, menu por reunion, dialogo de eliminar]")
+    from datetime import datetime, timedelta, timezone
+    col = datetime.now(timezone.utc) - timedelta(hours=5)
+    ctx = b.new_context(storage_state=estado, viewport={"width": 1280, "height": 900})
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    u = crear(p, base, "Prueba en curso", col.strftime("%Y-%m-%d"), (col - timedelta(minutes=5)).strftime("%H:%M"))
+    ok("/admin/qr/" in u, "crear reunion desde el formulario -> QR (%s)" % u.replace(base, ""))
+    crear(p, base, "Prueba pasada", "2021-03-04", "18:30")
+    crear(p, base, "Prueba a borrar", "2031-01-02", "10:00")
+    p.goto(base + "/admin")
+    etiquetas(p, "panel")
+    ok(fila(p, "Prueba en curso").locator(".badge--success").inner_text() == "En curso", "D3: En curso")
+    ok(fila(p, "Prueba pasada").locator(".badge").inner_text() == "Finalizada", "D3: Finalizada")
+    ok(fila(p, "Prueba a borrar").locator(".badge--info").inner_text() == "Próxima", "D3: Próxima")
+    t = fila(p, "Prueba pasada")
+    ok(t.locator(".datetile__month").inner_text().lower() == "mar" and t.locator(".datetile__day").inner_text() == "4",
+       "baldosa de fecha MAR 4")
+    ok("jue 4 mar · 6:30 p. m. · 60 min" in t.locator(".list__meta").inner_text().replace(chr(160), " "),
+       "meta en hora de Colombia")
+    ok(p.evaluate("getComputedStyle(document.querySelector('.panel__form')).position") == "sticky",
+       "1280px: formulario fijo (sticky) a la derecha")
+    ok(not p.is_visible(".panel__nueva"), "1280px: boton 'Nueva reunion' oculto")
+    # Menu de la fila con teclado
+    f = fila(p, "Prueba a borrar")
+    f.locator("summary").focus()
+    p.keyboard.press("Enter")
+    ok(f.locator("details.menu").evaluate("d => d.open"), "menu de la fila se abre con Enter")
+    hrefs = f.locator(".menu__item[href]").evaluate_all(r"as => as.map(a => a.getAttribute('href').replace(/reunion\/[a-z0-9-]{6,}$/, 'reunion/<slug>'))")
+    ok(len(hrefs) == 2 and hrefs[0].endswith("/reunion/<slug>") and hrefs[1].endswith("/entrar"),
+       "menu: Pagina publica y Entrar como administrador (%s)" % hrefs)
+    p.keyboard.press("Escape")
+    # Dialogo: Cancelar
+    f.locator("summary").click()
+    f.locator("button[data-confirm]").click()
+    dlg = p.locator("dialog.dialog")
+    ok(dlg.evaluate("d => d.open"), "Eliminar abre el dialogo (no confirm nativo)")
+    ok(p.evaluate("document.activeElement.value") == "cancel", "foco inicial en Cancelar")
+    ok("Prueba a borrar" in dlg.inner_text(), "el dialogo nombra la reunion")
+    ok(not f.locator("details.menu").evaluate("d => d.open"), "el menu se cierra al abrir el dialogo")
+    p.click("dialog button[value=cancel]")
+    p.wait_for_timeout(300)
+    ok(f.count() == 1 and not dlg.evaluate("d => d.open"), "Cancelar cierra y NO elimina")
+    # Esc
+    f.locator("summary").click()
+    f.locator("button[data-confirm]").click()
+    p.keyboard.press("Escape")
+    p.wait_for_timeout(300)
+    p.reload()
+    ok(fila(p, "Prueba a borrar").count() == 1, "Esc cierra y NO elimina")
+    # Confirmar
+    f = fila(p, "Prueba a borrar")
+    f.locator("summary").click()
+    f.locator("button[data-confirm]").click()
+    with p.expect_navigation():
+        p.click("dialog button[value=ok]")
+    ok(p.url.endswith("/admin") and fila(p, "Prueba a borrar").count() == 0, "Eliminar en el dialogo borra y vuelve al panel")
+    ctx.close()
+    # Respaldo: theme.js no carga -> confirm() nativo
+    ctx = b.new_context(storage_state=estado)
+    ctx.route("**/*", lambda r: r.abort() if ("theme.js" in r.request.url or not r.request.url.startswith(base)) else r.continue_())
+    p = ctx.new_page()
+    crear(p, base, "Prueba confirm nativo", "2031-02-03", "10:00")
+    p.goto(base + "/admin")
+    vistos = []
+    p.once("dialog", lambda d: (vistos.append(d.message), d.dismiss()))
+    f = fila(p, "Prueba confirm nativo")
+    f.locator("summary").click()
+    f.locator("button[data-confirm]").click()
+    p.wait_for_timeout(300)
+    p.reload()
+    ok(vistos == ["¿Eliminar esta reunión?"] and fila(p, "Prueba confirm nativo").count() == 1,
+       "sin theme.js: confirm() nativo; Cancelar no borra (%s)" % vistos)
+    p.once("dialog", lambda d: d.accept())
+    f = fila(p, "Prueba confirm nativo")
+    f.locator("summary").click()
+    with p.expect_navigation():
+        f.locator("button[data-confirm]").click()
+    ok(fila(p, "Prueba confirm nativo").count() == 0, "sin theme.js: Aceptar borra")
+    ctx.close()
+    # Movil: lista primero, boton ancla
+    ctx = b.new_context(storage_state=estado, viewport={"width": 360, "height": 740}, is_mobile=True, has_touch=True)
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/admin")
+    y_lista = p.evaluate("document.querySelector('.panel__lista').getBoundingClientRect().top")
+    y_form = p.evaluate("document.querySelector('#nueva').getBoundingClientRect().top")
+    ok(y_lista < y_form, "360px: la lista va antes que el formulario")
+    p.click(".panel__nueva")
+    p.wait_for_timeout(300)
+    ok(p.evaluate("location.hash") == "#nueva" and p.evaluate("document.querySelector('#nueva').getBoundingClientRect().top") < 200,
+       "360px: 'Nueva reunion' lleva al formulario")
+    ctx.close()
+
+
+def qr_g(b, base, estado):
+    print("[qr]")
+    ctx = b.new_context(storage_state=estado, viewport={"width": 768, "height": 900}, color_scheme="dark")
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/admin/qr/1")
+    bg = p.evaluate("getComputedStyle(document.querySelector('.qrcard')).backgroundColor")
+    ok(bg == "rgb(255, 255, 255)", "tarjeta del QR blanca tambien en oscuro (%s)" % bg)
+    ok(p.evaluate("document.querySelector('.qrcard__img').naturalWidth") > 0, "imagen del QR cargada")
+    ok(p.evaluate("getComputedStyle(document.querySelector('.qrcard__img')).imageRendering") == "pixelated", "QR nitido (pixelated)")
+    cols = p.evaluate("getComputedStyle(document.querySelector('.qrview')).gridTemplateColumns.split(' ').length")
+    ok(cols == 2, "768px: QR en dos columnas")
+    p.click("#f-link")
+    sel = p.evaluate("(e => e.value.substring(e.selectionStart, e.selectionEnd))(document.querySelector('#f-link'))")
+    ok(sel.startswith("https://meet.urbcerroazul.com/reunion/"), "clic en el link lo selecciona")
+    ok("UTC" not in p.inner_text("main"), "sin 'UTC' en la vista QR")
+    ok(p.is_visible("button[data-copy]"), "boton Copiar visible (con JS)")
+    ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)
+    p.click("button[data-copy]")
+    p.wait_for_timeout(200)
+    clip = p.evaluate("navigator.clipboard.readText()")
+    ok(clip == p.input_value("#f-link"), "Copiar pone el link en el portapapeles (%s)" % clip.replace(base, ""))
+    ok(p.inner_text("[data-copy-label]") == "Copiado" and "copiado" in p.inner_text("[data-copy-status]"),
+       "Copiar: confirma 'Copiado' y lo anuncia (aria-live)")
+    p.wait_for_timeout(2200)
+    ok(p.inner_text("[data-copy-label]") == "Copiar", "Copiar: vuelve al texto inicial")
+    d = p.get_attribute("a[download]", "href")
+    ok(d and d.endswith("?format=png") and ctx.request.get(base + d).headers["content-type"] == "image/png",
+       "Descargar QR -> PNG")
+    p.emulate_media(media="print")
+    vis = p.evaluate("[...document.querySelectorAll('.appbar,.qrview__info,.footer')].every(e=>getComputedStyle(e).display==='none')")
+    ok(vis and p.is_visible(".qrcard") and p.is_visible(".qrhead__fecha"), "impresion: solo titulo, fecha y QR")
+    ctx.close()
+    ctx = b.new_context(storage_state=estado, viewport={"width": 768, "height": 900}, java_script_enabled=False)
+    solo_local(ctx, base)
+    p = ctx.new_page()
+    p.goto(base + "/admin/qr/1")
+    ok(not p.is_visible("button[data-copy]"), "sin JS: Copiar oculto (queda seleccionar el link)")
+    ctx.close()
+
+
+GRUPOS_EXTRA = {"login": login_g, "publica": publica, "panel": panel_g, "qr": qr_g}
 
 
 def main():
