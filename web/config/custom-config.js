@@ -76,8 +76,11 @@ config.prejoinConfig.enabled = false;
 // 2 (camara + pantalla); 4 deja margen sin que 500 clientes descarguen
 // mosaicos enteros.
 config.channelLastN = 4;
-// Solo 1 video en resolucion completa (el que esta en el escenario).
-config.maxFullResolutionParticipants = 1;
+// Videos en resolucion completa a la vez. Antes era 1: con una camara y
+// una pantalla compartida, la pantalla se quedaba sin el hueco "full" y
+// se enviaba degradada. Ahora 2 cubre el caso normal (ponente + su
+// pantalla) sin que 500 clientes descarguen mosaicos enteros.
+config.maxFullResolutionParticipants = 2;
 // Captura a 360p: suficiente para la camara del ponente, y lo que de
 // verdad se lee (los documentos) va por la pantalla compartida.
 config.resolution = 360;
@@ -86,8 +89,23 @@ config.constraints = {
         height: { ideal: 360, max: 720, min: 180 }
     }
 };
-// Pantalla compartida: documentos, no video. 5-15 fps basta y reduce
-// mucho el ancho de banda que el JVB reenvia a 500 personas.
+// --- Pantalla compartida -------------------------------------------------
+// PROBLEMA que habia aqui (corregido 1-Nov-2026): `config.resolution` y
+// `config.constraints` se aplicaban TAMBIEN a la pantalla compartida, asi
+// que al compartir se enviaba a 360p comprimido y se veia ilegible (el
+// texto de un documento, imposible de leer).
+//
+// Verificado en lib-jitsi-meet: la resolucion de la pantalla sale de
+// `desktopSharingResolution`, NO de `resolution`. Si no se define, hereda
+// las constraints generales de video y acaba en 360p.
+//
+// Se sube la pantalla a 1080p conservando los fps bajos: para un
+// documento lo que importa es la NITIDEZ (resolucion), no la fluidez.
+// A 5-15 fps el aumento de resolucion apenas encarece el ancho de banda.
+config.desktopSharingResolution = {
+    width: { ideal: 1920, max: 1920 },
+    height: { ideal: 1080, max: 1080 }
+};
 config.desktopSharingFrameRate = { min: 5, max: 15 };
 
 // --- Audio --------------------------------------------------------------
