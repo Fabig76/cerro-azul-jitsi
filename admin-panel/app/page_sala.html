@@ -28,8 +28,13 @@ puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
       <button class="d" data-cmd="mute-all-video">Apagar todas las camaras</button>
       <button data-cmd="mod-on">Activar moderacion A/V</button>
       <button data-cmd="mod-off" class="d">Desactivar moderacion A/V</button>
+      <button data-cmd="dar-palabra-todos" class="ok2">Dar la palabra a todos</button>
+      <button data-cmd="quitar-palabra-todos" class="d">Quitar la palabra a todos</button>
     </div>
     <p class="m" style="margin:6px 0 0"><small>Moderacion: audio <b id="st-audio">?</b> / video <b id="st-video">?</b></small></p>
+    <p class="m" style="margin:4px 0 0"><small>"Pedir la palabra" (por participante) es una
+      <b>peticion</b>: al asistente le aparece un aviso y el decide. "Dar la palabra a todos"
+      los habilita de inmediato.</small></p>
 
     <h2>Participantes <small id="cnt"></small></h2>
     <p class="m" style="margin-bottom:6px"><small>Mano levantada primero. "Dar palabra" aprueba el audio y le pide activar el micro.</small></p>
@@ -131,14 +136,17 @@ puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
       // textContent: el nombre lo escribe el asistente, nunca innerHTML.
       n.appendChild(document.createTextNode(g.name || id));
       d.appendChild(n);
-      d.appendChild(boton("Dar palabra", "ok2", function () { cmd("askToUnmute", id); }));
-      d.appendChild(boton("Quitar palabra", "d", function () {
-        cmd("rejectParticipant", id, "audio");
+      // "Dar palabra" individual: askToUnmute es una PETICION al
+      // participante (le aparece un aviso y el decide), no una orden.
+      // Verificado contra la API de stable-11031.
+      d.appendChild(boton("Pedir la palabra", "ok2", function () { cmd("askToUnmute", id); }));
+      // Silenciar a ese participante. NO existe 'rejectParticipant' en la
+      // API (era un comando inexistente que fallaba en silencio).
+      d.appendChild(boton("Silenciar", "d", function () {
         cmd("muteRemoteParticipant", id, "audio");
       }));
       d.appendChild(boton("Habilitar camara", "", function () { cmd("approveVideo", id); }));
-      d.appendChild(boton("Quitar camara", "d", function () {
-        cmd("rejectParticipant", id, "video");
+      d.appendChild(boton("Apagar camara", "d", function () {
         cmd("muteRemoteParticipant", id, "video");
       }));
       cont.appendChild(d);
@@ -191,6 +199,19 @@ puede hablar ni encender camara/pantalla hasta que lo apruebes.</p>
       else if (c === "mod-off") {
         cmd("toggleModeration", false, "audio");
         cmd("toggleModeration", false, "video");
+        setTimeout(estadoModeracion, 1500);
+      }
+      // "Dar la palabra a todos": desactivar la moderacion de audio es la
+      // via DETERMINISTA verificada (prueba de 3 fases en produccion):
+      // el asistente, que estaba bloqueado, vuelve a poder hablar.
+      // El permiso individual (askToUnmute) es una PETICION: depende de
+      // que el asistente la acepte.
+      else if (c === "dar-palabra-todos") {
+        cmd("toggleModeration", false, "audio");
+        setTimeout(estadoModeracion, 1500);
+      }
+      else if (c === "quitar-palabra-todos") {
+        cmd("toggleModeration", true, "audio");
         setTimeout(estadoModeracion, 1500);
       }
     });
