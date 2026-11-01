@@ -15,7 +15,6 @@
         disclosure)
      6. Páginas (login, panel, qr, pública, sala + contrato de la sala)
      7. Movimiento reducido, impresión
-     8. Compatibilidad temporal (alias de clases viejas) — se borra en el paso 7
 
    Puntos de corte (min-width, móvil primero): 480 (filas de campos),
    768 (tablet), 1024 (dos columnas en panel y sala), 1280 (márgenes amplios).
@@ -1044,46 +1043,3 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
   .qrview { display: flex; justify-content: center; }
   .qrcard { box-shadow: none; position: static; }
 }
-
-/* ---------- 8. Compatibilidad temporal (pasos 1-6; se borra en el paso 7) ----------
-   Da el aspecto del sistema nuevo a las clases y elementos sin clase de las
-   plantillas aún no migradas. Solo afecta a elementos SIN atributo class
-   (o con las clases viejas), así que no toca los componentes nuevos. */
-.c { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); padding: var(--space-6); }
-.m { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); margin-bottom: var(--space-4); }
-.legacy h1 { margin-bottom: var(--space-2); }
-.legacy h2 { margin: var(--space-6) 0 var(--space-3); }
-.legacy label:not([class]) { display: block; font-size: var(--text-sm); font-weight: var(--weight-medium); margin: var(--space-3) 0 var(--space-1); }
-.legacy input:not([class]):not([type="hidden"]), .legacy textarea:not([class]) {
-  width: 100%; min-height: var(--tap); padding: var(--space-2) var(--space-4); font: inherit;
-  font-size: var(--text-md); color: var(--text); background: var(--surface);
-  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
-}
-.legacy textarea:not([class]) { min-height: 6rem; resize: vertical; }
-.legacy button:not([class]), .legacy button.d, .legacy button.ok2 {
-  display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap);
-  padding: 0 var(--space-5); margin-top: var(--space-3); border: 0; border-radius: var(--radius-md);
-  font: inherit; font-weight: var(--weight-semibold); background: var(--accent-fill); color: var(--on-fill); cursor: pointer;
-}
-.legacy button:not([class]):hover { background: var(--accent-fill-hover); }
-.legacy button.d, .legacy .d { background: var(--danger-fill); color: var(--on-fill); }
-.legacy button.ok2, .legacy .ok2 { background: var(--success-fill); color: var(--on-fill); }
-.r { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-3); }
-.r h3 { margin-bottom: var(--space-1); overflow-wrap: anywhere; }
-.r .mt { color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-2); }
-.r small { display: block; overflow-wrap: anywhere; }
-.r .ac { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center; }
-.r .ac form { display: inline; }
-.r .ac button { margin: 0; }
-.b { display: inline-block; background: var(--success-soft); color: var(--success-soft-text); padding: 2px var(--space-2);
-  border-radius: var(--radius-full); font-size: var(--text-xs); }
-.e { background: var(--danger-soft); color: var(--danger-soft-text); padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md); margin: var(--space-3) 0; font-size: var(--text-sm); }
-.o { background: var(--success-soft); color: var(--success-soft-text); padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md); margin: var(--space-3) 0; font-size: var(--text-sm); }
-.qr { text-align: center; margin: var(--space-4) 0; }
-.qr img { display: inline-block; background: var(--qr-bg); padding: var(--space-2); border-radius: var(--radius-sm); max-width: 240px; }
-.legacy small { color: var(--text-muted); font-size: var(--text-xs); }
-/* Variables viejas que usa el <style> en línea de page_sala.html hasta el paso 6 */
-:root { --b: var(--border-strong); --m: var(--text-muted); --ok: var(--success-fill); --a: var(--accent-fill);
-  --t: var(--text); --c: var(--surface); --er: var(--danger-fill); --h: var(--accent-fill-hover); }

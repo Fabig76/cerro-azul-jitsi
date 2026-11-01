@@ -54,13 +54,7 @@
   </div>
 {%- endif %}
   <main id="contenido" class="container container--{{ width }}" tabindex="-1">
-{%- if legacy %}
-    <div class="c legacy">
-      {{ body|safe }}
-    </div>
-{%- else %}
     {{ body|safe }}
-{%- endif %}
   </main>
 {%- if kind != 'admin' %}
   <footer class="footer">
