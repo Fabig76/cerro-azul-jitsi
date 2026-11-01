@@ -53,3 +53,17 @@ node_modules/
 web/config/*
 !web/config/custom-config.js
 !web/config/custom-interface_config.js
+
+# Respaldos de scripts/backup.sh (BACKUP_DIR por defecto cae dentro del
+# despliegue: /opt/jitsi-meet/backups) y copias previas de restore.sh.
+# Llevan secretos (cifrados o no): NUNCA al repo.
+backups/
+cerroazul-backup-*.tar.gz
+.pre-restore-*/
+
+# Certificados del TURN (la clave privada nunca al repo)
+turn/certs/
+
+# Informes y tokens de la prueba de carga
+loadtest/results/
+loadtest/*.jwt

@@ -264,7 +264,14 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   ├── install-prosody-plugins.sh  # Instala los 86 modulos de Prosody de Jitsi
 │   ├── validate-env.sh             # Valida el .env antes de desplegar
 │   ├── make-test-env.sh            # Genera un .env de prueba (para CI)
-│   └── test-ci-local.sh            # Simula los pasos del CI en local
+│   ├── test-ci-local.sh            # Simula los pasos del CI en local
+│   ├── check-turn.sh / check_turn.py  # Watchdog del TURN (STUN, Allocate, TLS) - Fase 7.1
+│   ├── turn-cert.sh                # Certificado del TURN: issue/renew/install-hook - Fase 4
+│   ├── turn-cert-cron.sh           # Renovacion desatendida + aviso si falla
+│   ├── backup.sh                   # Respaldo cifrado del estado - Fase 7.2
+│   └── restore.sh                  # Restauracion (no arranca nada) - Fase 7.2
+├── turn/                           # Servidor TURN (coturn), se despliega aparte - Fase 4
+├── loadtest/                       # Arnes de prueba de carga con Malleus - Fase 7.3
 ├── prosody/
 │   ├── Dockerfile.prosody          # Imagen propia: anade mod_http_health
 │   ├── prosody-plugins/            # 86 modulos .lua (del .deb de unstable)
@@ -283,7 +290,8 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 ├── docs/
 │   ├── SETUP_HISTORY.md            # TODA la conversacion de instalacion
 │   ├── ARCHITECTURE.md             # Arquitectura detallada
-│   └── TROUBLESHOOTING.md          # Bugs encontrados y fixes
+│   ├── TROUBLESHOOTING.md          # Bugs encontrados y fixes
+│   └── BACKUP-RESTORE.md           # Respaldo y restauracion en servidor limpio
 └── scripts/
     └── setup-vps.sh                # Script de despliegue
 ```
@@ -490,11 +498,16 @@ Los criterios que pedía el plan del analista y en qué fase se resuelven:
 | Solo quien trae `moderator: true` es moderador | **hecho** (`token_affiliation`; `enable-auto-owner=false`) | 2 |
 | Ningún asistente transmite sin aprobación | **hecho** (el JVB recibe `force-mute` para ese endpoint) | 2 |
 | El administrador da y quita la palabra | **hecho** ("Pedir la palabra" por participante y "Dar la palabra a todos") | 2 / 3 |
-| Audio en ambos sentidos con UDP bloqueado (TURN en 443) | **pendiente** | 4 |
+| Audio en ambos sentidos con UDP bloqueado (TURN en 443) | **pendiente de la prueba con dispositivo real** (TURN desplegado y relay verificado; falta un móvil con datos y un PC con UDP bloqueado oyendo y hablando) | 4 |
 | Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** | 6 |
-| Prueba de carga con 600 clientes | **pendiente** | 7 |
+| Prueba de carga con 600 clientes | **pendiente** (arnés listo en `loadtest/`, sin ejecutar) | 7 |
 | Alertas: apagar el web dispara alerta en < 2 min | **hecho** (watchdog cada 2 min → Telegram; probado a mano) | 0 |
-| Respaldo restaurado en un servidor limpio | **pendiente** | 7 |
+| Respaldo restaurado en un servidor limpio | **pendiente** (`scripts/backup.sh`/`restore.sh` probados en local sobre un clon limpio; falta la restauración en un servidor limpio real, ver `docs/BACKUP-RESTORE.md`) | 7 |
+
+Estado de la Fase 4 (TURN): coturn desplegado en servidor aparte, relay verificado,
+certificado autofirmado con renovación automatizable (`scripts/turn-cert.sh`).
+Pendiente: DNS `turn.urbcerroazul.com` + Let's Encrypt y la prueba con dispositivo real.
+Detalle en [Fase 4 — TURN](#fase-4--turn).
 
 ## Fase 3 — Sala grande (estabilidad)
 
@@ -684,6 +697,145 @@ docker compose up -d --force-recreate web
 (Las variables `ENABLE_P2P`/`ENABLE_PREJOIN_PAGE`/`ENABLE_BREAKOUT_ROOMS`
 siguen en `0` por el compose; para revertirlas, ponerlas a `1` en el `.env`.)
 
+## Fase 4 — TURN
+
+### Qué es y qué problema resuelve
+
+Un servidor **TURN** (coturn) reenvía el audio y el vídeo cuando el navegador no puede
+hablar directamente por UDP con el JVB. **Sin TURN, quien está en una red que bloquea
+UDP** (redes corporativas, algunos operadores móviles, wifi de hoteles) **entra a la sala
+pero no oye nada**: el cliente solo tiene el candidato UDP directo al puerto 10000 y no
+hay por dónde sacar el medio. Con TURN, el cliente sale por TCP o por **TLS en 443** (lo
+que casi ninguna red bloquea) y coturn le reenvía los paquetes del JVB.
+
+### Dónde vive y qué puertos usa
+
+En un **servidor aparte** del de Jitsi, en `/opt/coturn` (contenedor `coturn`,
+`coturn/coturn:4.6.3-r3`, `network_mode: host`). Va aparte porque necesita el 443 y en
+el servidor de Jitsi ese puerto lo usa Caddy. Configuración versionada en `turn/`
+(`turnserver.conf` con el secreto como placeholder, `docker-compose.turn.yml`);
+despliegue y detalles en [turn/README.md](turn/README.md).
+
+| Puerto | Uso |
+|---|---|
+| `3478/udp` y `3478/tcp` | STUN/TURN estándar (`listening-port`). El TCP entra cuando la red bloquea UDP |
+| `443/tcp` | TURN sobre **TLS** (`tls-listening-port`): la variante para las redes más restrictivas |
+| `443/udp` | Puerto UDP alterno (`alt-listening-port`) |
+| `49160–49200/udp` | Puertos de relay (`min-port`/`max-port`) |
+
+### Cómo se anuncia a los clientes
+
+Prosody convierte las variables del `.env` de Jitsi en el bloque **`external_services`**
+(`mod_external_services`) que recibe cada cliente al conectar. A cada participante le da
+una **credencial TURN temporal** (`<expiración>:<nombre>` + HMAC-SHA1) firmada con
+`TURN_CREDENTIALS`; el secreto nunca sale del servidor.
+
+| Variable (`.env` de Jitsi) | Valor | Qué genera |
+|---|---|---|
+| `TURN_CREDENTIALS` | secreto de 32 hex | firma de las credenciales temporales (`external_service_secret`) |
+| `TURN_HOST` / `TURN_PORT` / `TURN_TRANSPORT` | IP o nombre del TURN / `3478` / `udp,tcp` | entradas `turn:` |
+| `TURNS_HOST` / `TURNS_PORT` | IP o nombre del TURN / `443` | entrada `turns:` (sin ellas Prosody **no** anuncia TURN sobre TLS) |
+| `STUN_HOST` / `STUN_PORT` | IP o nombre del TURN / `3478` | entrada `stun:` |
+
+`docker-compose.yml` pasa todas a prosody. Un cambio en ellas se aplica **recreando**
+prosody (`docker compose up -d --force-recreate prosody`; `docker restart` no relee el `.env`).
+
+> ⚠️ **`TURN_CREDENTIALS` debe ser EXACTAMENTE el mismo valor en el `.env` de Jitsi y en
+> `static-auth-secret` del `turnserver.conf` de coturn.** Si difieren, el TURN sigue
+> respondiendo a STUN (todo "parece" bien) pero rechaza todas las credenciales, y los
+> usuarios detrás de redes que bloquean UDP vuelven a quedarse sin audio.
+> **Ese valor nunca se escribe en claro en el repo**: en git solo hay placeholders
+> (`CAMBIAR...`). Para rotarlo o rehacer el TURN, ver `docs/BACKUP-RESTORE.md`
+> (paso "El secreto del TURN").
+
+### Cómo verificar el TURN
+
+```bash
+# Desde cualquier host con python3 (STUN UDP, Allocate UDP y TLS, TLS en 443, caducidad del cert)
+scripts/check-turn.sh /opt/jitsi-meet/.env -v
+# Silencioso y con código de salida para watchdogs (ver turn/README.md para Hermes)
+scripts/check-turn.sh /ruta/turn.env --host <IP_TURN> --port 3478 --turns-port 443
+```
+
+Prueba de navegador: [Trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/)
+con una credencial temporal → deben aparecer candidatos `relay` por UDP y por TLS 443.
+
+### Cómo renovar el certificado
+
+Hoy el TURN usa un certificado **autofirmado** (la zona DNS está en Netim y aún no existe
+`turn.urbcerroazul.com`). Los clientes WebRTC no validan el certificado del TURN, así que
+funciona; solo hay que renovarlo antes de que caduque. Cuando exista el registro DNS, se
+pasa a Let's Encrypt (HTTP-01 standalone/webroot, o DNS-01 con IONOS).
+
+```bash
+# En el servidor del TURN (scripts copiados en /opt/coturn/scripts/)
+/opt/coturn/scripts/turn-cert.sh status
+/opt/coturn/scripts/turn-cert.sh issue --selfsigned --ip <IP_TURN>          # escenario de hoy
+/opt/coturn/scripts/turn-cert.sh issue --standalone --email <correo>        # Let's Encrypt
+/opt/coturn/scripts/turn-cert.sh renew                                     # solo si faltan < 30 días
+/opt/coturn/scripts/turn-cert.sh install-hook                              # deploy-hook de certbot
+# Cron diario con aviso por webhook/Telegram si falla:
+#   17 4 * * * root /opt/coturn/scripts/turn-cert-cron.sh
+```
+
+Permisos que exige el contenedor (corre como `nobody`, uid 65534): certificado `644`,
+clave `600`, ambos `65534:65534`. El script los aplica y reinicia coturn solo si el
+certificado cambió.
+
+### Estado de la Fase 4
+
+| Punto | Estado |
+|---|---|
+| coturn desplegado en servidor aparte (UDP/TCP 3478, TLS 443, relay 49160–49200) | **hecho** |
+| Relay verificado (`turnutils_uclient`: Allocate con credencial REST y relay address) | **hecho** |
+| `TURN_*`/`TURNS_*`/`STUN_*` en el `.env` de Jitsi y `external_services` en Prosody | **hecho** |
+| Certificado TLS + renovación con reinicio de coturn | **hecho** (autofirmado; `scripts/turn-cert.sh` + cron, listo también para Let's Encrypt cuando exista el DNS) |
+| Registro DNS `turn.urbcerroazul.com` + Let's Encrypt | **pendiente** (zona en Netim) |
+| Audio en ambos sentidos con UDP bloqueado | **pendiente** de la prueba con dispositivo real (móvil con datos + PC con UDP bloqueado) |
+
+## Fase 7 — Operación
+
+### 7.1 Monitorización
+
+| Qué | Cómo | Estado |
+|---|---|---|
+| Web y `/healthz` del admin | watchdog de Hermes cada 2 min → Telegram (`check-meet-jitsi.sh`) | **hecho** |
+| TURN (STUN, Allocate con credencial, TLS 443, caducidad del cert) | `scripts/check-turn.sh` (silencioso si va bien; instalación en Hermes en `turn/README.md`) | **listo**, falta darlo de alta en Hermes |
+| Renovación del cert del TURN | `scripts/turn-cert-cron.sh` (aviso por `TURN_ALERT_WEBHOOK`/Telegram) | **listo**, falta el cron en el servidor del TURN |
+| Prometheus + Grafana, alertas de CPU/red/bridge | plan 7.1 | **pendiente** |
+
+### 7.2 Respaldos
+
+En producción `.env`, `admin.env` y `web/config/keys/cert.key` son `600` de root: los dos
+scripts se ejecutan con **`sudo`** (si falta algún permiso lo dicen antes de tocar nada,
+con el comando exacto, y salen sin crear ni escribir nada).
+
+```bash
+sudo BACKUP_PASSPHRASE='...' BACKUP_ORIGEN=/opt/jitsi-meet scripts/backup.sh --dry-run   # qué se respaldaría
+sudo BACKUP_PASSPHRASE='...' BACKUP_ORIGEN=/opt/jitsi-meet scripts/backup.sh --keep 14   # -> BACKUP_DIR (default /opt/jitsi-meet/backups)
+sudo BACKUP_PASSPHRASE='...' scripts/restore.sh <respaldo> --dry-run                     # verifica sumas y HMAC, no escribe
+sudo BACKUP_PASSPHRASE='...' scripts/restore.sh <respaldo> --dest /opt/jitsi-meet        # pide confirmación; NO arranca nada
+```
+
+Respalda `docker-compose.yml`, `web/config/` y `admin-panel/instance/` (db) en claro,
+`turn/turnserver.conf` con el secreto redactado, y **cifrados** (`aes-256-cbc` + PBKDF2 +
+HMAC-SHA256; `openssl enc` no admite GCM) `.env`, `admin-panel/instance/admin.env`,
+`web/config/keys/` y, si existen, `prosody/config`, `jicofo/config` y `jvb/config`. Si
+falta `.env` o `admin.env` el respaldo sale **INCOMPLETO** (sin `.env` no se puede
+restaurar el stack). Procedimiento completo de restauración en un
+servidor limpio, cron diario y copia fuera del servidor: **[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)**.
+
+### 7.3 Prueba de carga
+
+Arnés en [`loadtest/`](loadtest/README.md) para Malleus (`jitsi-meet-torture`):
+`loadtest/run.sh` hace las comprobaciones previas (web, JWT de la sala, bridge operativo,
+`MAX_PARTICIPANTS`, Selenium Grid), muestrea el JVB durante la prueba y genera la tabla de
+criterios. **`--dry-run` por defecto.** Comandos concretos en
+[`loadtest/malleus-sala-prueba.md`](loadtest/malleus-sala-prueba.md).
+
+> Antes de la prueba de 600: `MAX_PARTICIPANTS` vale hoy `500` y Prosody rechaza en
+> silencio a partir de ahí. Hay que subirlo (≥ 610) para la prueba; `run.sh` lo comprueba.
+
 ## Limitaciones Conocidas
 
 - Max ~100 participantes por sala (teorico 200 con el VPS actual de 4 cores)
@@ -697,6 +849,9 @@ siguen en `0` por el compose; para revertirlas, ponerlas a `1` en el `.env`.)
 - **[docs/SETUP_HISTORY.md](docs/SETUP_HISTORY.md)** - Conversación completa de instalación paso a paso (problemas encontrados, fixes aplicados, logs)
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Arquitectura detallada de cada servicio
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Problemas conocidos y soluciones
+- **[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** - Respaldo diario y restauración en un servidor limpio (Fase 7.2)
+- **[turn/README.md](turn/README.md)** - Servidor TURN: despliegue, certificado y watchdog (Fases 4 y 7.1)
+- **[loadtest/README.md](loadtest/README.md)** - Prueba de carga con Malleus y criterios de aprobación (Fase 7.3)
 
 ## Credenciales (protegidas, NO commitear)
 
@@ -708,10 +863,11 @@ siguen en `0` por el compose; para revertirlas, ponerlas a `1` en el `.env`.)
 ## Rotación de TURN_CREDENTIALS
 
 `TURN_CREDENTIALS` es el secreto compartido (32 hex) que Prosody usa para firmar
-las credenciales TURN de corta duración que reparte a los clientes. **No hay servidor
-TURN (coturn) en este stack**, así que hoy no está en el camino del audio/video real
-(que va por el JVB, UDP 10000); es una pieza que quedará operativa cuando se despliegue
-coturn (Fase 4 del plan).
+las credenciales TURN de corta duración que reparte a los clientes. Desde la Fase 4 hay
+un coturn en un servidor aparte que valida esas credenciales con el **mismo valor**
+(`static-auth-secret`): **si se rota aquí, hay que ponerlo también en coturn** y
+reiniciarlo, o el TURN rechazará a todos (ver [Fase 4 — TURN](#fase-4--turn) y el paso
+"El secreto del TURN" de `docs/BACKUP-RESTORE.md`). Después: `scripts/check-turn.sh`.
 
 Para rotarlo (por ejemplo si se filtra, o periódicamente):
 
