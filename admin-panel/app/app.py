@@ -290,13 +290,17 @@ TOOLBAR_ASISTENTE = ["microphone", "raisehand", "chat", "settings", "hangup"]
 
 
 def jitsi_url(sala, token, moderator=False):
-    # JWT en el fragmento (#jwt=...): no viaja al servidor en la peticion
-    # HTTP ni queda en logs de Caddy/nginx ni en el Referer.
+    # El JWT va en la query (?jwt=...), NO en el fragmento (#jwt=...).
+    # Esta version de Jitsi (stable-11031) solo lee el token de la query:
+    # con el fragmento el cliente muestra "Se requiere autenticacion".
+    # Verificado en produccion. El token caduca solo (exp), y el acceso al
+    # servidor es unico del administrador, asi que el riesgo de que quede
+    # en los logs de Caddy se considera aceptable.
     url = ("https://" + PUB + "/" + sala
-           + "#jwt=" + token
+           + "?jwt=" + token
            + "&config.prejoinPage.enabled=false"
            + "&config.deeplinking.disabled=true")
-    # La barra se pasa como config.toolbarButtons en el fragmento. El
+    # La barra se pasa como config.toolbarButtons en la query. El
     # cliente la lee de config.toolbarButtons (no de interfaceConfig, que
     # esta obsoleto en stable-11031). El valor es un array JSON.
     botones = TOOLBAR_ADMIN if moderator else TOOLBAR_ASISTENTE
