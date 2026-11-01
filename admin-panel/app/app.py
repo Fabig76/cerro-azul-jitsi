@@ -307,7 +307,7 @@ def nueva_sala():
 # JWT (Fase 2).
 TOOLBAR_ADMIN = ["microphone", "camera", "desktop", "participants-pane",
                  "raisehand", "chat", "tileview", "settings", "hangup"]
-TOOLBAR_ASISTENTE = ["microphone", "camera", "desktop", "raisehand", "chat", "settings", "hangup"]
+TOOLBAR_ASISTENTE = ["microphone", "raisehand", "chat", "settings", "hangup"]
 
 
 def jitsi_url(sala, token, moderator=False):

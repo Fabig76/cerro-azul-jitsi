@@ -159,31 +159,18 @@ config.analytics = { disabled: true, rtcstatsEnabled: false };
 // interfaceConfig.TOOLBAR_BUTTONS esta obsoleto y el bundle solo lo usa
 // si config.toolbarButtons NO es un array. Por eso va aqui y no en
 // custom-interface_config.js.
-//
-// HISTORIA (importante, para no repetir el error):
-//   1) Se creyo que esta version no lee config.toolbarButtons de la query.
-//      Es cierto: la query NO se lee (0 apariciones en el bundle).
-//   2) Entonces se quito 'desktop' de aqui para que el residente no
-//      pudiera compartir pantalla. Funcionaba, pero rompia el caso de
-//      reuniones pequenas donde alguien SI debe compartir.
-//   3) Lo correcto es lo que ya tiene Jitsi: DESKTOP MODERATION. Existe y
-//      no estaba activada (el cliente solo activaba audio y video).
-//      Verificado en el bundle:
-//        On = {audio:"audioWhitelist", desktop:"desktopWhitelist",
-//              video:"videoWhitelist"}
-//        desktopModerationEnabled, desktopUnmuteApproved,
-//        pendingDesktop, "desktop-moderation", "raise-hand-desktop"
-//
-// Por eso 'desktop' vuelve a la barra: con la moderacion de pantalla
-// activada, el boton se muestra pero el servidor NO deja transmitir
-// hasta que el administrador le da el permiso (igual que el micro).
-// Y en una reunion pequena sin moderacion, todos pueden compartir.
+// Valor por defecto del sitio = barra del ADMIN (ya recortada respecto a
+// la de Jitsi). El panel admin la fija igual por configOverwrite y el
+// proyecto de asistentes la reduce a la suya (ver README, Fase 3). La
+// barra es solo UI: el control real de quien habla es la moderacion A/V.
 config.toolbarButtons = [
     'microphone',
     'camera',
     'desktop',
+    'participants-pane',
     'raisehand',
     'chat',
+    'tileview',
     'settings',
     'hangup'
 ];

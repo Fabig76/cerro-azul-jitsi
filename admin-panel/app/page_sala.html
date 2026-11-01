@@ -52,7 +52,6 @@
       <p class="sala__estados" aria-live="polite">
         <span class="sala__estado">Audio <b class="badge badge--neutral" id="st-audio">?</b></span>
         <span class="sala__estado">Video <b class="badge badge--neutral" id="st-video">?</b></span>
-        <span class="sala__estado">Pantalla <b class="badge badge--neutral" id="st-desktop">?</b></span>
       </p>
     </section>
 
@@ -189,31 +188,16 @@
     api.executeCommand.apply(api, [nombre].concat(args));
   }
 
-  // Activar la moderacion de los tres medios: audio, video y PANTALLA.
-  //
-  // CORREGIDO (1-Nov-2026): el comentario anterior decia que esta version
-  // "solo distingue audio y video, no hay tipo desktop". Es FALSO.
-  // Verificado en el bundle de stable-11031:
-  //   On = {audio:"audioWhitelist", desktop:"desktopWhitelist",
-  //         video:"videoWhitelist"}
-  //   desktopModerationEnabled / desktopUnmuteApproved / "desktop-moderation"
-  // Como solo se activaba audio y video, la pantalla compartida quedaba
-  // FUERA de la moderacion: aunque el residente no tuviera el boton, el
-  // permiso de compartir no estaba bloqueado por el servidor.
+  // Activar moderacion de audio y video. En stable-11031 el iframe API solo
+  // distingue 'audio' y 'video' (no hay tipo 'desktop' en el cliente); la
+  // pantalla compartida queda bajo la moderacion de video.
   function activarModeracion() {
     cmd("toggleModeration", true, "audio");
     cmd("toggleModeration", true, "video");
-    cmd("toggleModeration", true, "desktop");
-    setTimeout(estadoModeracion, 1500);
-  }
-  function desactivarModeracion() {
-    cmd("toggleModeration", false, "audio");
-    cmd("toggleModeration", false, "video");
-    cmd("toggleModeration", false, "desktop");
     setTimeout(estadoModeracion, 1500);
   }
   function estadoModeracion() {
-    ["audio", "video", "desktop"].forEach(function (m) {
+    ["audio", "video"].forEach(function (m) {
       api.isModerationOn(m).then(function (on) {
         var el = document.getElementById("st-" + m);
         if (el) el.textContent = on ? "ACTIVA" : "apagada";
