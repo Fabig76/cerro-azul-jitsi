@@ -21,13 +21,31 @@ meet.urbcerroazul.com {
     # Panel admin, salud y paginas publicas de reunion.
     # /admin* cubre /admin y /admin/... (ojo: /admin/* NO cubre /admin).
     # /reunion/* cubre /reunion/<slug>.
-    @admin path /admin* /reunion/* /unirse /healthz
+    # /api/reuniones/* es la API interna de la Fase 6 (tokens para
+    # votacionph.us, servidor a servidor, protegida con API key).
+    @admin path /admin* /reunion/* /unirse /healthz /api/reuniones/*
 
     handle @admin {
+        # Fase 6: el panel (login, /admin*, paginas publicas, API) NUNCA se
+        # muestra dentro de un iframe ajeno. Evita clickjacking sobre el
+        # login y los botones de moderacion. Las paginas del panel pueden
+        # embeber Jitsi (eso lo controla el bloque de abajo, no este).
+        header {
+            Content-Security-Policy "frame-ancestors 'none'"
+            X-Frame-Options "DENY"
+        }
         reverse_proxy admin:8081
     }
 
     handle {
+        # Fase 6: Jitsi se puede embeber SOLO desde este mismo dominio (la
+        # pagina /admin/reunion/<id>/sala del panel) y desde votacionph.us.
+        # No se abre a cualquier sitio: un Jitsi embebible desde cualquier
+        # parte permitiria montar la sala (con un token filtrado) dentro de
+        # una pagina ajena que capture clics o suplante el portal.
+        # Si votacionph cambia de dominio, hay que anadirlo aqui.
+        header Content-Security-Policy "frame-ancestors 'self' https://votacionph.us"
+
         # jitsi-web enruta /xmpp-websocket y /http-bind; Caddy pasa
         # WebSockets de forma nativa.
         reverse_proxy web:80 {

@@ -285,13 +285,16 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 │   │   ├── page_panel.html         # Panel de admin
 │   │   ├── page_qr_view.html       # Vista del QR + link
 │   │   └── page_reunion.html       # Pagina publica de reunion
+│   ├── README.md                   # Rutas del panel y API interna (Fase 6)
 │   └── instance/
 │       └── admin.env.example        # Template de credenciales admin
+├── integracion/                    # Cliente JS + ejemplo para votacionph.us - Fase 6
 ├── docs/
 │   ├── SETUP_HISTORY.md            # TODA la conversacion de instalacion
 │   ├── ARCHITECTURE.md             # Arquitectura detallada
 │   ├── TROUBLESHOOTING.md          # Bugs encontrados y fixes
-│   └── BACKUP-RESTORE.md           # Respaldo y restauracion en servidor limpio
+│   ├── BACKUP-RESTORE.md           # Respaldo y restauracion en servidor limpio
+│   └── INTEGRACION-JITSI.md        # Integracion con votacionph.us (Fase 6)
 └── scripts/
     └── setup-vps.sh                # Script de despliegue
 ```

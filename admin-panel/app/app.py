@@ -5,6 +5,7 @@ import io
 import json
 import sqlite3
 import hashlib
+import hmac
 import secrets
 import logging
 from datetime import datetime, timezone, timedelta
@@ -105,6 +106,30 @@ JWT_PROBLEMS = jwt_config_problems()
 for _p in JWT_PROBLEMS:
     log.error("CONFIG JWT: " + _p)
 log.info("JWT iss=" + JWT_ISS + " aud=" + JWT_AUD + " app_id=" + KID)
+
+# --- API interna (Fase 6) -----------------------------------------------
+# Claves para que el backend de votacionph.us pida tokens servidor a
+# servidor. Viven SOLO en admin.env. Una clave corta (< 32 chars) se trata
+# como no configurada: es preferible un 503 a una clave adivinable.
+API_KEY_MIN_LEN = 32
+
+
+def _api_key(nombre):
+    v = A.get(nombre) or ""
+    if v and len(v) < API_KEY_MIN_LEN:
+        log.error("CONFIG API: " + nombre + " tiene menos de " + str(API_KEY_MIN_LEN)
+                  + " caracteres; se ignora")
+        return ""
+    return v
+
+
+API_KEY = _api_key("JITSI_API_KEY")
+API_KEY_ADMIN = _api_key("JITSI_API_KEY_ADMIN")
+if API_KEY and API_KEY == API_KEY_ADMIN:
+    log.warning("CONFIG API: JITSI_API_KEY y JITSI_API_KEY_ADMIN son iguales; "
+                "la key de asistente puede pedir moderador")
+log.info("API interna: key asistente=" + ("si" if API_KEY else "no")
+         + " key admin=" + ("si" if API_KEY_ADMIN else "no"))
 
 def db():
     c = sqlite3.connect(DB_PATH)
@@ -518,6 +543,112 @@ def entrar_moderador(rid):
     log.info("entrar moderador id=" + str(rid) + " user=" + session.get("user","") + " pid=" + pid)
     # El administrador entra con la barra completa (Fase 3.3).
     return redirect(jitsi_url(r["sala_jitsi"], token, moderator=True))
+
+# --- API interna para votacionph.us (Fase 6) ----------------------------
+# POST /api/reuniones/<id>/token  (servidor a servidor, NUNCA desde un
+# navegador): el backend de votacionph.us, que ya sabe quien es la persona
+# y si es administrador, pide un JWT para ella. El navegador recibe solo el
+# JWT de ESA persona; nunca ve JWT_APP_SECRET ni la API key.
+#
+# Orden de comprobaciones (a proposito): 503 -> 401 -> 400 -> 403 -> 404
+# -> 405. Sin key valida no se revela si una reunion existe.
+
+def api_error(status, error, motivo):
+    resp = jsonify({"error": error, "motivo": motivo})
+    resp.status_code = status
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+def api_rol_por_key():
+    """'admin', 'asistente' o None segun la cabecera Authorization."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    dada = auth[len("Bearer "):].strip().encode()
+    # Se comparan las dos siempre (compare_digest) para no dar pistas por
+    # tiempo de respuesta sobre cual de las dos se intento.
+    es_admin = bool(API_KEY_ADMIN) and hmac.compare_digest(dada, API_KEY_ADMIN.encode())
+    es_asis = bool(API_KEY) and hmac.compare_digest(dada, API_KEY.encode())
+    if es_admin:
+        return "admin"
+    if es_asis:
+        return "asistente"
+    return None
+
+
+def api_origen():
+    # Detras de Caddy, remote_addr es el contenedor de Caddy; el cliente
+    # real va en X-Forwarded-For (solo informativo, para el log).
+    xff = request.headers.get("X-Forwarded-For", "")
+    return (xff.split(",")[0].strip() if xff else "") or (request.remote_addr or "?")
+
+
+@app.route("/api/reuniones/<int:rid>/token", methods=["POST"])
+def api_token(rid):
+    origen = api_origen()
+    if not API_KEY and not API_KEY_ADMIN:
+        log.error("api token id=" + str(rid) + " origen=" + origen
+                  + " -> 503: API key no configurada")
+        return api_error(503, "api_no_configurada",
+                         "El panel no tiene JITSI_API_KEY ni JITSI_API_KEY_ADMIN en admin.env")
+    rol_key = api_rol_por_key()
+    if rol_key is None:
+        log.warning("api token id=" + str(rid) + " origen=" + origen + " -> 401 key ausente o incorrecta")
+        return api_error(401, "no_autorizado", "Falta la API key o es incorrecta")
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return api_error(400, "datos_invalidos", "El cuerpo debe ser un objeto JSON")
+    nombre = datos.get("nombre")
+    apto = datos.get("apto", "")
+    moderador = datos.get("moderador", False)
+    if apto is None:
+        apto = ""
+    if not isinstance(nombre, str) or not (1 <= len(nombre.strip()) <= 80):
+        return api_error(400, "datos_invalidos", "'nombre' es obligatorio (1 a 80 caracteres)")
+    if not isinstance(apto, str) or len(apto.strip()) > 20:
+        return api_error(400, "datos_invalidos", "'apto' debe ser texto de 0 a 20 caracteres")
+    if not isinstance(moderador, bool):
+        return api_error(400, "datos_invalidos", "'moderador' debe ser true o false")
+    nombre = nombre.strip()
+    apto = apto.strip()
+
+    pide_mod = moderador
+    log_base = ("api token id=" + str(rid) + " origen=" + origen + " key=" + rol_key
+                + " pide_moderador=" + str(pide_mod))
+    if pide_mod and rol_key != "admin":
+        log.warning(log_base + " -> 403 moderador sin key de admin")
+        return api_error(403, "moderador_no_permitido",
+                         "Solo la key de administracion (JITSI_API_KEY_ADMIN) puede pedir moderador")
+
+    r = get_reunion(rid)
+    if not r:
+        log.info(log_base + " -> 404")
+        return api_error(404, "reunion_no_existe", "La reunion no existe o fue eliminada")
+    exp = exp_reunion(r)
+    if exp <= datetime.now(timezone.utc):
+        # No emitir un token que Prosody rechazaria por vencido.
+        log.info(log_base + " -> 405 reunion finalizada")
+        return api_error(405, "reunion_finalizada",
+                         "La reunion ya termino (fin previsto + " + str(JWT_EXP_MARGIN_MIN) + " min)")
+
+    visible = ("Apto " + apto + " - " + nombre) if apto else nombre
+    # Un pid nuevo por peticion: dos pestanas de la misma persona son dos
+    # participantes distintos para Jitsi (igual que /unirse).
+    pid = ("admin-" if pide_mod else "api-") + secrets.token_hex(8)
+    token = sign_jwt(r["sala_jitsi"], visible, mod=pide_mod, exp=exp, pid=pid)
+    log.info(log_base + " -> 200 mod=" + str(pide_mod) + " pid=" + pid)
+    resp = jsonify({
+        "jwt": token,
+        "domain": PUB,
+        "roomName": r["sala_jitsi"],
+        "soyModerador": pide_mod,
+        "exp": int(exp.timestamp()),
+        "participantId": pid,
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 # Crear el esquema al IMPORTAR el modulo, no solo con __main__.
 # Gunicorn importa 'app:app' en un proceso workers: si init_db() solo
