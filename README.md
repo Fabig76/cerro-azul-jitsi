@@ -8,6 +8,8 @@
 > - ✅ Bridge operativo (`operational_bridge_count: 1`), JVB `/about/health` = 200
 > - ✅ Grabación local en el PC del administrador (Fase 9)
 > - ✅ Panel multi-conjunto: marca y responsable legal por variable
+> - ✅ Compartir pantalla funcionando (config de sala de la Fase 3, sin
+>    cambios; ver "Compartir pantalla" más abajo)
 >
 > **Versión:** Jitsi `stable-11031` (JVB 2.3.295)
 > **URL:** https://meet.bytracking.net
@@ -1001,13 +1003,62 @@ Documentado aquí porque costó dos intentos fallidos.
 - La **moderación se activa solo para `audio` y `video`**. La pantalla queda libre.
 - Resultado: **cualquiera en la sala puede compartir pantalla** (comprobado en producción).
 
+### Configuración de vídeo y pantalla (NO cambiar sin leer esto)
+
+Valores actuales, **idénticos a los de la Fase 3** (`e30c36d`):
+
+```js
+config.resolution = 360;                                        // cámara
+config.constraints = { video: { height: { ideal: 360, max: 720, min: 180 } } };
+config.channelLastN = 4;
+config.maxFullResolutionParticipants = 1;
+config.desktopSharingFrameRate = { min: 5, max: 15 };           // pantalla
+// NO existe config.desktopSharingResolution: se deja sin definir a propósito
+```
+
+Estos valores son los que el operador confirmó que **funcionan** (la pantalla se ve bien).
+
+### Por qué NO se debe "arreglar" la resolución de la pantalla
+
+Se probaron dos ajustes y **los dos empeoraron la situación**:
+
+| Intento | Resultado |
+|---|---|
+| `desktopSharingResolution = 1920×1080` | Pantalla **oscura** (tile en negro) |
+| `desktopSharingResolution = 800×600` | Pantalla **oscura** también |
+| Sin `desktopSharingResolution` (actual) | ✅ **Se ve bien** |
+
+**La causa real no era la resolución.** Está en el log del JVB:
+
+```
+BandwidthAllocator: Sources suspended due to insufficient bandwidth
+(bwe=346343 bps): [3fadf6ff-v1]
+```
+
+`v1` es la pista de pantalla. Con **346 kbps** de ancho de banda estimado, el JVB **suspende la fuente** y el receptor ve el tile en negro. Subir la resolución multiplica lo que hace falta (1080p ≈ 2-3 Mbps) y hace que se suspenda **más**.
+
+**El límite es la red del receptor, no la configuración del servidor.**
+
 ### Reglas para no romperlo otra vez
 
 1. **No quites `desktop` de `config.toolbarButtons`** para "impedir" compartir: rompe el caso de uso de reuniones pequeñas, donde alguien tiene que mostrar un documento.
 2. **No actives `toggleModeration(..., "desktop")`** sin construir antes el permiso por participante: deja al invitado pulsando compartir sin que se vea nada.
-3. Si algún día se quiere moderar la pantalla, el orden es: (a) botón «dar permiso de pantalla» por participante con `grantModerator`, (b) **probar con dos personas reales**, (c) y solo entonces activar `desktop` en la moderación.
+3. **No añadas `config.desktopSharingResolution`.** Se probó y la pantalla se pone oscura. Si algún día hiciera falta más nitidez, el problema a resolver primero es el ancho de banda del receptor.
+4. **No subas `maxFullResolutionParticipants`** a 2: agota el hueco de calidad completa entre cámara y pantalla.
+5. Ante cualquier cambio aquí: **probar con dos personas reales** (una comparte, otra mira) antes de darlo por bueno. Verificar que "el JVB recibe la pantalla" **no** prueba que el otro la vea.
 
-> El detalle de lo que se probó y por qué falló está en el commit `140cd43`.
+> Detalle de lo probado: commits `140cd43`, `ce48ac9`, `99ffbe7` y `86e6319` (este último restaura).
+
+### Si la pantalla se ve oscura para alguien
+
+Casi siempre es **su conexión**. Comprobarlo así:
+
+```bash
+ssh chatbotph 'docker logs jitsi-jvb --since 30m 2>&1 | grep -i "insufficient bandwidth"'
+```
+
+- Si aparece `Sources suspended ... [<id>-v1]` con un `bwe` bajo → es ancho de banda del receptor. No hay nada que tocar en el servidor: esa persona necesita mejor red (cable, o wifi más cercano).
+- Si **no** aparece ese mensaje y aun así se ve negro → entonces sí es un problema distinto, y hay que mirar los logs del cliente.
 
 ## Licencia
 

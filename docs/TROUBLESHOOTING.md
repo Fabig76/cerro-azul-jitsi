@@ -586,3 +586,81 @@ curl -sk https://meet.bytracking.net/config.js | grep -A12 "^config.toolbarButto
 3. **No probar end-to-end.** Verificar que "el JVB recibe la pantalla"
    no prueba que "el invitado la vea". Hay que abrir dos navegadores y
    comprobarlo en la sala.
+
+---
+
+## BUG: "La pantalla compartida se ve OSCURA / en negro" (1-Nov-2026)
+
+**Síntoma.** Alguien comparte pantalla y el receptor ve el tile **negro**,
+no la imagen. La pantalla se está transmitiendo, pero no se ve.
+
+### Lo que NO era (se probó y se descartó)
+
+| Hipótesis | Prueba | Veredicto |
+|---|---|---|
+| Falta de resolución (360p heredado) | `desktopSharingResolution = 1920×1080` | ❌ **Empeoró**: más oscura aún |
+| Resolución excesiva para el JVB | `desktopSharingResolution = 800×600` | ❌ **Siguió oscura** |
+| Hueco de calidad completa ocupado | `maxFullResolutionParticipants = 2` | ❌ No cambió nada |
+| Moderación de pantalla bloqueando | `toggleModeration("desktop")` | ❌ Ya estaba descartado antes |
+
+**Conclusión: no era la resolución.** Los tres ajustes se revirtieron.
+
+### La causa real: el ancho de banda del RECEPTOR
+
+El log del JVB lo dice sin ambigüedad:
+
+```
+BandwidthAllocator.allocate#279: Sources suspended due to insufficient
+bandwidth (bwe=346343 bps): [3fadf6ff-v1]
+```
+
+- `bwe=346343 bps` → el estimador de ancho de banda mide **346 kbps**.
+- `[3fadf6ff-v1]` → la fuente suspendida es la **`v1`**, la pista de
+  pantalla (`videoType="desktop"`).
+
+Cuando el BWE del receptor baja de lo que necesita la pista, el JVB
+**deja de enviarla** ("Sources suspended"). El cliente no recibe vídeo y
+pinta el tile en negro. No hay ningún error visible: es una decisión
+correcta del servidor, no un fallo.
+
+Subir la resolución **multiplica** lo que se necesita:
+
+| Resolución de pantalla | Ancho de banda necesario |
+|---|---|
+| 800×600 @ 5-15 fps | ~500-800 kbps |
+| 1280×720 | ~1-1,5 Mbps |
+| 1920×1080 | ~2-3 Mbps |
+
+Con 346 kbps disponibles, **ninguna de las tres cabe**. La de 1080p se
+suspende antes y más a menudo: por eso al subirla se veía *peor*.
+
+### Configuración que funciona (estado actual)
+
+Idéntica a la Fase 3. **No añadir `desktopSharingResolution`**:
+
+```js
+config.resolution = 360;
+config.constraints = { video: { height: { ideal: 360, max: 720, min: 180 } } };
+config.channelLastN = 4;
+config.maxFullResolutionParticipants = 1;
+config.desktopSharingFrameRate = { min: 5, max: 15 };
+```
+
+### Cómo diagnosticarlo en 10 segundos
+
+```bash
+ssh chatbotph 'docker logs jitsi-jvb --since 30m 2>&1 | grep -i "insufficient bandwidth"'
+```
+
+- **Aparece** `Sources suspended ... [-v1]` con `bwe` bajo
+  → es la red del receptor. **No hay nada que cambiar en el servidor.**
+  Esa persona necesita cable o mejor wifi.
+- **No aparece** y aun así se ve negro
+  → problema distinto: mirar la consola del navegador del receptor.
+
+### Lección
+
+Un "no se ve" no siempre se arregla en el servidor. Antes de tocar
+parámetros: **leer el log del JVB**. Ahí estaba la respuesta desde el
+principio (`insufficient bandwidth`), y se ignoró durante dos intentos
+de ajuste de resolución.
