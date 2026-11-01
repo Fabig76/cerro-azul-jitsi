@@ -77,10 +77,6 @@ config.prejoinConfig.enabled = false;
 // mosaicos enteros.
 config.channelLastN = 4;
 // Solo 1 video en resolucion completa (el que esta en el escenario).
-// Se probo con 2 para que la pantalla siempre tuviera hueco "full", pero
-// con 500 clientes el JVB no puede sostener dos pistas grandes y algunos
-// receptores se quedaban con la pantalla en negro. Se vuelve al valor de
-// la Fase 3, que funcionaba.
 config.maxFullResolutionParticipants = 1;
 // Captura a 360p: suficiente para la camara del ponente, y lo que de
 // verdad se lee (los documentos) va por la pantalla compartida.
@@ -90,28 +86,8 @@ config.constraints = {
         height: { ideal: 360, max: 720, min: 180 }
     }
 };
-// --- Pantalla compartida -------------------------------------------------
-// HISTORIA de esta clave (para no repetir errores):
-//
-// 1) Original (Fase 3): no existia. La pantalla heredaba las constraints
-//    generales de video (config.resolution = 360) y se veia ILEGIBLE:
-//    el texto de un documento a 360p no se puede leer.
-//
-// 2) Primer intento de arreglo: 1920x1080. El texto se leia, pero con
-//    500 receptores y lastN=4 el JVB no puede servir 1080p a todos: la
-//    pantalla se quedaba OSCURA / en negro para quien no pillaba el
-//    hueco de resolucion completa. Demasiado para el servidor.
-//
-// 3) Valor actual: 800x600. Compromiso: se lee el texto de un documento
-//    normal (y el zoom del navegador ayuda) sin que el JVB tenga que
-//    repartir Full HD entre cientos de clientes.
-//
-// Si algun dia hace falta mas nitidez, subir de dos en dos (1024x768,
-// 1280x720) y PROBAR con los receptores reales antes de dejarlo.
-config.desktopSharingResolution = {
-    width: { ideal: 800, max: 800 },
-    height: { ideal: 600, max: 600 }
-};
+// Pantalla compartida: documentos, no video. 5-15 fps basta y reduce
+// mucho el ancho de banda que el JVB reenvia a 500 personas.
 config.desktopSharingFrameRate = { min: 5, max: 15 };
 
 // --- Audio --------------------------------------------------------------
