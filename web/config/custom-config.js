@@ -160,28 +160,28 @@ config.analytics = { disabled: true, rtcstatsEnabled: false };
 // si config.toolbarButtons NO es un array. Por eso va aqui y no en
 // custom-interface_config.js.
 //
-// OJO (corregido 1-Nov-2026): esta version de Jitsi NO lee
-// `config.toolbarButtons` de la query. El panel lo mandaba en la URL del
-// residente y se ignoraba en silencio: el asistente acababa con la barra
-// de aqui abajo, que incluia 'desktop', y por tanto podia compartir
-// pantalla. Lo verificado en el bundle:
-//   - config.toolbarButtons   -> 0 apariciones (no se lee de la query)
-//   - config.customToolbarButtons -> existe, pero son botones EXTRA
-// Por eso la barra por defecto del sitio tiene que ser SEGURA para quien
-// entra por URL directa (el residente): sin 'desktop'.
+// HISTORIA (importante, para no repetir el error):
+//   1) Se creyo que esta version no lee config.toolbarButtons de la query.
+//      Es cierto: la query NO se lee (0 apariciones en el bundle).
+//   2) Entonces se quito 'desktop' de aqui para que el residente no
+//      pudiera compartir pantalla. Funcionaba, pero rompia el caso de
+//      reuniones pequenas donde alguien SI debe compartir.
+//   3) Lo correcto es lo que ya tiene Jitsi: DESKTOP MODERATION. Existe y
+//      no estaba activada (el cliente solo activaba audio y video).
+//      Verificado en el bundle:
+//        On = {audio:"audioWhitelist", desktop:"desktopWhitelist",
+//              video:"videoWhitelist"}
+//        desktopModerationEnabled, desktopUnmuteApproved,
+//        pendingDesktop, "desktop-moderation", "raise-hand-desktop"
 //
-// 'camera' se mantiene a proposito: en reuniones pequenas hace falta que
-// un participante pueda encender camara.
-//
-// El administrador entra EMBEBIDO desde el panel y alli si funciona
-// configOverwrite, asi que recupera 'desktop' y 'participants-pane' con
-// su propia barra (TOOLBAR_ADMIN en app.py).
-//
-// La barra es solo UI: quien puede hablar y transmitir de verdad lo
-// decide la moderacion A/V del servidor.
+// Por eso 'desktop' vuelve a la barra: con la moderacion de pantalla
+// activada, el boton se muestra pero el servidor NO deja transmitir
+// hasta que el administrador le da el permiso (igual que el micro).
+// Y en una reunion pequena sin moderacion, todos pueden compartir.
 config.toolbarButtons = [
     'microphone',
     'camera',
+    'desktop',
     'raisehand',
     'chat',
     'settings',
