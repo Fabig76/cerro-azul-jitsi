@@ -40,7 +40,7 @@ Archivos: `integracion/` (cliente JS, ejemplo, README para el otro equipo),
                                                                           mod, exp_reunion, pid único)
                                     ◀─ 7. {jwt, roomName, soyModerador, exp, participantId, domain}
  ◀─ 8. {jwt, roomName, soyModerador}
- 9. crearSalaJitsi(...) → iframe https://meet.bytracking.net/<sala>#jwt=… ─────────────────────▶ 10. valida firma, iss,
+ 9. crearSalaJitsi(...) → iframe https://meet.bytracking.net/<sala>?jwt=… ─────────────────────▶ 10. valida firma, iss,
                                                                                                        aud, room, nbf/exp;
                                                                                                        moderator:true → owner
 11. eventos (videoConferenceJoined, raiseHandUpdated…) → onEvento → backend votacionph (asistencia, cola)
