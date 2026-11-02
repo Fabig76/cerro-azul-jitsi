@@ -85,6 +85,15 @@
     <section class="card sala__card" aria-labelledby="sala-pa-t">
       <h2 class="sala__card-title" id="sala-pa-t">Participantes <span class="badge badge--neutral num" id="cnt"></span></h2>
       <p class="sala__ayuda">Mano levantada primero. «Pedir la palabra» aprueba el audio y le pide activar el micro.</p>
+      <!-- Bajar todas las manos: accion global, por eso va FUERA de #lista
+           (el JS congelado la vacia en cada repintado) y FUERA de .gl (el JS
+           congelado engancha todos los <button> de .gl). Ids con prefijo
+           manos-; la logica esta en /admin/static/bajar-manos.js. -->
+      <div class="manos-barra">
+        <button type="button" class="btn btn--sm btn--secondary" id="manos-bajar" disabled
+                aria-describedby="manos-estado">Bajar todas las manos</button>
+        <p class="manos-estado" id="manos-estado" role="status" aria-live="polite">Nadie tiene la mano levantada.</p>
+      </div>
       <div id="lista">
         <div class="skeleton" aria-hidden="true"></div>
         <div class="skeleton" aria-hidden="true"></div>
@@ -321,3 +330,14 @@
   });
 })();
 </script>
+<!-- Despues del script congelado: solo lee #lista y escribe en #log, no
+     depende de nada interno de el. -->
+<script src="/admin/static/bajar-manos.js?v={{asset_v}}"></script>
+<style>
+  /* Estilos del boton "Bajar todas las manos". Aqui y no en theme.css para
+     no ampliar el alcance del cambio; solo tokens del sistema de diseno. */
+  .manos-barra { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+                 margin-bottom: var(--space-3); }
+  .manos-estado { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); margin: 0; }
+  .manos-estado[data-tono="error"] { color: var(--danger); }
+</style>
