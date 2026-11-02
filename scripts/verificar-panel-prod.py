@@ -14,7 +14,11 @@ contenedor temporal del VPS con una contrasena de prueba y comprueba el
 login REAL (POST con usuario/contrasena -> 302, error visible con contrasena
 mala) a traves de un tunel ssh. No toca el contenedor de produccion.
 
-Uso: scripts/verificar-panel-prod.py [--login-imagen]
+Con --estado-botones ademas ejecuta scripts/probar-estado-botones-prod.py:
+admin + dos residentes reales en una sala de prueba propia; comprueba que los
+botones de la sala muestran el estado real (texto, clase, aria-pressed).
+
+Uso: scripts/verificar-panel-prod.py [--login-imagen] [--estado-botones]
 """
 import argparse
 import importlib.util
@@ -168,14 +172,26 @@ echo $D
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--login-imagen", action="store_true")
+    ap.add_argument("--estado-botones", action="store_true",
+                    help="prueba real con dos residentes (scripts/probar-estado-botones-prod.py)")
     args = ap.parse_args()
-    st, h, _ = vpl.Cliente(BASE).get("/admin/static/theme.css")
-    print("/admin/static/theme.css -> %s %s" % (st, h.get("Content-Type")))
+    for f in ("theme.css", "sala-estado.js", "bajar-manos.js"):
+        st, h, raw = vpl.Cliente(BASE).get("/admin/static/" + f)
+        print("/admin/static/%s -> %s %s" % (f, st, h.get("Content-Type")))
+        if st != 200:
+            vpl.fallo("/admin/static/%s -> %s" % (f, st))
+        elif f == "sala-estado.js" and b"SalaEstado" not in raw:
+            vpl.fallo("sala-estado.js servido no es el esperado")
     st, h, raw = vpl.Cliente(BASE).get("/admin/login")
     vpl.contrato("login", st, raw)
     flujo_sesion()
     if args.login_imagen:
         login_imagen()
+    if args.estado_botones:
+        print("=== PRODUCCION: estado de los botones con dos residentes reales ===")
+        r = subprocess.run([sys.executable, os.path.join(AQUI, "probar-estado-botones-prod.py")])
+        if r.returncode:
+            vpl.fallo("estado de los botones (probar-estado-botones-prod.py)")
     print("=== RESULTADO: %s ===" % ("OK" if not vpl.FALLOS else "%d FALLO(S)" % len(vpl.FALLOS)))
     for f in vpl.FALLOS:
         print("  - " + f)

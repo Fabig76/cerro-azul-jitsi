@@ -39,8 +39,28 @@ PASSWORD = "prueba-local-123"
 USER = "Hguaza76"
 API_KEY = "k" * 40
 PUB = "meet.bytracking.net"
-# Commit anterior al rediseno: referencia para el diff del <script> de la sala.
-BASE_REF_SALA = "0782429"
+# El <script> de la sala estuvo congelado (D8) y aqui se comparaba byte a
+# byte con 0782429. Esa comparacion ya fallaba desde 4e19178/140cd43 y el
+# 2026-11-02 el script se abrio a sabiendas (los botones muestran el estado
+# real: docs/MODERACION-ESTADO-BOTONES.md). Ahora se comprueba el CONTRATO:
+# lo que crea el JS (clases/atributos) y lo que no puede volver (comentario
+# falso de rejectParticipant, Silenciar solo con mute).
+CONTRATO_JS_SALA = [
+    ('className = "p"', "crea div.p"),
+    ('className = "n"', "crea div.n"),
+    ('className = "mano"', "crea span.mano"),
+    ('className = "m"', "crea p.m (sala vacia)"),
+    ('setAttribute("data-id", id)', "div.p[data-id] (fila identificable)"),
+    ('cmd("rejectParticipant", id, tipo)', "Silenciar/Quitar usan rejectParticipant con tipo"),
+    ('cmd("muteRemoteParticipant", id, tipo)', "Silenciar cierra el medio (mute + reject)"),
+    ('addListener("participantMuted"', "estado de micro/camara por participantMuted"),
+    ('isParticipantForceMuted', "permiso por isParticipantForceMuted"),
+    ('setAttribute("aria-pressed"', "aria-pressed en los botones"),
+    ('SE.boton(', "el aspecto se deriva del estado (SalaEstado.boton)"),
+]
+PROHIBIDO_JS_SALA = [
+    ("NO existe 'rejectParticipant'", "comentario falso: rejectParticipant SI existe"),
+]
 
 FALLOS = []
 
@@ -266,15 +286,22 @@ def contrato(nombre, st, raw, esperado_st=200, sala=False):
         grab_en_gl = any(n.attrs.get("id", "").startswith("grab") for g in gl for n in g.todos())
         i_ext = txt.find("/external_api.js")
         i_grab = txt.find("/admin/static/grabacion.js?v=")
+        i_est = txt.find("/admin/static/sala-estado.js?v=")
         i_cong = txt.rfind("<script>\n")
-        orden = 0 <= i_ext < i_grab < i_cong
+        orden = 0 <= i_ext < i_grab < i_est < i_cong
         resp = re.search(r'id="grab-aviso-resp">([^<]*)<', txt)
         resp = resp.group(1).strip() if resp else ""
         resp_ok = bool(resp) and (OWNER_ESPERADO is None or OWNER_ESPERADO in resp)
         print("  grabacion:    zona=%s #jitsi-dentro=%s en-.gl=%s orden-scripts=%s responsable=%r" % (
             bool(zona), dentro, grab_en_gl, orden, resp))
         if not (zona and dentro) or grab_en_gl or not orden or not resp_ok:
-            fallo("sala: estructura de grabacion incorrecta")
+            fallo("sala: estructura de grabacion incorrecta (o sala-estado.js fuera de orden)")
+        # Estado de los botones globales: una linea "Ahora: ..." por grupo,
+        # dentro de .gl y sin ser <button> (el JS engancha todos los de .gl).
+        est_gl = sorted(n.attrs["id"] for g in gl for n in g.todos() if n.attrs.get("id", "").startswith("gl-est-"))
+        print("  estado .gl:   %s" % est_gl)
+        if est_gl != ["gl-est-mod", "gl-est-palabra", "gl-est-silencio"]:
+            fallo("sala: faltan las lineas de estado de .gl (#gl-est-*)")
     print()
     return a
 
@@ -291,16 +318,39 @@ def script_sala(texto):
 def comprobar_ficheros(app_dir):
     print("=== FICHEROS ===")
     sala = open(os.path.join(app_dir, "page_sala.html"), encoding="utf-8").read()
-    try:
-        base = subprocess.run(["git", "-C", REPO, "show", BASE_REF_SALA + ":admin-panel/app/page_sala.html"],
-                              capture_output=True, text=True, check=True).stdout
-        a, b = script_sala(base), script_sala(sala)
-        igual = a is not None and a == b
-        print("  script sala vs %s: %s" % (BASE_REF_SALA, "IDENTICO" if igual else "DISTINTO"))
-        if not igual:
-            fallo("el <script> de page_sala.html cambio respecto a " + BASE_REF_SALA)
-    except subprocess.CalledProcessError:
-        print("  script sala: no se pudo leer el ref base")
+    js = script_sala(sala) or ""
+    for frag, que in CONTRATO_JS_SALA:
+        if frag in js:
+            print("  script sala:  %-55s OK" % que)
+        else:
+            fallo("script sala: falta " + que + " (" + frag + ")")
+    for frag, que in PROHIBIDO_JS_SALA:
+        if frag in js:
+            fallo("script sala: " + que)
+    # Sintaxis y estado visual (sin navegador): node --check del script de la
+    # sala y de sala-estado.js, y la tabla de casos de scripts/probar-sala-estado.js.
+    est = os.path.join(app_dir, "static", "sala-estado.js")
+    if subprocess.run(["which", "node"], capture_output=True).returncode == 0:
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as t:
+            t.write(js.replace("{{cfg_json}}", '{"domain":"x","roomName":"y","jwt":"z"}'))
+        for f, nom in ((t.name, "script sala"), (est, "sala-estado.js"),
+                       (os.path.join(app_dir, "static", "bajar-manos.js"), "bajar-manos.js")):
+            r = subprocess.run(["node", "--check", f], capture_output=True, text=True)
+            print("  node --check %-15s %s" % (nom, "OK" if r.returncode == 0 else "ERROR " + r.stderr[-300:]))
+            if r.returncode:
+                fallo("node --check " + nom)
+        os.unlink(t.name)
+        r = subprocess.run(["node", os.path.join(REPO, "scripts", "probar-sala-estado.js"), est],
+                           capture_output=True, text=True)
+        lineas = r.stdout.strip().splitlines()
+        print("  estado visual de los botones (probar-sala-estado.js): %s" % (lineas[-1] if lineas else r.stderr[-300:]))
+        for l in lineas:
+            if "FALLO" in l:
+                print("    " + l.strip())
+        if r.returncode:
+            fallo("estado visual de los botones (scripts/probar-sala-estado.js)")
+    else:
+        print("  node no instalado: sin node --check ni prueba del estado visual")
     css = os.path.join(app_dir, "static", "theme.css")
     if os.path.exists(css):
         c = open(css, encoding="utf-8").read()
@@ -396,7 +446,7 @@ def recorrido(base, rate_limit=True):
     print("  /admin/static/theme.css -> %s %s" % (st, h.get("Content-Type", "")))
     st, h, _ = c.get("/admin/static/theme.js")
     print("  /admin/static/theme.js  -> %s %s" % (st, h.get("Content-Type", "")))
-    for f in ("grabacion.js", "grabacion-worker.js"):
+    for f in ("grabacion.js", "grabacion-worker.js", "sala-estado.js", "bajar-manos.js"):
         st, h, _ = c.get("/admin/static/" + f)
         print("  /admin/static/%-20s -> %s %s" % (f, st, h.get("Content-Type", "")))
         if st != 200:

@@ -1,8 +1,13 @@
-<!-- Sala de moderacion. El <script> del final NO se toca (D8): solo la capa
-     visual. Contrato con el JS: #jitsi #lista #cnt #log #st-audio #st-video,
-     .gl button[data-cmd] (y ningun otro <button> dentro de .gl) y las clases
-     que crea el JS (div.p, div.n, span.mano, p.m, botones ok2 / d / sin clase),
-     estilizadas en theme.css, bloque "page: sala". -->
+<!-- Sala de moderacion. Contrato con el JS: #jitsi #lista #cnt #log #st-audio
+     #st-video, .gl button[data-cmd] (y ningun otro <button> dentro de .gl) y
+     las clases que crea el JS (div.p, div.n, span.mano, p.m, botones ok2 / d /
+     sin clase), estilizadas en theme.css, bloque "page: sala".
+     El <script> del final estuvo congelado (D8) hasta el 2026-11-02: se abrio
+     a sabiendas para que los botones muestren el estado real (el operador no
+     sabia si funcionaban). Desde entonces anade, sin cambiar lo anterior:
+     div.p[data-id], div.est (chips de estado), button[data-accion],
+     aria-pressed / aria-disabled / aria-busy, .pide, #gl-est-* y la carga de
+     /admin/static/sala-estado.js. Ver docs/MODERACION-ESTADO-BOTONES.md. -->
 <header class="salahead">
   <p class="salahead__live"><span class="live-dot" aria-hidden="true"></span><span class="eyebrow">Moderación en vivo</span></p>
   <h1 class="salahead__title">{{titulo}}</h1>
@@ -63,6 +68,7 @@
           <button type="button" class="btn btn--sm btn--soft-success" data-cmd="dar-palabra-todos" aria-label="Dar la palabra a todos">Dar a todos</button>
           <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="quitar-palabra-todos" aria-label="Quitar la palabra a todos">Quitar a todos</button>
         </div>
+        <p class="sala__gl-estado" id="gl-est-palabra" aria-live="polite">Ahora: sin datos de la moderación de audio.</p>
       </div>
       <div class="sala__grupo">
         <p class="eyebrow">Silenciar</p>
@@ -70,6 +76,7 @@
           <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="mute-all-audio" aria-label="Silenciar a todos">Micrófonos</button>
           <button type="button" class="btn btn--sm btn--soft-danger" data-cmd="mute-all-video" aria-label="Apagar todas las cámaras">Cámaras</button>
         </div>
+        <p class="sala__gl-estado" id="gl-est-silencio">Ahora: sin datos.</p>
       </div>
       <div class="sala__grupo">
         <p class="eyebrow">Moderación A/V</p>
@@ -77,14 +84,19 @@
           <button type="button" class="btn btn--sm btn--secondary" data-cmd="mod-on" aria-label="Activar moderación A/V">Activar</button>
           <button type="button" class="btn btn--sm btn--secondary btn--text-danger" data-cmd="mod-off" aria-label="Desactivar moderación A/V">Desactivar</button>
         </div>
+        <p class="sala__gl-estado" id="gl-est-mod" aria-live="polite">Ahora: sin datos.</p>
       </div>
-      <p class="field__hint">«Pedir la palabra» (por participante) es una <b>petición</b>: al asistente le aparece
+      <p class="field__hint">El botón marcado (✓) es el estado <b>real</b> de la sala, no el último que pulsaste.
+        «Micrófonos» y «Cámaras» son órdenes puntuales: lo que siga abierto se ve en «Ahora».
+        «Dar la palabra» (por participante) es una <b>petición</b>: al asistente le aparece
         un aviso y él decide. «Dar a todos» los habilita de inmediato.</p>
     </section>
 
     <section class="card sala__card" aria-labelledby="sala-pa-t">
       <h2 class="sala__card-title" id="sala-pa-t">Participantes <span class="badge badge--neutral num" id="cnt"></span></h2>
-      <p class="sala__ayuda">Mano levantada primero. «Pedir la palabra» aprueba el audio y le pide activar el micro.</p>
+      <p class="sala__ayuda">Mano levantada primero. Cada botón dice lo que hará según el estado real de esa
+        persona: «Dar la palabra» aprueba el audio y le pide abrir el micro; «Silenciar» se lo cierra y le
+        retira el permiso. «Enviando…» = esperando confirmación de Jitsi.</p>
       <!-- Bajar todas las manos: accion global, por eso va FUERA de #lista
            (el JS congelado la vacia en cada repintado) y FUERA de .gl (el JS
            congelado engancha todos los <button> de .gl). Ids con prefijo
@@ -146,6 +158,8 @@
 <!-- Grabacion: va ENTRE external_api.js y el script congelado (D8). Envuelve
      el constructor JitsiMeetExternalAPI para quedarse con la instancia. -->
 <script src="/admin/static/grabacion.js?v={{asset_v}}"></script>
+<!-- Como se pinta cada boton segun el estado real (funciones puras). -->
+<script src="/admin/static/sala-estado.js?v={{asset_v}}"></script>
 <script>
 (function () {
   "use strict";
@@ -187,14 +201,43 @@
     }
   });
 
-  // participantId -> { name, hand (timestamp o 0) }
+  // Estado REAL de cada participante (sin inventar: null = no se sabe).
+  //   name, hand (timestamp o 0)               displayName / raiseHandUpdated
+  //   mic, cam, pantalla: true abierto, false cerrado, null sin datos
+  //                                            participantMuted (+ pistas del store al entrar)
+  //   bloq.audio / bloq.video: true = la moderacion le impide abrir ese medio,
+  //                            false = puede, null = sin datos
+  //                                            api.isParticipantForceMuted
+  // Los botones de #lista se DERIVAN de esto en cada pintar() (SalaEstado.boton):
+  // pintar() reconstruye las filas, asi que no hay "estado pintado" que guardar.
   var gente = {};
   var yo = null;
+  // Moderacion real por tipo (true/false/null): isModerationOn + moderationStatusChanged.
+  var mod = { audio: null, video: null };
+  // Ordenes enviadas sin confirmar: "id|audio" -> {txt, hecho(g), t (timer)}.
+  var pend = {};
+  var ESPERA_MS = 6000;
+  var SE = window.SalaEstado;
+  if (!SE) log("ERROR: no cargo /admin/static/sala-estado.js: los botones no muestran el estado");
 
+  function nuevo(nombre, mano) {
+    return { name: nombre, hand: mano || 0, mic: null, cam: null, pantalla: null,
+             bloq: { audio: null, video: null } };
+  }
+
+  // executeCommand no devuelve resultado: solo puede fallar lanzando. Si
+  // lanza se anota en #log y se devuelve false (el boton sigue en su estado
+  // real: no se marca nada como hecho).
   function cmd(nombre) {
     var args = Array.prototype.slice.call(arguments, 1);
     log(nombre + "(" + args.map(function (a) { return JSON.stringify(a); }).join(", ") + ")");
-    api.executeCommand.apply(api, [nombre].concat(args));
+    try {
+      api.executeCommand.apply(api, [nombre].concat(args));
+      return true;
+    } catch (e) {
+      log("ERROR " + nombre + ": " + ((e && e.message) || e));
+      return false;
+    }
   }
 
   // Activar moderacion de audio y video. En stable-11031 el iframe API solo
@@ -203,15 +246,128 @@
   function activarModeracion() {
     cmd("toggleModeration", true, "audio");
     cmd("toggleModeration", true, "video");
-    setTimeout(estadoModeracion, 1500);
+    comprobarMod({ audio: true, video: true }, "activar la moderación");
+  }
+  function badge(m) {
+    var el = document.getElementById("st-" + m);
+    if (!el) return;
+    el.textContent = mod[m] === null ? "?" : mod[m] ? "ACTIVA" : "apagada";
+    el.className = "badge " + (mod[m] ? "badge--success" : "badge--neutral");
   }
   function estadoModeracion() {
     ["audio", "video"].forEach(function (m) {
       api.isModerationOn(m).then(function (on) {
-        var el = document.getElementById("st-" + m);
-        if (el) el.textContent = on ? "ACTIVA" : "apagada";
+        mod[m] = !!on;
+        badge(m);
+        pintar();
       }).catch(function () { /* el tipo no existe: se ignora */ });
     });
+    // Al cambiar la moderacion cambia a quien se le impide hablar.
+    Object.keys(gente).forEach(consultarBloq);
+  }
+  // Una orden global no tiene acuse: si a los 2,5 s la moderacion no es la
+  // pedida se avisa (p. ej. si el admin aun no es moderador). Los botones ya
+  // muestran la real.
+  function comprobarMod(quiero, etq) {
+    setTimeout(function () {
+      Object.keys(quiero).forEach(function (m) {
+        api.isModerationOn(m).then(function (on) {
+          mod[m] = !!on; badge(m); pintar();
+          if (!!on !== quiero[m]) {
+            log("AVISO " + etq + ": la moderación de " + m + " sigue " + (on ? "activa" : "apagada"));
+          }
+        }).catch(function () {});
+      });
+    }, 2500);
+  }
+
+  // true = la moderacion le impide abrir ese medio. Es la misma comprobacion
+  // que usa Jitsi para su propio panel (moderacion activa y no aprobado).
+  function consultarBloq(id) {
+    if (id === yo) return;
+    ["audio", "video"].forEach(function (t) {
+      api.isParticipantForceMuted(id, t).then(function (v) {
+        var g = gente[id];
+        if (!g) return;
+        g.bloq[t] = typeof v === "boolean" ? v : null;
+        revisar(id);
+        pintar();
+      }).catch(function () {
+        var g = gente[id];
+        if (g) { g.bloq[t] = null; pintar(); }
+      });
+    });
+  }
+
+  // Estado inicial de micro/camara: un residente que entra con el micro
+  // apagado NO tiene pista de audio y Jitsi no emite participantMuted hasta
+  // que lo abre (medido). Se lee del store del iframe (mismo origen); solo
+  // rellena lo que siga sin datos: los eventos mandan.
+  function sembrar(id) {
+    var g = gente[id];
+    if (!g || !SE || id === yo) return;
+    var p = SE.pistas(document.querySelector("#jitsi iframe"), id);
+    if (g.mic === null) g.mic = p.audio;
+    if (g.cam === null) g.cam = p.video;
+  }
+
+  // Confirma (o no) una orden pendiente con el estado real recien llegado.
+  function revisar(id) {
+    ["audio", "video"].forEach(function (t) {
+      var k = id + "|" + t, p = pend[k], g = gente[id];
+      if (!p || !g || !p.hecho(g)) return;
+      clearTimeout(p.t);
+      delete pend[k];
+      log((g.name || id) + ": " + p.txt + " confirmado");
+    });
+  }
+
+  // Accion de un boton de #lista. Se recalcula con el estado ACTUAL (no con
+  // el del momento en que se pinto el boton).
+  function accion(id, tipo) {
+    var g = gente[id], k = id + "|" + tipo;
+    if (!g || pend[k] || !SE) return;
+    var r = SE.boton(g, tipo, mod[tipo], null);
+    var audio = tipo === "audio", ok, txt, hecho;
+    if (r.accion === "dar") {
+      // Aprueba ese medio y se lo notifica (el decide si lo abre).
+      // Verificado contra la API de stable-11031.
+      txt = audio ? "dar la palabra" : "habilitar la cámara";
+      ok = audio ? cmd("askToUnmute", id) : cmd("approveVideo", id);
+      hecho = function (x) { return x.bloq[tipo] === false; };
+    } else if (r.accion === "quitar") {
+      // Tiene permiso y aun no ha abierto: se le retira el permiso.
+      txt = audio ? "quitar la palabra" : "quitar la cámara";
+      ok = cmd("rejectParticipant", id, tipo);
+      hecho = function (x) { return x.bloq[tipo] === true; };
+    } else if (r.accion === "silenciar") {
+      // Igual que el menu "Silenciar" del propio Jitsi: mute + reject.
+      // - muteRemoteParticipant solo cierra el micro EN ESE MOMENTO y no
+      //   revoca la aprobacion: el residente lo vuelve a abrir (medido).
+      // - rejectParticipant(id, tipo) SI existe (reject-participant en
+      //   external_api) y revoca la aprobacion, pero NO cierra el micro: el
+      //   residente sigue hablando (medido). Firma en app.bundle:
+      //   (id, t) => t === "video" ? rechazar video : rechazar audio.
+      //   Se pasa el tipo explicito ("audio"/"video"), nunca sin tipo.
+      txt = audio ? "silenciar" : "apagar la cámara";
+      ok = cmd("muteRemoteParticipant", id, tipo);
+      ok = cmd("rejectParticipant", id, tipo) && ok;
+      hecho = function (x) {
+        return (audio ? x.mic : x.cam) !== true && (mod[tipo] === false || x.bloq[tipo] === true);
+      };
+    } else {
+      log((g.name || id) + ": nada que hacer (" + r.texto + ")");
+      return;
+    }
+    if (!ok) { pintar(); return; }
+    pend[k] = { txt: txt, hecho: hecho, t: setTimeout(function () {
+      if (!pend[k]) return;
+      delete pend[k];
+      log("AVISO " + ((gente[id] && gente[id].name) || id) + ": " + txt +
+          " sin confirmar en " + ESPERA_MS / 1000 + " s; el botón muestra el estado real");
+      pintar();
+    }, ESPERA_MS) };
+    pintar();
   }
 
   function boton(txt, cls, fn) {
@@ -223,8 +379,40 @@
     return b;
   }
 
+  function pintarGlobal() {
+    if (!SE) return;
+    var c = { mic: { on: 0, nul: 0 }, cam: { on: 0, nul: 0 } };
+    Object.keys(gente).forEach(function (id) {
+      if (id === yo) return;
+      var g = gente[id];
+      if (g.mic === true) c.mic.on++; else if (g.mic === null) c.mic.nul++;
+      if (g.cam === true) c.cam.on++; else if (g.cam === null) c.cam.nul++;
+    });
+    var e = SE.globales(mod, c);
+    document.querySelectorAll(".gl button[data-cmd]").forEach(function (b) {
+      var k = b.getAttribute("data-cmd"), p = e.pressed[k];
+      if (p) b.setAttribute("aria-pressed", p); else b.removeAttribute("aria-pressed");
+      if (k in e.abiertos) {
+        // Rojo solo si hay algo abierto que cerrar; si no, neutro.
+        var hay = e.abiertos[k] > 0;
+        b.classList.toggle("btn--soft-danger", hay);
+        b.classList.toggle("btn--secondary", !hay);
+      }
+    });
+    [["gl-est-palabra", e.palabra], ["gl-est-silencio", e.silencio], ["gl-est-mod", e.mod]].forEach(function (x) {
+      var el = document.getElementById(x[0]);
+      if (el && el.textContent !== x[1]) el.textContent = x[1];
+    });
+  }
+
   function pintar() {
+    pintarGlobal();
     var cont = document.getElementById("lista");
+    // Conservar el foco del teclado a traves del repintado (data-id + data-accion).
+    var f = document.activeElement, foco = null;
+    if (f && cont.contains(f) && f.getAttribute("data-accion") && f.parentNode) {
+      foco = [f.parentNode.getAttribute("data-id"), f.getAttribute("data-accion")];
+    }
     cont.textContent = "";
     var ids = Object.keys(gente).filter(function (id) { return id !== yo; });
     ids.sort(function (a, b) {
@@ -237,9 +425,13 @@
       var p = document.createElement("p"); p.className = "m"; p.textContent = "Nadie mas en la sala.";
       cont.appendChild(p); return;
     }
-    ids.forEach(function (id) {
+    ids.forEach(function (id, i) {
       var g = gente[id];
       var d = document.createElement("div"); d.className = "p";
+      // data-id: identifica la fila del participante (para conservar el foco
+      // al repintar y para las pruebas: scripts/probar-estado-botones-prod.py).
+      // Atributo nuevo: no cambia el contrato de clases/ids.
+      d.setAttribute("data-id", id);
       var n = document.createElement("div"); n.className = "n";
       if (g.hand) {
         var m = document.createElement("span"); m.className = "mano"; m.textContent = "[mano] ";
@@ -248,32 +440,74 @@
       // textContent: el nombre lo escribe el asistente, nunca innerHTML.
       n.appendChild(document.createTextNode(g.name || id));
       d.appendChild(n);
-      // "Dar palabra" individual: askToUnmute es una PETICION al
-      // participante (le aparece un aviso y el decide), no una orden.
-      // Verificado contra la API de stable-11031.
-      d.appendChild(boton("Pedir la palabra", "ok2", function () { cmd("askToUnmute", id); }));
-      // Silenciar a ese participante. NO existe 'rejectParticipant' en la
-      // API (era un comando inexistente que fallaba en silencio).
-      d.appendChild(boton("Silenciar", "d", function () {
-        cmd("muteRemoteParticipant", id, "audio");
-      }));
-      d.appendChild(boton("Habilitar camara", "", function () { cmd("approveVideo", id); }));
-      d.appendChild(boton("Apagar camara", "d", function () {
-        cmd("muteRemoteParticipant", id, "video");
-      }));
+      if (!SE) {
+        // Sin sala-estado.js: botones neutros (sin estado) que siguen moderando.
+        d.appendChild(boton("Silenciar", "", function () {
+          cmd("muteRemoteParticipant", id, "audio"); cmd("rejectParticipant", id, "audio");
+        }));
+        d.appendChild(boton("Apagar cámara", "", function () {
+          cmd("muteRemoteParticipant", id, "video"); cmd("rejectParticipant", id, "video");
+        }));
+        cont.appendChild(d);
+        return;
+      }
+      // Estado en texto (no solo color): micro, camara y pantalla.
+      var est = document.createElement("div"); est.className = "est";
+      est.id = "est-" + i;
+      ["audio", "video"].forEach(function (t) {
+        var c = SE.chip(g, t), s = document.createElement("span");
+        s.className = c.clase; s.textContent = c.texto; est.appendChild(s);
+      });
+      if (g.pantalla === true) {
+        var sp = document.createElement("span");
+        sp.className = "badge badge--info"; sp.textContent = "Comparte pantalla"; est.appendChild(sp);
+      }
+      d.appendChild(est);
+      // Un boton por medio. Texto, clase y aria salen del estado real:
+      //   abierto            -> "Silenciar" / "Apagar cámara"        (.d,   aria-pressed=true)
+      //   cerrado sin permiso -> "Dar la palabra" / "Habilitar cámara" (.ok2, aria-pressed=false)
+      //                          + .pide y "(la pidió)" si tiene la mano levantada
+      //   cerrado con permiso -> "Quitar la palabra" / "Quitar la cámara" (.d, aria-pressed=true)
+      //   moderacion apagada y cerrado -> "Micro cerrado" (aria-disabled: nada que hacer)
+      //   sin datos          -> boton neutro (sin clase, sin aria-pressed)
+      ["audio", "video"].forEach(function (t) {
+        var k = id + "|" + t;
+        var r = SE.boton(g, t, mod[t], pend[k] ? pend[k].txt : null);
+        var b = boton(r.texto, r.clase, function () {
+          if (b.getAttribute("aria-disabled") === "true") return;
+          accion(id, t);
+        });
+        b.setAttribute("data-accion", t);
+        b.setAttribute("aria-label", r.ayuda);
+        b.setAttribute("aria-describedby", est.id);
+        if (r.pressed) b.setAttribute("aria-pressed", r.pressed);
+        // aria-disabled y no disabled: sigue enfocable y el lector lo anuncia.
+        if (r.disabled) b.setAttribute("aria-disabled", "true");
+        if (r.busy) b.setAttribute("aria-busy", "true");
+        d.appendChild(b);
+      });
       cont.appendChild(d);
     });
+    if (foco) {
+      var fila = cont.querySelector('.p[data-id="' + foco[0] + '"]');
+      var bt = fila && fila.querySelector('button[data-accion="' + foco[1] + '"]');
+      if (bt) bt.focus();
+    }
   }
 
   function recargar() {
     api.getRoomsInfo().then(function (info) {
       var main = (info.rooms || []).filter(function (r) { return r.isMainRoom; })[0];
       if (!main) return;
-      var nuevo = {};
+      var nuevos = {};
       (main.participants || []).forEach(function (p) {
-        nuevo[p.id] = { name: p.displayName, hand: (gente[p.id] && gente[p.id].hand) || 0 };
+        // Conserva lo que ya se sabia de cada uno (mano, micro, permisos).
+        var g = gente[p.id] || nuevo(p.displayName, 0);
+        g.name = p.displayName;
+        nuevos[p.id] = g;
       });
-      gente = nuevo;
+      gente = nuevos;
+      Object.keys(gente).forEach(function (id) { sembrar(id); consultarBloq(id); });
       pintar();
     });
   }
@@ -288,16 +522,48 @@
   api.addListener("participantRoleChanged", function (e) {
     if (e.id === yo && e.role === "moderator") { log("rol moderador confirmado"); activarModeracion(); }
   });
-  api.addListener("moderationStatusChanged", function () { estadoModeracion(); });
-  api.addListener("participantJoined", function (e) {
-    gente[e.id] = { name: e.displayName, hand: 0 }; pintar();
+  api.addListener("moderationStatusChanged", function (e) {
+    if (e && (e.mediaType === "audio" || e.mediaType === "video") && typeof e.enabled === "boolean") {
+      mod[e.mediaType] = e.enabled;
+      badge(e.mediaType);
+    }
+    estadoModeracion();
   });
-  api.addListener("participantLeft", function (e) { delete gente[e.id]; pintar(); });
+  // Aprobado / rechazado (por este admin, otro moderador o Jitsi): se vuelve
+  // a preguntar en vez de suponer.
+  api.addListener("moderationParticipantApproved", function (e) { if (e && gente[e.id]) consultarBloq(e.id); });
+  api.addListener("moderationParticipantRejected", function (e) { if (e && gente[e.id]) consultarBloq(e.id); });
+  // Micro / camara / pantalla de un participante REMOTO. (audioMuteStatusChanged
+  // y videoMuteStatusChanged son solo del admin: traen {muted} sin id.)
+  api.addListener("participantMuted", function (e) {
+    if (!e || !e.id || e.id === "local" || e.id === yo) return;
+    var g = gente[e.id] || (gente[e.id] = nuevo(e.id, 0));
+    var v = e.isMuted === true ? false : e.isMuted === false ? true : null;
+    if (e.mediaType === "audio") g.mic = v;
+    else if (e.mediaType === "video") g.cam = v;
+    else if (e.mediaType === "desktop") g.pantalla = v;
+    revisar(e.id);
+    pintar();
+  });
+  api.addListener("participantJoined", function (e) {
+    gente[e.id] = nuevo(e.displayName, 0);
+    sembrar(e.id);
+    consultarBloq(e.id);
+    pintar();
+  });
+  api.addListener("participantLeft", function (e) {
+    ["audio", "video"].forEach(function (t) {
+      var p = pend[e.id + "|" + t];
+      if (p) { clearTimeout(p.t); delete pend[e.id + "|" + t]; }
+    });
+    delete gente[e.id];
+    pintar();
+  });
   api.addListener("displayNameChange", function (e) {
     if (gente[e.id]) { gente[e.id].name = e.displayname || e.displayName; pintar(); }
   });
   api.addListener("raiseHandUpdated", function (e) {
-    if (!gente[e.id]) gente[e.id] = { name: e.id, hand: 0 };
+    if (!gente[e.id]) gente[e.id] = nuevo(e.id, 0);
     gente[e.id].hand = e.handRaised || 0;
     pintar();
   });
@@ -305,13 +571,17 @@
   document.querySelectorAll(".gl button").forEach(function (b) {
     b.addEventListener("click", function () {
       var c = b.getAttribute("data-cmd");
+      // muteEveryone cierra el medio Y revoca la aprobacion de todos (en
+      // app.bundle hace mute + reject por cada uno). No tiene acuse: su
+      // resultado se ve en los participantMuted de cada fila y en el recuento
+      // "Ahora: N micros abiertos".
       if (c === "mute-all-audio") cmd("muteEveryone", "audio");
       else if (c === "mute-all-video") cmd("muteEveryone", "video");
       else if (c === "mod-on") activarModeracion();
       else if (c === "mod-off") {
         cmd("toggleModeration", false, "audio");
         cmd("toggleModeration", false, "video");
-        setTimeout(estadoModeracion, 1500);
+        comprobarMod({ audio: false, video: false }, "desactivar la moderación");
       }
       // "Dar la palabra a todos": desactivar la moderacion de audio es la
       // via DETERMINISTA verificada (prueba de 3 fases en produccion):
@@ -320,17 +590,17 @@
       // que el asistente la acepte.
       else if (c === "dar-palabra-todos") {
         cmd("toggleModeration", false, "audio");
-        setTimeout(estadoModeracion, 1500);
+        comprobarMod({ audio: false }, "dar la palabra a todos");
       }
       else if (c === "quitar-palabra-todos") {
         cmd("toggleModeration", true, "audio");
-        setTimeout(estadoModeracion, 1500);
+        comprobarMod({ audio: true }, "quitar la palabra a todos");
       }
     });
   });
 })();
 </script>
-<!-- Despues del script congelado: solo lee #lista y escribe en #log, no
+<!-- Despues del script de la sala: solo lee #lista y escribe en #log, no
      depende de nada interno de el. -->
 <script src="/admin/static/bajar-manos.js?v={{asset_v}}"></script>
 <style>

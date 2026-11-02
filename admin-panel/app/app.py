@@ -111,7 +111,7 @@ def jwt_config_problems():
 # Estaticos del rediseno (theme.css / theme.js) en /admin/static: /static/*
 # es de Jitsi en Caddy y /admin* ya llega al panel. Subir ASSET_V al cambiar
 # cualquier estatico (rompe la cache del navegador con ?v=).
-ASSET_V = "20261102g"
+ASSET_V = "20261102h"
 app = Flask(__name__, static_url_path="/admin/static")
 app.secret_key = A.get("FLASK_SECRET_KEY") or SK
 app.permanent_session_lifetime = timedelta(hours=4)

@@ -952,10 +952,13 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
   .qrcard { width: calc(280px + 2 * var(--space-5)); position: sticky; top: calc(var(--header-h) + var(--space-6)); }
 }
 
-/* page: sala (moderación en vivo). El JS de page_sala.html no se toca (D8).
+/* page: sala (moderación en vivo). El JS de page_sala.html estuvo congelado
+   (D8) hasta el 2026-11-02; desde entonces los botones muestran el estado real.
    CONTRATO SALA: #jitsi, #lista, #cnt, #log, #st-audio, #st-video, .gl y las
    clases que crea el JS (div.p, div.n, span.mano, p.m, botones .ok2 / .d /
-   sin clase). Estas reglas son permanentes: no borrarlas. */
+   sin clase). Estas reglas son permanentes: no borrarlas. Añadidos de estado:
+   div.p[data-id], div.est, .pide, aria-pressed / aria-disabled / aria-busy,
+   .sala__gl-estado (docs/MODERACION-ESTADO-BOTONES.md). */
 .salahead { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-5); }
 .salahead__live { display: flex; align-items: center; gap: var(--space-2); }
 .salahead__live .eyebrow { color: var(--danger); }
@@ -983,6 +986,14 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 .gl .sala__fila { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 .gl button { width: 100%; white-space: normal; padding-block: var(--space-1); }
 .gl .field__hint { font-size: var(--text-xs); line-height: var(--lh-xs); }
+/* Interruptores globales: el pulsado es el estado REAL (aria-pressed lo pone
+   el JS con isModerationOn / moderationStatusChanged). No solo color: marca ✓
+   y borde; sin aria-pressed = sin datos (neutro). */
+.gl button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; font-weight: var(--weight-bold); }
+.gl button[aria-pressed="true"]::before { content: "✓"; margin-right: var(--space-1); }
+.gl button[aria-pressed="false"] { opacity: .75; }
+.gl button[aria-pressed="false"]:hover { opacity: 1; }
+.sala__gl-estado { color: var(--text-muted); font-size: var(--text-xs); line-height: var(--lh-xs); margin: 0; }
 
 .sala__ayuda { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-sm); margin-bottom: var(--space-3); }
 #lista { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -990,9 +1001,10 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 .sala__conectando { color: var(--text-muted); font-size: var(--text-sm); text-align: center; }
 #lista .p { background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-3);
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); box-shadow: inset 3px 0 0 transparent; }
-/* Tablet: los 4 botones en una fila; móvil y panel lateral (>= 1024): 2 x 2 */
+/* Dos botones por persona (micro y cámara) desde 2026-11-02. Tablet: tamaño
+   natural en una fila; móvil y panel lateral (>= 1024): dos columnas iguales. */
 @media (min-width: 768px) and (max-width: 1023.98px) {
-  #lista .p { grid-template-columns: repeat(4, max-content); }
+  #lista .p { grid-template-columns: repeat(2, max-content); }
 }
 #lista .p:has(.mano) { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
 #lista .n { grid-column: 1 / -1; min-width: 0; font-size: var(--text-md); line-height: var(--lh-md); font-weight: var(--weight-medium);
@@ -1014,6 +1026,16 @@ textarea.field__input { min-height: 6rem; resize: vertical; }
 #lista .p button.ok2:hover { box-shadow: inset 0 0 0 1px var(--success); }
 #lista .p button.d { background: var(--danger-soft); color: var(--danger-soft-text); box-shadow: none; }
 #lista .p button.d:hover { box-shadow: inset 0 0 0 1px var(--danger); }
+/* Estado del participante en texto (chips) y botones que lo reflejan. */
+#lista .est { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-1); }
+#lista .est .badge { font-size: var(--text-xs); }
+#lista .est .est--nul { font-style: italic; }
+#lista .p button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px currentColor; }
+/* Mano levantada y se le puede dar la palabra: el botón de palabra destaca. */
+#lista .p button.ok2.pide { background: var(--warn-soft); color: var(--warn-soft-text); box-shadow: inset 0 0 0 2px var(--warn); }
+#lista .p button[aria-disabled="true"] { opacity: .55; cursor: not-allowed; background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-muted); }
+#lista .p button[aria-disabled="true"]:active { transform: none; }
+#lista .p button[aria-busy="true"] { cursor: progress; opacity: .8; font-style: italic; }
 @media (pointer: coarse) { #lista .p button { min-height: var(--tap); } }
 /* "Nadie mas en la sala." (p.m que escribe el JS) */
 #lista > p.m { color: var(--text-muted); text-align: center; padding: var(--space-6) var(--space-2); margin: 0; }

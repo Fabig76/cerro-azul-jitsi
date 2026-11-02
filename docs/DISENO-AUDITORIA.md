@@ -299,6 +299,7 @@ B usó ese mismo token en `?jwt=` (el guion lo marca como AVISO).
 | Commit | Archivo | Qué se cambió | Cómo se verificó |
 |---|---|---|---|
 | `740da81`, `4193357`, `cbc4b47` | `page_sala.html` (barra `#manos-bajar` + `#manos-estado`, fuera de `#lista` y `.gl`), `static/bajar-manos.js` (nuevo) | Botones «Bajar todas las manos» y «Bajar la mano» por persona. El `<script>` congelado de la sala **no cambia** | `scripts/verificar-bajar-manos.py` (local, Jitsi simulado) y `scripts/probar-bajar-manos-prod.py` (producción, dos residentes reales: baja una, bajan todas, el botón vuelve a gris, la vía por el videobridge no baja ninguna). Confirmado por el operador en asamblea. Detalle: [`MODERACION-MANOS.md`](MODERACION-MANOS.md) |
+| (este cambio) | `page_sala.html` (**se abre el `<script>` congelado, D8**), `static/sala-estado.js` (nuevo), `theme.css` (bloque sala) | Los botones muestran el estado real: `participantMuted`, `isParticipantForceMuted`, moderación. «Silenciar» = mute + `rejectParticipant`. `div.p[data-id]`. Globales con `aria-pressed` | `scripts/verificar-panel-local.py` (contrato JS + `scripts/probar-sala-estado.js`) y `scripts/probar-estado-botones-prod.py` (producción, dos residentes reales). Detalle: [`MODERACION-ESTADO-BOTONES.md`](MODERACION-ESTADO-BOTONES.md) |
 
 ## Revisión visual (capturas finales, `docs/capturas-rediseno/`)
 
