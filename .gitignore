@@ -67,3 +67,15 @@ turn/certs/
 # Informes y tokens de la prueba de carga
 loadtest/results/
 loadtest/*.jwt
+
+# --- Copia de seguridad en Drive (Fase 10) ------------------------------
+# La clave con la que se cifra el paquete de secretos NUNCA al repo.
+# Vive en /root/.cerro-azul-backup/CLAVE.txt.
+CLAVE.txt
+*.clave
+backup-*.tar.gz
+backup-*.tar.gz.enc
+secretos-*.tar.gz
+secretos-*.tar.gz.enc
+*.bundle
+
