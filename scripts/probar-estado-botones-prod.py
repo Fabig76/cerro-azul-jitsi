@@ -230,6 +230,10 @@ def main():
             a.click('.gl button[data-cmd="mod-on"]')
             ok(esperar(lambda: glp("mod-on") == "true" and glp("quitar-palabra-todos") == "true", 10),
                "Activar: Activar=%r Quitar a todos=%r" % (glp("mod-on"), glp("quitar-palabra-todos")))
+            # "Dar a todos" y "Activar" seguidos (< 2,5 s): la comprobacion de
+            # la orden anterior no debe avisar en falso.
+            time.sleep(3)
+            ok("AVISO dar la palabra a todos" not in log(), "  sin AVISO falso de la orden global anterior")
 
             print("[9. errores: el boton no miente]")
             ok(esperar(lambda: txt(id1, "audio").startswith("Dar la palabra"), 10), "B1: '%s'" % txt(id1, "audio"))

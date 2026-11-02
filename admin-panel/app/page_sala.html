@@ -267,13 +267,17 @@
   }
   // Una orden global no tiene acuse: si a los 2,5 s la moderacion no es la
   // pedida se avisa (p. ej. si el admin aun no es moderador). Los botones ya
-  // muestran la real.
+  // muestran la real. Solo avisa la ULTIMA orden global: si entretanto se
+  // pulso otra (p. ej. "Dar a todos" y enseguida "Activar"), la anterior ya no
+  // es lo que se pidio y su aviso seria falso.
+  var ordenMod = 0;
   function comprobarMod(quiero, etq) {
+    var n = ++ordenMod;
     setTimeout(function () {
       Object.keys(quiero).forEach(function (m) {
         api.isModerationOn(m).then(function (on) {
           mod[m] = !!on; badge(m); pintar();
-          if (!!on !== quiero[m]) {
+          if (n === ordenMod && !!on !== quiero[m]) {
             log("AVISO " + etq + ": la moderación de " + m + " sigue " + (on ? "activa" : "apagada"));
           }
         }).catch(function () {});
