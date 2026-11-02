@@ -98,6 +98,15 @@ TLS público: Let's Encrypt emitido por Caddy, válido hasta el 30-ene-2027.
 
 - `jitsi/jvb:stable-11031` (JVB 2.3.295). `10000/udp` y `4443/tcp` publicados.
 - Un solo bridge (sin Octo).
+- **Capacidad (sala grande):** en la asamblea transmite una sola persona, así
+  que el JVB manda una pista de vídeo + audio a cada oyente. Medido el 2-nov
+  con `loadtest/medir-bitrate.py`: **0,32–0,41 Mbit/s de subida por oyente** →
+  160–200 Mbit/s a 500, frente a ~220 Mbit/s de subida del VPS. El límite es la
+  subida, no la CPU (17 % con 48 simultáneos). En producción hay un
+  `bitrate: { ideal: 280000, max: 320000 }` en `config.constraints`, pero en
+  `stable-11031` nada lo lee: **no se ha verificado que limite nada**. El tope
+  real sería `videoQuality.maxBitratesVideo`. Ver
+  [`CAPACIDAD-500.md`](CAPACIDAD-500.md).
 - REST privado en `:8080` (`/about/health`, `/colibri/stats`, `/debug`).
 
 ### jitsi-admin (panel)

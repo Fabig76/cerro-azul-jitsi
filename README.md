@@ -534,7 +534,7 @@ moderador; no está activado porque no se ha probado con `token_affiliation`.
 | 2 | JWT obligatorio y moderación A/V | **completa** |
 | 3 | Sala grande (config de cliente) | **completa**: la config vigente es idéntica a `e30c36d` |
 | 4 | TURN propio | **completa** (pendiente: prueba con dispositivo real, ver criterios) |
-| 5 | Capacidad 500+ / servidor dedicado | **PENDIENTE.** No comprar nada hasta un **ensayo real con 50–100 vecinos** |
+| 5 | Capacidad 500+ / servidor dedicado | **Resuelta: no hace falta hardware nuevo.** En la asamblea solo transmite una persona; medido a ~0,3–0,4 Mbit/s por oyente → 160–200 Mbit/s a 500, dentro de los ~220 de subida del VPS. Pendiente: prueba con 500 reales y tope de tráfico del proveedor ([sección Fase 5](#fase-5--capacidad-para-500-personas)) |
 | 6 | Integración con votacionph.us | **parcial**: API `POST /api/reuniones/<id>/token`, `integracion/jitsi-cliente.js` y doc hechos. Falta que el portal lo use y aplicar `frame-ancestors` en el Caddy del host ([docs/INTEGRACION-JITSI.md](docs/INTEGRACION-JITSI.md)) |
 | 7 | Operación: monitorización, respaldos, prueba de carga | **completa** (pendientes: cron de respaldo y restauración en servidor limpio, ver criterios) |
 | 8 | Rediseño visual del panel | **completa** |
@@ -554,7 +554,7 @@ moderador; no está activado porque no se ha probado con `token_affiliation`.
 | Un residente comparte pantalla y todos la ven | **hecho** con el procedimiento "Habilitar cámara" (confirmado en producción el 2-nov a las 12:33) | 3 |
 | Audio en ambos sentidos con UDP bloqueado (TURN en 443) | TURN desplegado, relay verificado y vigilado por el watchdog. **A verificar** con dispositivo real (móvil con datos + PC con UDP bloqueado) | 4 |
 | Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** (depende de que votacionph integre el cliente) | 6 |
-| Prueba de carga | **parcial**: se lanzaron 10, 50 y 120 receptores; **pico de 48 simultáneos**, 0 `bridge_failures`, JVB al 9–17 % de CPU. El límite lo puso el generador de clientes, no el servidor. La de 600 queda para la Fase 5 ([loadtest/README.md](loadtest/README.md)) | 7 / 5 |
+| Prueba de carga | **parcial**: se lanzaron 10, 50 y 120 receptores; **pico de 48 simultáneos**, 0 `bridge_failures`, JVB al 9–17 % de CPU. El límite lo puso el generador de clientes, no el servidor. Prueba real del operador con **50 personas** (2-nov) sin problemas; ancho de banda por oyente medido con `loadtest/medir-bitrate.py`. La de 500–600 reales sigue pendiente ([loadtest/README.md](loadtest/README.md), [docs/CAPACIDAD-500.md](docs/CAPACIDAD-500.md)) | 7 / 5 |
 | Alertas: apagar el web dispara alerta en < 2 min | **hecho** (watchdog cada 2 min → Telegram; probado a mano) | 0 |
 | Respaldo restaurado en un servidor limpio | **pendiente** (scripts probados en local sobre un clon limpio; en producción hay 1 respaldo, del 1-nov 03:40, y **sin cron diario**; ver `docs/BACKUP-RESTORE.md`) | 7 |
 
@@ -847,6 +847,74 @@ certificado cambió.
 | Registro DNS `turn.urbcerroazul.com` + Let's Encrypt | **no se hará por ahora**: se usa la IP y el autofirmado (a propósito) |
 | Audio en ambos sentidos con UDP bloqueado | **pendiente** de la prueba con dispositivo real (móvil con datos + PC con UDP bloqueado) |
 
+## Fase 5 — Capacidad para 500 personas
+
+**Resuelta sin hardware nuevo.** El plan pedía un JVB en un servidor dedicado
+(1 Gbit/s, sin tope de tráfico). Con el uso real no hace falta. Detalle,
+metodología y pendientes: [docs/CAPACIDAD-500.md](docs/CAPACIDAD-500.md).
+
+**Modelo de uso real** (palabras del administrador):
+
+> *"se conectan 500 pero solo el moderador prende la cámara y/o presenta
+> pantalla; nadie más; los demás tienen el micrófono cerrado. […] todos están
+> escuchando a una única persona presentando siempre."*
+
+El JVB reenvía una sola pista de vídeo a cada oyente. El coste crece con los
+oyentes y el límite es la **subida del VPS (~220 Mbit/s medidos)**, no la CPU.
+
+**Medición en producción (2-nov-2026)**: 6 receptores reales + 1 emisor con
+cámara, contando los bytes enviados por las interfaces físicas del host
+(`/proc/net/dev`):
+
+| | Antes de la línea `bitrate` | Después |
+|---|---|---|
+| Subida total | 2,43 Mbit/s | 1,90 Mbit/s |
+| Por receptor | 0,405 Mbit/s | 0,316 Mbit/s |
+| Extrapolado a 500 | 203 Mbit/s | 158 Mbit/s |
+
+Desglose estimado a 500 con el vídeo del ponente a ~320 kbit/s: audio ~15 +
+vídeo ~160 + señalización ~10 = **~175–185 Mbit/s de 220**. Además, el operador
+hizo el 2-nov una prueba con **50 personas** (cámara, audio y pantalla) sin
+problemas.
+
+**Cambio de configuración** (desplegado en producción el 2-nov; en el repo,
+pendiente de commit):
+
+```js
+config.constraints = {
+    video: {
+        height: { ideal: 360, max: 720, min: 180 },
+        bitrate: { ideal: 280000, max: 320000 }
+    }
+};
+```
+
+> ⚠️ **No está verificado que esta línea tenga efecto.** En el bundle de
+> `stable-11031`, `config.constraints` solo alimenta el `getUserMedia` de la
+> **cámara**. Nada lee `constraints.video.bitrate`, y la **pantalla compartida
+> no usa `config.constraints`**: toma `desktopSharingFrameRate`, `resolution` y
+> `screenShareSettings`. La bajada de 0,405 a 0,316 puede deberse a la variación
+> entre ejecuciones. En esta versión, el tope real se pone con
+> `config.videoQuality.maxBitratesVideo`; queda pendiente probarlo. **La
+> conclusión no depende de ello**: sin tope salen 203 Mbit/s, también por debajo
+> de 220.
+
+**Conclusión:** no hace falta servidor dedicado. Por encima de la subida del
+VPS, el límite es **la red de cada vecino**. El JVB adapta lo que envía a cada
+receptor: a quien no puede recibir la pantalla se la recorta o la suspende
+(`insufficient bandwidth` en el log del JVB) y la ve degradada; con ~3 Mbit/s la
+ve perfecta. Por eso la **moderación A/V** es importante: si solo transmite quien
+tiene la palabra, el ancho de banda de cada uno se reserva para esa persona.
+
+**Repetir la medición:** `python3 loadtest/medir-bitrate.py [N_RECEPTORES] [SEGUNDOS]`
+(por defecto 6 y 40). Crea y borra una reunión de prueba en producción
+([loadtest/README.md](loadtest/README.md#medir-el-ancho-de-banda-por-oyente-medir-bitratepy)).
+
+**Pendiente:** tope de tráfico mensual del VPS (panel del proveedor), prueba con
+500 reales, comportamiento con muchas redes distintas a la vez y el modo
+"asamblea" del panel (`channelLastN` a 1 y menos bitrate de pantalla en
+reuniones grandes; en cola, **no implementado**).
+
 ## Fase 7 — Operación
 
 ### 7.1 Monitorización
@@ -902,8 +970,9 @@ y 0 errores en Prosody. El límite lo puso la RAM de los hosts que generaban los
 
 ## Limitaciones Conocidas
 
-- **Capacidad no demostrada por encima de 48 simultáneos** (pico de la prueba de carga). 500
-  es el límite configurado (`MAX_PARTICIPANTS`), no uno medido. Fase 5 pendiente.
+- **500 es una extrapolación, no una prueba**: la mayor prueba real es de 50 personas
+  (2-nov) y el pico de la prueba de carga, de 48. El ancho de banda por oyente está medido y
+  a 500 cabe en la subida del VPS, **si solo transmite una persona** (ver Fase 5).
 - **Para que un residente comparta pantalla**, el admin tiene que pulsar "Habilitar cámara", y
   repetirlo si el residente recarga (ver la sección de pantalla compartida).
 - Grabación solo en el PC del admin (Chrome de escritorio). No hay Jibri ni grabación en servidor.
@@ -930,7 +999,8 @@ y 0 errores en Prosody. El límite lo puso la RAM de los hosts que generaban los
 | [integracion/README.md](integracion/README.md) | Eres del equipo de votacionph y vas a embeber Jitsi |
 | [admin-panel/README.md](admin-panel/README.md) | Necesitas la referencia de las rutas del panel y de la API de tokens |
 | [turn/README.md](turn/README.md) | Vas a tocar el TURN: despliegue, firewall, certificado, watchdog |
-| [loadtest/README.md](loadtest/README.md) | Vas a repetir o ampliar la prueba de carga |
+| [docs/CAPACIDAD-500.md](docs/CAPACIDAD-500.md) | Quieres saber por qué el VPS aguanta 500 oyentes, de dónde salen los números y qué falta probar |
+| [loadtest/README.md](loadtest/README.md) | Vas a repetir o ampliar la prueba de carga o la medición de ancho de banda |
 | [loadtest/malleus-sala-prueba.md](loadtest/malleus-sala-prueba.md) | Necesitas los comandos exactos de Malleus para `meet.bytracking.net` |
 | [docs/GRABACION-ADMIN.md](docs/GRABACION-ADMIN.md) | Eres el administrador y vas a grabar una asamblea o convertirla a MP4 |
 | [docs/GRABACION-PASO0.md](docs/GRABACION-PASO0.md) | Vas a verificar la grabación en los PCs reales (checklist pendiente) |
@@ -1129,6 +1199,8 @@ Valores actuales, **idénticos a los de la Fase 3** (`e30c36d`):
 ```js
 config.resolution = 360;                                        // cámara
 config.constraints = { video: { height: { ideal: 360, max: 720, min: 180 } } };
+// + en producción desde el 2-nov: bitrate: { ideal: 280000, max: 320000 } (ver Fase 5;
+//   efecto no verificado, la pantalla no lee config.constraints)
 config.channelLastN = 4;
 config.maxFullResolutionParticipants = 1;
 config.desktopSharingFrameRate = { min: 5, max: 15 };           // pantalla

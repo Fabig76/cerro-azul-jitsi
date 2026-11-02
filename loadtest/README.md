@@ -27,9 +27,18 @@ generador de clientes.
 
 **Conclusión:** el límite fue la **RAM de los hosts que generaban los clientes**,
 no el servidor de Jitsi. Con 48 simultáneos el JVB no pasó del 17 % de CPU.
-**No está demostrado** cuánto aguanta por encima de eso: la prueba de 600 sigue
-pendiente y forma parte de la Fase 5. Antes de comprar un servidor dedicado, hacer
-un **ensayo real con 50–100 vecinos**.
+
+### Resumen de todas las pruebas
+
+| Fecha | Prueba | Resultado |
+|---|---|---|
+| 1-nov | Carga: 10, 50 y 120 receptores (Malleus) | Pico de **48 simultáneos**, 0 `bridge_failures`, JVB 9–17 % CPU |
+| 2-nov | Real: el operador con **50 personas** (cámara, audio y pantalla) | Sin problemas (sin medición de red) |
+| 2-nov | Ancho de banda: `medir-bitrate.py`, 6 receptores + 1 cámara | **0,405 Mbit/s** por oyente (0,316 en la segunda ejecución) → 203 / 158 Mbit/s a 500, frente a ~220 de subida |
+
+Con esos datos, la Fase 5 se cerró **sin comprar servidor dedicado**
+([docs/CAPACIDAD-500.md](../docs/CAPACIDAD-500.md)). **No está demostrado** con
+500 reales: la de 500–600 sigue pendiente.
 
 ### Cómo repetirlo
 
@@ -58,6 +67,7 @@ mediciones; las pruebas de arriba usaron los tres scripts directamente.
 | Fichero | Para qué |
 |---|---|
 | `run.sh` | Envoltorio de Malleus: comprobaciones previas, muestreo del JVB durante la prueba y tabla de resultados. **`--dry-run` por defecto**; solo lanza con `--run` |
+| `medir-bitrate.py` | Mide la subida del VPS por oyente con 1 emisor y N receptores (ver [al final](#medir-el-ancho-de-banda-por-oyente-medir-bitratepy)) |
 | `make-token.py` | Firma el JWT de la sala de prueba (en el servidor de Jitsi; solo stdlib) |
 | `summarize.py` | Genera la tabla de resultados (la llama `run.sh`; también `run.sh --summarize DIR`) |
 | `malleus-sala-prueba.md` | Los comandos concretos para `meet.bytracking.net` |
@@ -196,3 +206,42 @@ un núcleo), la red de salida, y por último el JVB.
 - Anotar resultado, fecha y versión en la tabla de criterios del README.
 - Volver a dejar `MAX_PARTICIPANTS` en el valor decidido y recrear prosody/jicofo.
 - Borrar el token: `shred -u ~/cargatest0.jwt` (en la VM de control y en el servidor).
+
+## Medir el ancho de banda por oyente (`medir-bitrate.py`)
+
+Responde con datos a "¿cuántas personas aguanta el VPS?" cuando solo transmite el
+ponente. Se ejecuta en el **host de desarrollo**. Necesita `ssh chatbotph` y Playwright
+con Chromium.
+
+```bash
+python3 loadtest/medir-bitrate.py [N_RECEPTORES] [SEGUNDOS]   # por defecto: 6 40
+```
+
+Qué hace:
+
+1. Crea una reunión de prueba (`Medicion de bitrate`, sala `med-…`) directamente en
+   `reuniones.db` del panel de **producción**, y **la borra al terminar** (`finally`,
+   también si falla).
+2. Abre en Chromium headless 1 **emisor** con la cámara falsa y N **receptores**.
+   Todos entran por `/unirse`, como un vecino.
+3. Espera 6 s y lee dos veces `/proc/net/dev` del VPS, separadas por SEGUNDOS. Suma
+   los bytes **enviados** por las interfaces físicas (excluye `lo`, `docker0` y
+   `veth*`).
+
+No toca la configuración ni reinicia nada.
+
+Salida:
+
+| Línea | Significado |
+|---|---|
+| `sala de prueba: <slug>` | Reunión creada para la medición |
+| `subida real del host: X MB en T s = Y Mbit/s` | Todo lo que salió del VPS en la ventana: vídeo, audio, RTCP, señalización y **cualquier otro tráfico del host** |
+| `por receptor: Z Mbit/s` | Y / N. Es la cifra que importa |
+| `100/300/500 personas -> W Mbit/s  OK/EXCEDE` | Z × n comparado con la subida del VPS (`SUBIDA_VPS_MBITS = 220` en el script) |
+| `sala de prueba borrada` | Limpieza hecha |
+
+Límites: la fuente es la **cámara** (en headless `getDisplayMedia` falla, así que no
+mide la pantalla). Todos los receptores están en un mismo host con buena red, así que
+no muestra los recortes por BWE de los vecinos con mala conexión. Conviene repetirla
+varias veces y no medir con una asamblea en curso, porque su tráfico entra en la
+cuenta.

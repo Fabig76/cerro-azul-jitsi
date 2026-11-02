@@ -570,7 +570,10 @@ Transceiver.forceMuteVideo#322: … epId=e0dae905 … Muting incoming video   <-
 
 Un problema de red del **receptor** se ve distinto: `Sources suspended due
 to insufficient bandwidth (bwe=…)` para un receptor concreto, y solo cuando
-el emisor ya está des-silenciado. Afecta a esa persona, no a todos.
+el emisor ya está des-silenciado. Afecta a esa persona, no a todos. No es
+falta de capacidad del servidor: con un solo ponente, la subida del VPS
+alcanza para 500 oyentes ([`CAPACIDAD-500.md`](CAPACIDAD-500.md)). El JVB
+recorta la pista a quien no puede recibirla.
 
 ### Causa
 

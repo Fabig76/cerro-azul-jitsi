@@ -7,6 +7,11 @@
 > `bytracking`. Las menciones al dominio viejo que aparecen aquí son
 > correctas en su contexto histórico. Para el estado actual, ver
 > `README.md` y `docs/ARCHITECTURE.md`.
+>
+> Las "FASE 0–5" de este documento son los pasos de aquella instalación, **no**
+> las fases del plan actual del README. En particular, la Fase 5 del plan
+> (capacidad 500+) se cerró el 3-nov-2026 sin servidor dedicado: ver
+> `docs/CAPACIDAD-500.md`.
 
 Documento que captura TODA la conversacion de instalacion del Jitsi Meet self-hosted en el VPS `chatbotph` (84.247.165.81), junto con los problemas encontrados, soluciones aplicadas y el estado final.
 
