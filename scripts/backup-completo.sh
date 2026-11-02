@@ -147,7 +147,7 @@ remoto_tar() {
 log "Paquete A: repo (bundle + arbol de trabajo)..."
 mkdir -p "$STAGE_A/repo/arbol"
 git -C "$REPO" bundle create "$STAGE_A/repo/cerro-azul-jitsi.bundle" --all 2>/dev/null
-git bundle verify "$STAGE_A/repo/cerro-azul-jitsi.bundle" >/dev/null 2>&1 \
+git -C "$REPO" bundle verify "$STAGE_A/repo/cerro-azul-jitsi.bundle" >/dev/null 2>&1 \
   || fallo "git bundle verify ha fallado"
 # Solo lo que git ve (versionado + no versionado no ignorado): asi quedan
 # fuera __pycache__, .venv, node_modules y cualquier secreto local ignorado.
@@ -295,7 +295,8 @@ verificar_paquetes() {  # verificar_paquetes DIR_CON_LOS_DOS_PAQUETES
   mkdir -p "$v/a" "$v/b"
   tar -xzf "$d/$NOMBRE_A" -C "$v/a" || return 1
   ( cd "$v/a" && sha256sum -c --quiet SHA256SUMS ) || return 1
-  git bundle verify "$v/a/repo/cerro-azul-jitsi.bundle" >/dev/null 2>&1 || return 1
+  # "git bundle verify" exige estar dentro de un repo: se usa uno vacio
+  git init -q "$v/vacio" && git -C "$v/vacio" bundle verify "$v/a/repo/cerro-azul-jitsi.bundle" >/dev/null 2>&1 || return 1
   git clone -q "$v/a/repo/cerro-azul-jitsi.bundle" "$v/clon" 2>/dev/null || return 1
   [ "$(git -C "$v/clon" rev-parse HEAD)" = "$REPO_HEAD" ] || return 1
   descifrar -in "$d/$NOMBRE_B" | tar -xzf - -C "$v/b" || return 1

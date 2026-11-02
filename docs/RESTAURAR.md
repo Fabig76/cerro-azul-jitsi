@@ -67,7 +67,7 @@ GitHub no esté disponible):
 ```bash
 git clone https://github.com/Fabig76/cerro-azul-jitsi.git
 # o desde el bundle:
-git bundle verify proyecto/repo/cerro-azul-jitsi.bundle
+git bundle list-heads proyecto/repo/cerro-azul-jitsi.bundle   # (verify exige estar dentro de un repo; clone ya comprueba el bundle)
 git clone proyecto/repo/cerro-azul-jitsi.bundle cerro-azul-jitsi
 git -C cerro-azul-jitsi log --oneline | head
 ```

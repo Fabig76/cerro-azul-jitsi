@@ -56,7 +56,8 @@ Se ejecuta como root en el host de desarrollo (`vmi3186036`). Pasos:
    secretos del TURN; la clave. Falla si falta alguno.
 5. Escribe `MANIFIESTO.txt` y `SHA256SUMS`, empaqueta, cifra B y **borra los
    ficheros en claro**.
-6. Verifica en local: extrae A, comprueba sumas, `git bundle verify`, clona el
+6. Verifica en local: extrae A, comprueba sumas, `git bundle verify` (en un
+   repo vacío: fuera de un repo no funciona), clona el
    bundle y compara el `HEAD`; descifra B y comprueba sumas.
 7. Sube los dos a Drive, los **vuelve a descargar**, compara los sha256 con lo
    subido, repite la verificación del paso 6 sobre lo descargado y comprueba
@@ -100,7 +101,7 @@ $GAPI drive download <ID_B> --output b.tar.gz.enc
 
 mkdir a b
 tar xzf a.tar.gz -C a && (cd a && sha256sum -c --quiet SHA256SUMS) && echo "A ok"
-git bundle verify a/repo/cerro-azul-jitsi.bundle
+git bundle list-heads a/repo/cerro-azul-jitsi.bundle
 git clone -q a/repo/cerro-azul-jitsi.bundle clon && git -C clon log --oneline | head -3
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
   -pass file:/root/.cerro-azul-backup/CLAVE.txt -in b.tar.gz.enc | tar xzf - -C b
