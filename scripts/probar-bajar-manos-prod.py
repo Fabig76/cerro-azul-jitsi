@@ -140,7 +140,8 @@ def main():
             ok(esperar(lambda: not mano(b1) and not mano(b2), 10), "bajan las dos en los clientes de B1 y B2")
             ok(esperar(lambda: pnl() == 0, 10), "A ve 0 span.mano")
             ok(esperar(lambda: a.locator("#manos-bajar").is_disabled(), 5), "el boton vuelve a deshabilitarse")
-            ok(esperar(lambda: "todas las manos enviadas han bajado" in a.eval_on_selector("#log", "e => e.textContent"), 8),
+            ok(esperar(lambda: "bajar todas las manos: todas las manos enviadas han bajado"
+                       in a.eval_on_selector("#log", "e => e.textContent"), 8),
                "el #log confirma a los 5 s que bajaron")
             print("  #log:\n" + "\n".join("     | " + l for l in a.eval_on_selector("#log", "e => e.textContent")
                                          .strip().splitlines() if "mano" in l))
