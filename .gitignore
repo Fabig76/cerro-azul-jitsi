@@ -79,3 +79,11 @@ secretos-*.tar.gz
 secretos-*.tar.gz.enc
 *.bundle
 
+
+# --- Respaldo de migracion (scripts/backup-proyecto.sh) ----------------
+# El paquete lleva secretos (cifrados) y la passphrase vive en
+# /root/.backup-proyecto-passphrase: ninguno de los dos va al repo.
+cerro-azul-jitsi-*.tar.gz
+cerro-azul-jitsi-*.tar.gz.sha256
+*passphrase*
+!docs/*passphrase*

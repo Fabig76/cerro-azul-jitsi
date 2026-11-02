@@ -3,6 +3,38 @@
 Criterio de aceptación: **respaldo restaurado con éxito en un servidor limpio**.
 Este documento es el procedimiento para cumplirlo (y para repetirlo una vez al mes).
 
+## Respaldo completo del proyecto (migración de servidor)
+
+Hay **dos tipos de respaldo** y no se sustituyen uno al otro:
+
+| | Respaldo **operativo** (este documento) | Respaldo de **migración** |
+|---|---|---|
+| Para qué | Recuperarse de un fallo en el mismo servidor o en uno equivalente (BD borrada, `.env` roto, disco cambiado) | Levantar el proyecto **entero** en otro servidor si se pierde el actual |
+| Script | `scripts/backup.sh` (en el VPS) / `scripts/restore.sh` | [`scripts/backup-proyecto.sh`](../scripts/backup-proyecto.sh) (en el host de desarrollo) |
+| Qué guarda | `reuniones.db` y la configuración de `/opt/jitsi-meet` | Todo: los dos repos (`git bundle` de cerro-azul-jitsi y de asambleas-virtuales), el deploy de producción, `.env`, `admin.env`, `reuniones.db`, claves TLS, certificados y cuentas de Prosody, config de jicofo/jvb, el bloque de Caddy, el TURN y el watchdog de Hermes |
+| Formato | `cerroazul-backup-*.tar.gz` (secretos cifrados con HMAC) | **Un único** `cerro-azul-jitsi-AAAAMMDD-HHMM.tar.gz`: `claro/` sin secretos + `cifrado/secretos.tar.gz.gpg` (gpg AES256), `MANIFEST.txt` (qué falta) y `SHA256SUMS` |
+| Dónde queda | `/opt/jitsi-meet/backups/` (mismo disco: copiarlo fuera) | Google Drive, carpeta `BACKUP-cerro-azul-jitsi-2026-11-03`, y `/root/.cerro-azul-backup/proyecto/` del host de desarrollo |
+| Passphrase | `/root/.backup_passphrase` en el VPS | `BACKUP_PASSPHRASE` (variable de entorno); copia en `/root/.backup-proyecto-passphrase` del host de desarrollo y en el gestor de contraseñas del operador |
+| Frecuencia | Rápido, periódico (diario por cron, propuesto) | Completo, ocasional: antes y después de cada cambio importante y antes de una migración |
+| Cómo se restaura | Sección "Restaurar en un servidor limpio" de abajo | [`RESTAURAR-EN-OTRO-SERVIDOR.md`](RESTAURAR-EN-OTRO-SERVIDOR.md) |
+
+```bash
+# En el host de desarrollo (vmi3186036), como root:
+BACKUP_PASSPHRASE="$(cat /root/.backup-proyecto-passphrase)" scripts/backup-proyecto.sh
+#   --sin-subir   genera y verifica en local sin subir a Drive
+#   --estricto    aborta si falta algún elemento
+# Sale con 2 si el paquete se creó pero falta algo (ver "QUE FALTA" en MANIFEST.txt).
+```
+
+Sin `BACKUP_PASSPHRASE` el script **aborta**: nunca genera un respaldo con
+secretos en claro. Solo lee de los servidores (no reinicia nada), verifica el
+paquete en local, lo sube con `rclone`, lo vuelve a descargar y comprueba
+sha256 y descifrado.
+
+(`scripts/backup-completo.sh`, de la Fase 10, hace algo parecido en dos paquetes
+con `openssl`; ver [`BACKUP-DRIVE.md`](BACKUP-DRIVE.md). El de migración es el
+de referencia para cambiar de servidor.)
+
 ## Estado en producción (verificado el 2-nov-2026)
 
 | Qué | Estado |
