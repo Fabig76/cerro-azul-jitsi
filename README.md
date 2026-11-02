@@ -8,6 +8,8 @@
 > - ✅ TURN propio en servidor aparte (`vmi3186036`, 155.133.22.222), coturn 4.6.3-r3
 > - ✅ Panel `https://meet.bytracking.net/admin/login`, marca `bytracking` / "Asambleas virtuales"
 > - ✅ Grabación local en el PC del administrador (Fase 9)
+> - ✅ Panel: **"Bajar todas las manos"** y "Bajar la mano" por persona (por XMPP; el
+>   videobridge reenvía esos mensajes vacíos). Ver [docs/MODERACION-MANOS.md](docs/MODERACION-MANOS.md)
 > - ⚠️ **Compartir pantalla: el administrador tiene que pulsar "Habilitar cámara" sobre
 >   quien va a compartir**, o los demás no ven nada. Ver
 >   [Compartir pantalla](#compartir-pantalla-qué-se-puede-y-qué-no-importante)
@@ -435,6 +437,10 @@ La moderación la ejecuta el **navegador del moderador** con el iframe API
   con *Pedir la palabra / Silenciar / Habilitar camara / Apagar camara* (así se
   llaman los botones), y
   *Silenciar a todos / Apagar todas las cámaras*. Registra cada comando.
+  Para las manos levantadas: **Bajar todas las manos** (barra encima de la
+  lista; gris si nadie tiene la mano) y **Bajar la mano** por persona. Bajan la
+  mano de verdad en el cliente del residente; el `#log` dice a cuántos y a qué
+  ids se envió y si bajaron. Ver [docs/MODERACION-MANOS.md](docs/MODERACION-MANOS.md).
 - `GET /admin/reunion/<id>/moderador.json` — `{domain, roomName, jwt,
   participantId, exp, expired}` para que **otro cliente** embeba Jitsi como
   moderador. Requiere sesión del panel (cookie), `Cache-Control: no-store`.
@@ -470,6 +476,14 @@ api.executeCommand('muteEveryone', 'audio');
 // participantId: eventos participantJoined / raiseHandUpdated, o api.getRoomsInfo().
 </script>
 ```
+
+**Bajar manos no está en el iframe API.** El panel lo hace leyendo el `APP` del
+iframe (mismo origen) y mandando un mensaje privado XMPP a cada persona con la
+mano levantada: `conference.sendMessage({ name: "lower-hand-message" }, id)`.
+**No usar** `sendEndpointMessage` (la vía del botón nativo «Lower all hands»):
+el JVB `2.3-295` la reenvía sin contenido y no baja nada
+([TROUBLESHOOTING](docs/TROUBLESHOOTING.md#-bug-el-botón-bajar-todas-las-manos-no-hace-nada-2-nov-2026)).
+Un cliente externo con solo el iframe API (votacionph) **no puede** bajar manos.
 
 Comandos verificados en `external_api.min.js` de `jitsi/web:stable-11031` y
 usados en asambleas reales (1 y 2-nov-2026). La moderación de `desktop`
@@ -536,6 +550,7 @@ moderador; no está activado porque no se ha probado con `token_affiliation`.
 | Solo quien trae `moderator: true` es moderador | **hecho** (`token_affiliation`; `enable-auto-owner=false`) | 2 |
 | Ningún asistente transmite sin aprobación | **hecho** (el JVB recibe `forceMuteVideo` para ese endpoint; efecto secundario: también bloquea su pantalla, ver "Compartir pantalla") | 2 |
 | El administrador da y quita la palabra | **hecho** ("Pedir la palabra" por participante y "Dar la palabra a todos") | 2 / 3 |
+| El administrador baja las manos levantadas (una o todas) | **hecho** ("Bajar la mano" / "Bajar todas las manos", por XMPP; probado en producción con dos residentes reales y confirmado en asamblea el 2-nov). App móvil **sin probar** | 2 / 3 |
 | Un residente comparte pantalla y todos la ven | **hecho** con el procedimiento "Habilitar cámara" (confirmado en producción el 2-nov a las 12:33) | 3 |
 | Audio en ambos sentidos con UDP bloqueado (TURN en 443) | TURN desplegado, relay verificado y vigilado por el watchdog. **A verificar** con dispositivo real (móvil con datos + PC con UDP bloqueado) | 4 |
 | Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** (depende de que votacionph integre el cliente) | 6 |
@@ -892,6 +907,10 @@ y 0 errores en Prosody. El límite lo puso la RAM de los hosts que generaban los
 - **Para que un residente comparta pantalla**, el admin tiene que pulsar "Habilitar cámara", y
   repetirlo si el residente recarga (ver la sección de pantalla compartida).
 - Grabación solo en el PC del admin (Chrome de escritorio). No hay Jibri ni grabación en servidor.
+- **El videobridge reenvía los mensajes de endpoint sin contenido** (JVB `2.3-295`): por eso
+  «Lower all hands» nativo no funciona y el panel baja las manos por XMPP. Otras funciones de
+  Jitsi que usan ese canal (reacciones, control remoto…) **pueden estar afectadas: pendiente de
+  revisar**. Bajar manos desde la **app móvil** de Jitsi: sin probar.
 - Sin autoescalado (un solo JVB, sin Octo).
 - 1 solo worker de Gunicorn para el admin panel (suficiente).
 - El TLS público lo pone el Caddy compartido del host (`hermes-caddy`), no este stack.
@@ -902,7 +921,8 @@ y 0 errores en Prosody. El límite lo puso la RAM de los hosts que generaban los
 |---|---|
 | [README.md](README.md) | Quieres el estado actual, las fases y cómo operar el sistema (este fichero) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Necesitas saber qué corre dónde: servidores, contenedores, rutas de Caddy, TURN, grabación |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Algo falla. Si "no se ve la pantalla", empieza por el bug de la pantalla compartida |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Algo falla. Si "no se ve la pantalla", empieza por el bug de la pantalla compartida; si "no bajan las manos", por el del botón "Bajar todas las manos" |
+| [docs/MODERACION-MANOS.md](docs/MODERACION-MANOS.md) | Vas a moderar y quieres bajar las manos levantadas (una o todas): procedimiento, diagnóstico en 1 min, limitaciones |
 | [docs/SOLUCION-PANTALLA.md](docs/SOLUCION-PANTALLA.md) | Vas a moderar una asamblea donde un residente compartirá pantalla: procedimiento, diagnóstico en 2 min y falsas pistas |
 | [docs/INVESTIGACION-PANTALLA.md](docs/INVESTIGACION-PANTALLA.md) | Quieres la evidencia completa del bug de la pantalla (código de Jicofo y del JVB, logs, cronología) |
 | [docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md) | Vas a respaldar, programar el cron o restaurar en un servidor limpio |
@@ -1000,6 +1020,8 @@ Caddy solo enruta al panel `/admin*`, `/reunion/*`, `/unirse`, `/healthz` y `/ap
 - `docs/capturas-rediseno/` — **54 capturas**: 5 páginas × 360/768/1280 px × claro/oscuro, más la sala real con dos clientes conectados.
 
 **Contratos que no se pueden romper** (el JS de la sala depende de ellos): `#jitsi`, `#lista`, `#cnt`, `#log`, `#st-audio`, `#st-video`, `.gl button[data-cmd]`, y las clases que el JS crea (`.p`, `.n`, `.mano`, `.m`, `.ok2`, `.d`).
+`static/bajar-manos.js` (posterior al rediseño) añade los suyos: `#manos-bajar`, `#manos-estado`,
+`#jitsi iframe`, y lee `#lista .mano`; crea `#manos-lista` fuera de `#lista` y de `.gl`.
 
 ## Fase 9 — Grabación local y panel multi-conjunto
 

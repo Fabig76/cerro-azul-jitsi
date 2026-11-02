@@ -16,7 +16,7 @@ de ahí salen `JWT_APP_SECRET`, `JWT_APP_ID`, `JWT_ACCEPTED_*`, `PUBLIC_URL`).
 |---|---|---|
 | `GET /healthz` | healthcheck | Siempre 200; `jwt_config_ok` dice si la config JWT es coherente |
 | `/admin`, `/admin/login`, ... | admin con sesión | Crear/eliminar reuniones, QR |
-| `GET /admin/reunion/<id>/sala` | admin con sesión | Jitsi embebido + controles de moderación |
+| `GET /admin/reunion/<id>/sala` | admin con sesión | Jitsi embebido + controles de moderación (palabra, silenciar, cámaras, **bajar la mano / bajar todas las manos**: `static/bajar-manos.js`, ver `../docs/MODERACION-MANOS.md`) |
 | `GET /admin/reunion/<id>/moderador.json` | admin con sesión (navegador) | Token de moderador para embeber Jitsi |
 | `GET /admin/reunion/<id>/entrar` | admin con sesión | Jitsi a pantalla completa como moderador |
 | `GET /reunion/<slug>`, `POST /unirse` | público (QR) | Token de asistente |

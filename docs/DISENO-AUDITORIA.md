@@ -294,6 +294,12 @@ B usó ese mismo token en `?jwt=` (el guion lo marca como AVISO).
 | 13 | `scripts/probar-sala-prod.py` (nuevo) | Prueba de moderación en producción con 2 clientes reales; crea y borra su reunión | Ejecutado: OK (1 AVISO = hallazgo `#jwt`) | `paso6-produccion-dos-clientes.txt` |
 | 14 | `docs/capturas-rediseno/` | 30 capturas (5 páginas × 3 anchos × 2 temas), 22 montajes (11 vistas) y 2 de producción | Revisadas una a una (ver abajo) | — |
 
+### Cambios posteriores al rediseño en la sala (2-nov-2026, fuera de esta auditoría)
+
+| Commit | Archivo | Qué se cambió | Cómo se verificó |
+|---|---|---|---|
+| `740da81`, `4193357`, `cbc4b47` | `page_sala.html` (barra `#manos-bajar` + `#manos-estado`, fuera de `#lista` y `.gl`), `static/bajar-manos.js` (nuevo) | Botones «Bajar todas las manos» y «Bajar la mano» por persona. El `<script>` congelado de la sala **no cambia** | `scripts/verificar-bajar-manos.py` (local, Jitsi simulado) y `scripts/probar-bajar-manos-prod.py` (producción, dos residentes reales: baja una, bajan todas, el botón vuelve a gris, la vía por el videobridge no baja ninguna). Confirmado por el operador en asamblea. Detalle: [`MODERACION-MANOS.md`](MODERACION-MANOS.md) |
+
 ## Revisión visual (capturas finales, `docs/capturas-rediseno/`)
 
 Generadas con `scripts/capturas-panel.py` (Chromium; toda petición fuera del panel bloqueada → la única

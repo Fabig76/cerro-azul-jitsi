@@ -137,7 +137,7 @@ boton.onclick = async () => {                       // dentro del clic: audio en
 | `videoConferenceJoined` | Registrar **asistencia con hora de entrada** en votacionph (cada cliente, el suyo). Reinicia el contador de reconexión. Si es moderador, el cliente activa la moderación A/V. |
 | `videoConferenceLeft` | Registrar hora de salida. Si el usuario no colgó, el cliente reconecta (si después llega `reconectando`, no fue una salida real). |
 | `participantJoined` / `participantLeft` | Solo en el cliente del **administrador**: lista de presentes. No mandarlo desde los 500 asistentes. |
-| `raiseHandUpdated` | Solo administrador: **cola de "mano levantada"** (`handRaised` = timestamp para ordenar, `0` = la bajó). Botones "Dar palabra" → `askToUnmute`, "Habilitar cámara" → `approveVideo`, "Silenciar a todos" → `muteEveryone`. |
+| `raiseHandUpdated` | Solo administrador: **cola de "mano levantada"** (`handRaised` = timestamp para ordenar, `0` = la bajó). Botones "Dar palabra" → `askToUnmute`, "Habilitar cámara" → `approveVideo`, "Silenciar a todos" → `muteEveryone`. **Bajar manos: el iframe API no tiene comando**; el panel propio lo hace por XMPP leyendo el `APP` del iframe (mismo origen), algo que votacionph, en otro origen, no puede ([MODERACION-MANOS.md](MODERACION-MANOS.md)). |
 | `errorOccurred` | Log. Si `isFatal`, el cliente reconecta. |
 | `reconectando` *(cliente)* | Mostrar "Reconectando… tu voto sigue funcionando". |
 | `reconexionAgotada` *(cliente)* | Tras 5 intentos: avisar, ofrecer recargar. |

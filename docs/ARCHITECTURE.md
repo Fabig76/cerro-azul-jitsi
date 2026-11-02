@@ -113,7 +113,17 @@ TLS público: Let's Encrypt emitido por Caddy, válido hasta el 30-ene-2027.
     `https://meet.bytracking.net/<sala>?jwt=…`).
   - Sala de moderación `/admin/reunion/<id>/sala`: Jitsi en iframe, activa la
     moderación de audio y vídeo, botones por participante (*Pedir la
-    palabra*, *Silenciar*, *Habilitar camara*, *Apagar camara*).
+    palabra*, *Silenciar*, *Habilitar camara*, *Apagar camara*) y, para las
+    manos levantadas, *Bajar la mano* por persona y **Bajar todas las manos**
+    (`static/bajar-manos.js`, ver [MODERACION-MANOS.md](MODERACION-MANOS.md)).
+    - Casi todo va por el **iframe API**. Bajar manos no puede (el iframe API
+      no tiene ese comando): como panel y Jitsi comparten origen, el JS lee
+      `APP.store` del iframe y manda `conference.sendMessage({name:
+      "lower-hand-message"}, id)`, un **mensaje privado XMPP por el MUC de
+      Prosody**, uno por cada persona con la mano levantada.
+    - **No va por el videobridge** (lo que hace el botón nativo de Jitsi): el
+      JVB `2.3-295` reenvía los `EndpointMessage` sin `msgPayload` y la mano no
+      baja. Ver [TROUBLESHOOTING](TROUBLESHOOTING.md#-bug-el-botón-bajar-todas-las-manos-no-hace-nada-2-nov-2026).
   - API servidor a servidor `POST /api/reuniones/<id>/token` (Fase 6).
   - Grabación local (Fase 9): `static/grabacion.js` + `grabacion-worker.js`.
 - **Panel multi-conjunto**: marca y responsable legal por variables de

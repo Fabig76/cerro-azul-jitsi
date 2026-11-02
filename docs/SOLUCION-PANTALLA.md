@@ -1,5 +1,10 @@
 # Solución: la pantalla compartida no llega a los demás
 
+> **Este documento es solo de la pantalla compartida.** El botón «Bajar todas
+> las manos» del panel (otro problema, también del 2-nov) está en
+> [`MODERACION-MANOS.md`](MODERACION-MANOS.md) y en
+> [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#-bug-el-botón-bajar-todas-las-manos-no-hace-nada-2-nov-2026).
+
 > Complementa a [`INVESTIGACION-PANTALLA.md`](INVESTIGACION-PANTALLA.md)
 > (§0, §3.2 y §7). Escrito el 2026-11-02 y corregido ese mismo día, tras
 > **confirmarse en producción** a las 12:33 (hora de Bogotá).

@@ -4,6 +4,8 @@
 > `stable-9111`, Prosody anónimo) se conservan como referencia. El que más
 > afecta hoy a las asambleas es el de la **pantalla compartida**, al final:
 > [ir a la sección](#-bug-comparto-pantalla-pero-los-demás-no-la-ven-12-nov-2026).
+> Después va el del botón **"Bajar todas las manos"** (resuelto):
+> [ir a la sección](#-bug-el-botón-bajar-todas-las-manos-no-hace-nada-2-nov-2026).
 
 ## ⭐ BUG #6 (CRÍTICO): "There are no operational bridges" por JVB_BREWERY_MUC mal configurado
 
@@ -637,3 +639,110 @@ Las horas del log están en hora de Bogotá (`TZ` de los contenedores).
    reconexión reaplicaba el silenciado y el fallo parecía aleatorio.
 3. Pedir a los residentes que recargaran: con este bug, **recargar lo rompe otra vez**.
 4. Dar por bueno un cambio sin dos personas reales (una comparte, otra mira).
+
+---
+
+## ⭐ BUG: "El botón 'Bajar todas las manos' no hace nada" (2-Nov-2026)
+
+> **Resuelto en `4193357`** (desplegado y confirmado por el operador en una
+> asamblea real). Uso del botón: [`MODERACION-MANOS.md`](MODERACION-MANOS.md).
+
+### Síntoma
+
+- El admin pulsa **"Bajar todas las manos"** en la sala de moderación del panel
+  (primera versión, `740da81`): no baja ninguna mano. Sin error en el panel.
+- El **"Lower all hands"** nativo de Jitsi (pie del panel de participantes, `⋯`)
+  tampoco: usa exactamente el mismo mensaje por el mismo camino.
+- Síntoma espejo que dio la pista: **"las manos una a una sí se bajan desde
+  Jitsi"**. Lo que sí funciona es que **cada residente baje la suya** con su
+  botón ✋: eso cambia su propia presencia XMPP y no pasa por el videobridge.
+  En cambio el «Lower hand» que el moderador pulsa sobre otra persona va por el
+  videobridge (`sendEndpointMessage(<id>, …)` en el bundle) y en la medición
+  tampoco bajó la mano (ni en broadcast ni dirigido).
+
+### Causa
+
+La primera versión enviaba lo mismo que el botón nativo, por el **canal del
+videobridge (JVB)**:
+
+```js
+APP.conference.sendEndpointMessage("", { name: "lower-hand-message" });
+```
+
+que en `lib-jitsi-meet` (`stable-11031`) acaba en:
+
+```js
+sendEndpointMessage(e,t){this.rtc.sendChannelMessage(e,t)}
+sendMessage(e,t){this._send({colibriClass:"EndpointMessage",msgPayload:t,to:e})}
+```
+
+Medido en producción el 2-nov con dos residentes reales con la mano levantada
+(mirando la trama que **recibe** el residente, hook en `rtc._channel`): el JVB
+`2.3-295` **enruta bien** el mensaje (`to=""` es broadcast válido; `to=<id>`
+solo le llega a ese id) pero lo **reenvía sin `msgPayload`**:
+
+```
+{"colibriClass":"EndpointMessage","to":"…","from":"…"}     <- sin {"name":"lower-hand-message"}
+```
+
+El cliente no sabe qué hacer con eso y la mano no baja. Causa probable (no
+demostrada): `jackson-databind 2.18.0` + `jackson-module-kotlin 2.17.1` en la
+imagen del JVB y el `@JsonAnyGetter` de `otherFields`. No se ha tocado el JVB.
+
+### Lo que hay (y no hay) en el log del JVB
+
+Durante el diagnóstico aparecieron estos WARNING (copiados del log de
+producción, hora de Bogotá):
+
+```
+JVB 2026-11-02 14:07:09.987 WARNING: [...] AbstractEndpointMessageTransport.onMessage#70:
+Invalid message received (Cannot deserialize value of type `java.lang.String` from Object
+value (token `JsonToken.START_OBJECT`) ... EndpointMessage["to"]):
+{"colibriClass":"EndpointMessage","msgPayload":{"name":"lower-hand-message"},"to":{}}
+
+JVB 2026-11-02 13:59:34.462 WARNING: [...] AbstractEndpointMessageTransport.onMessage#70:
+Invalid message received (Instantiation of [simple type, class
+org.jitsi.videobridge.message.EndpointMessage] value failed for JSON property to due to
+missing (therefore NULL) value ...): {"colibriClass":"EndpointMessage","msgPayload":{"name":"lower-hand-message"},"to":null}
+```
+
+**No son la causa del fallo del botón**, son de las **sondas de diagnóstico**
+(entre 13:59 y 14:08): el `to` llegaba como `{}` o `null` porque el script de
+prueba de Playwright pasaba mal el id (`frame_locator(...).evaluate(fn, arg)`
+recibe el **elemento** como primer argumento). En las mismas 24 h hay 15
+WARNING de este tipo y **ninguno con `"to":""`**: el JVB acepta el broadcast
+del botón. Quedan como lección: que el JVB no se queje no significa que el
+mensaje llegue entero. **Hay que mirar lo que recibe el residente.**
+
+```bash
+# Comprobar (solo lectura): ¿mensajes rechazados por el JVB?
+ssh chatbotph 'cd /opt/jitsi-meet && sudo docker compose logs --since 2h jvb 2>&1 | grep -A1 "Invalid message received"'
+```
+
+### Solución (`4193357`)
+
+Mensaje **privado por XMPP** (MUC de Prosody, fuente de verdad del estado de la
+mano), **uno a cada participante** con la mano levantada, en vez del broadcast
+por el JVB:
+
+```js
+conf.sendMessage({ name: "lower-hand-message" }, id);   // por cada id, sin 3er argumento
+```
+
+El receptor es el mismo que el del botón nativo (`lower-hand-message` +
+emisor moderador + `disableLowerHandByModerator` sin definir → baja la mano).
+Detalle en [`MODERACION-MANOS.md`](MODERACION-MANOS.md#cómo-funciona-técnico).
+Verificación: `scripts/probar-bajar-manos-prod.py` (dos residentes reales; el
+paso de control comprueba que la vía por el JVB **sigue sin** bajar la mano y
+avisa si un día empieza a hacerlo).
+
+### ⚠️ Efecto colateral: otras funciones por el videobridge (PENDIENTE)
+
+Si el JVB reenvía **todos** los `EndpointMessage` sin `msgPayload`, todo lo que
+use `sendEndpointMessage` también estaría roto. En el bundle de `stable-11031`
+lo usan, entre otros: «Lower hand» / «Lower all hands» nativos, las
+**reacciones** (emojis; `lib-jitsi-meet` también tiene un `sendReaction` por
+el MUC, así que puede que solo falle una parte), `send-endpoint-text-message` y
+`send-camera-facing-mode-message` del iframe API, el control remoto y las
+caras (`face-landmarks`). **No se ha comprobado una por una.** No afecta a lo
+que usa el panel (iframe API y XMPP) ni al chat (XMPP).
