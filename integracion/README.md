@@ -131,6 +131,12 @@ le pide al asistente activar el micro), `approveVideo` (habilitar cámara),
 `muteRemoteParticipant <id> 'audio'|'video'`, `muteEveryone 'audio'`.
 Comandos verificados en `jitsi/web:stable-11031` (ver README raíz, Fase 2).
 
+> **Pantalla compartida de un asistente:** con la moderación de vídeo activa
+> (la activa el cliente si `soyModerador`), la pantalla que comparta un
+> asistente **no la ve nadie** hasta que el administrador ejecute
+> `approveVideo` sobre él ("Habilitar cámara"), y hay que repetirlo si el
+> asistente recarga. Detalle: `docs/SOLUCION-PANTALLA.md`.
+
 ## Cabeceras: qué tiene que permitir cada lado
 
 **meet.bytracking.net** (este repo, `infra/caddy/meet.bytracking.net.caddy`):
@@ -139,6 +145,11 @@ header Content-Security-Policy "frame-ancestors 'self' https://votacionph.us"
 ```
 Solo `votacionph.us` (y el propio dominio) pueden embeber Jitsi. El panel
 (`/admin*`, `/reunion/*`, `/api/...`) lleva `frame-ancestors 'none'`.
+
+> **Estado (2-nov-2026):** estas cabeceras están en el repo pero **todavía no
+> aplicadas en el Caddy del host**, a propósito: se aplicarán cuando votacionph
+> esté listo para probar el iframe. Hasta entonces Jitsi no envía
+> `frame-ancestors`.
 
 **votacionph.us** (su Caddyfile / su CSP) debe permitir **embeber** Jitsi:
 ```

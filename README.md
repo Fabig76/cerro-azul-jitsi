@@ -1,18 +1,22 @@
 # bytracking - Jitsi Meet
 
-> ## Estado (verificado 1-Nov-2026)
-> - ✅ `https://meet.bytracking.net/` responde 200
-> - ✅ El bloque de Caddy **persistido en el Caddyfile del host** y verificado
->    tras un `docker restart` completo del contenedor (prueba de persistencia)
-> - ✅ `monitorlegal.org` y `minutasegura.com` siguen en 200
-> - ✅ Bridge operativo (`operational_bridge_count: 1`), JVB `/about/health` = 200
+> ## Estado (verificado 2-Nov-2026)
+> - ✅ `https://meet.bytracking.net/` en 200. TLS de Let's Encrypt válido hasta el **30-ene-2027**.
+>   DNS: `A meet.bytracking.net → 84.247.165.81` (zona en ipage.com)
+> - ✅ Stack: `jitsi-web`, `jitsi-prosody` (imagen propia con `mod_http_health`), `jitsi-jicofo`,
+>   `jitsi-jvb`, `jitsi-admin` → **5/5 healthy**, ~24 h de uptime. Todas en `stable-11031`
+> - ✅ TURN propio en servidor aparte (`vmi3186036`, 155.133.22.222), coturn 4.6.3-r3
+> - ✅ Panel `https://meet.bytracking.net/admin/login`, marca `bytracking` / "Asambleas virtuales"
 > - ✅ Grabación local en el PC del administrador (Fase 9)
-> - ✅ Panel multi-conjunto: marca y responsable legal por variable
-> - ✅ Compartir pantalla funcionando (config de sala de la Fase 3, sin
->    cambios; ver "Compartir pantalla" más abajo)
+> - ⚠️ **Compartir pantalla: el administrador tiene que pulsar "Habilitar cámara" sobre
+>   quien va a compartir**, o los demás no ven nada. Ver
+>   [Compartir pantalla](#compartir-pantalla-qué-se-puede-y-qué-no-importante)
 >
-> **Versión:** Jitsi `stable-11031` (JVB 2.3.295)
+> **Versión:** Jitsi `stable-11031` (JVB 2.3.295, openjdk 17)
 > **URL:** https://meet.bytracking.net
+> El dominio anterior, `meet.urbcerroazul.com`, **ya no se sirve** (migración del 1-nov-2026).
+>
+> **¿Qué documento leer?** → [Índice de la documentación](#índice-de-la-documentación)
 
 Plataforma de videoconferencias self-hosted para **bytracking**, corriendo en `meet.bytracking.net`. Nació para el Conjunto Residencial Cerro Azul y el panel está preparado para reutilizarse en otros conjuntos (Fase 9): la marca, el subtítulo y el responsable legal se configuran por variables de entorno.
 
@@ -34,6 +38,7 @@ Internet
     +── /reunion/*      ──> [jitsi-admin:8081]   (Flask/Gunicorn)
     +── /unirse         ──> [jitsi-admin:8081]   (Flask/Gunicorn)
     +── /healthz        ──> [jitsi-admin:8081]   (Flask/Gunicorn)
+    +── /api/reuniones/*──> [jitsi-admin:8081]   (API de tokens, Fase 6)
     +── todo lo demas   ──> [jitsi-web:80]        (Nginx + Jitsi Meet UI)
     |
     |
@@ -47,12 +52,19 @@ Internet
     |   +-- jitsi-admin     :8081 (Flask admin panel)
     |
     +-- [Firewall UFW]
-    |   +-- 80/tcp      (HTTP)
-    |   +-- 443/tcp     (HTTPS)
-    |   +-- 10000/udp   (RTP media - JVB)
-    |   +-- 4443/tcp    (fallback RTP)
-    |   +-- 80/tcp, 443/tcp  (Caddy reverse proxy)
+        +-- 80/tcp, 443/tcp  (Caddy: hermes-caddy, compartido con otros sitios)
+        +-- 10000/udp        (RTP media - JVB)
+        +-- 4443/tcp         (fallback RTP)
+
+[Servidor TURN vmi3186036 155.133.22.222]   (aparte; Fase 4)
+    +-- coturn 4.6.3-r3: 3478 udp/tcp, 443 udp + tcp (TLS), relay 49160-49200/udp
+    +-- watchdog de Hermes (web, /healthz y TURN cada 2 min -> Telegram)
+
+[PC del administrador]
+    +-- grabacion de la reunion en local (Chrome, Fase 9); nada se sube al servidor
 ```
+
+Detalle: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Quick Start
 
@@ -252,68 +264,57 @@ Un stack con los 5 servicios `healthy` pero `operational_bridge_count = 0`
 
 ```
 .
-├── README.md                       # Este archivo
-├── docker-compose.yml              # Stack Jitsi completo
-├── .env.example                    # Template de configuracion
-├── .env                            # NO COMMITEAR - configuracion real
+├── README.md                       # Este archivo (estado, fases, operación)
+├── docker-compose.yml              # Stack Jitsi completo (5 servicios)
+├── .env.example                    # Template de configuracion (.env real: NO commitear)
 ├── gen-passwords.sh                # Genera passwords aleatorios
-├── .gitignore                      # Ignora .env, __pycache__, etc
-├── infra/
-│   └── caddy/
-│       └── meet.bytracking.net.caddy  # Bloque Caddy (fuente de verdad)
-├── scripts/
-│   ├── setup-vps.sh                # Despliegue inicial en VPS limpio
-│   ├── sync-caddy.sh               # Verifica/sincroniza el bloque Caddy con el host
-│   ├── rotate-turn-secret.sh       # Rota TURN_CREDENTIALS (y external_service_secret)
-│   ├── install-prosody-plugins.sh  # Instala los 86 modulos de Prosody de Jitsi
-│   ├── validate-env.sh             # Valida el .env antes de desplegar
-│   ├── make-test-env.sh            # Genera un .env de prueba (para CI)
-│   ├── test-ci-local.sh            # Simula los pasos del CI en local
-│   ├── check-turn.sh / check_turn.py  # Watchdog del TURN (STUN, Allocate, TLS) - Fase 7.1
-│   ├── turn-cert.sh                # Certificado del TURN: issue/renew/install-hook - Fase 4
-│   ├── turn-cert-cron.sh           # Renovacion desatendida + aviso si falla
-│   ├── backup.sh                   # Respaldo cifrado del estado - Fase 7.2
-│   └── restore.sh                  # Restauracion (no arranca nada) - Fase 7.2
-├── turn/                           # Servidor TURN (coturn), se despliega aparte - Fase 4
-├── loadtest/                       # Arnes de prueba de carga con Malleus - Fase 7.3
+├── infra/caddy/
+│   └── meet.bytracking.net.caddy   # Bloque Caddy (fuente de verdad; su frame-ancestors aun NO esta aplicado en el host)
+├── web/config/
+│   ├── custom-config.js            # Config de sala grande (Fase 3)
+│   └── custom-interface_config.js
 ├── prosody/
 │   ├── Dockerfile.prosody          # Imagen propia: anade mod_http_health
 │   ├── prosody-plugins/            # 86 modulos .lua (del .deb de unstable)
 │   └── prosody-plugins-custom/     # Modulos propios (mod_http_health)
 ├── admin-panel/
-│   ├── Dockerfile                  # Imagen Docker del admin
-│   ├── app/                        # App Flask + templates
-│   │   ├── app.py                  # App Flask principal
-│   │   ├── tpl.html                # Template base
-│   │   ├── page_login.html         # Pagina de login
-│   │   ├── page_panel.html         # Panel de admin
-│   │   ├── page_qr_view.html       # Vista del QR + link
-│   │   ├── page_reunion.html       # Pagina publica de reunion
-│   │   └── static/                 # Tema visual (Fase 8)
-│   │       ├── theme.css           # Sistema de diseno: tokens, componentes, claro/oscuro
-│   │       ├── theme.js            # Tema, menus, estado de carga, dialogos
+│   ├── Dockerfile
+│   ├── README.md                   # Rutas del panel y API de tokens (Fase 6)
+│   ├── app/
+│   │   ├── app.py                  # App Flask (panel, /unirse, API de tokens)
+│   │   ├── tpl.html, page_*.html   # login, panel, QR, reunion (residente), sala (moderacion)
+│   │   └── static/
+│   │       ├── theme.css, theme.js # Sistema de diseno (Fase 8)
 │   │       ├── grabacion.js        # Grabacion local en el PC del admin (Fase 9)
 │   │       └── grabacion-worker.js # Escritura incremental en OPFS (Fase 9)
-│   ├── README.md                   # Rutas del panel y API interna (Fase 6)
-│   └── instance/
-│       └── admin.env.example        # Template de credenciales admin
-├── integracion/                    # Cliente JS + ejemplo para votacionph.us - Fase 6
-├── docs/
-│   ├── SETUP_HISTORY.md            # TODA la conversacion de instalacion
-│   ├── ARCHITECTURE.md             # Arquitectura detallada
-│   ├── TROUBLESHOOTING.md          # Bugs encontrados y fixes
-│   ├── BACKUP-RESTORE.md           # Respaldo y restauracion en servidor limpio
-│   ├── INTEGRACION-JITSI.md        # Integracion con votacionph.us (Fase 6)
-│   ├── SPEC-DISENO.md              # Spec del rediseno visual (Fase 8)
-│   ├── SPEC-DISENO-mockups.md      # Wireframes de cada pantalla
-│   ├── DISENO-AUDITORIA.md         # Que se cambio, como se verifico y evidencia
-│   ├── capturas-rediseno/          # 54 capturas: 5 paginas x 3 anchos x 2 temas
-│   ├── SPEC-GRABACION.md           # Spec de la grabacion local (Fase 9)
-│   ├── GRABACION-ADMIN.md          # Guia del administrador: grabar y convertir a MP4
-│   ├── GRABACION-PASO0.md          # Checklist de verificacion en los PCs reales
-│   └── capturas-grabacion/         # Capturas de la tarjeta y dialogos (1280 / 390 px)
-└── scripts/
-    └── setup-vps.sh                # Script de despliegue
+│   └── instance/admin.env.example  # Template de credenciales y marca del panel
+├── integracion/                    # Fase 6: cliente JS para votacionph.us
+│   ├── jitsi-cliente.js            # crearSalaJitsi(): iframe, eventos, reconexion
+│   ├── ejemplo-votacionph.js       # Ejemplo de uso desde el portal
+│   └── README.md                   # Para el equipo de votacionph
+├── turn/                           # Servidor TURN (coturn), se despliega aparte - Fase 4
+├── loadtest/                       # Prueba de carga con Malleus - Fase 7.3
+│   ├── run.sh, summarize.py, make-token.py
+│   ├── escalonado.sh, carga-remota.sh, prueba-3vps.sh   # las pruebas que se ejecutaron
+│   ├── docker-compose.selenium.yml # Selenium Grid
+│   └── malleus-sala-prueba.md
+├── scripts/
+│   ├── setup-vps.sh, validate-env.sh, make-test-env.sh, test-ci-local.sh
+│   ├── install-prosody-plugins.sh, verify-custom-config.sh
+│   ├── sync-caddy.sh               # Diff del bloque Caddy con el host (--apply no funciona desde el host dev)
+│   ├── rotate-turn-secret.sh, check-turn.sh, check_turn.py, turn-cert.sh, turn-cert-cron.sh
+│   ├── backup.sh, restore.sh       # Respaldo cifrado - Fase 7.2
+│   ├── desplegar-panel.sh, change_admin_password.sh
+│   ├── verificar-panel-local.py, verificar-panel-prod.py, probar-sala-prod.py,
+│   │   probar-interacciones.py, capturas-panel.py      # verificacion del panel (Fase 8)
+│   └── grabacion/                  # convertir-mp4.{command,bat}, prueba-paso0.html, pruebas (Fase 9)
+└── docs/                           # ver "Índice de la documentación" más abajo
+    ├── ARCHITECTURE.md, TROUBLESHOOTING.md, BACKUP-RESTORE.md, INTEGRACION-JITSI.md
+    ├── INVESTIGACION-PANTALLA.md, SOLUCION-PANTALLA.md   # bug de la pantalla compartida
+    ├── GRABACION-ADMIN.md, GRABACION-PASO0.md, SPEC-GRABACION.md, SPEC-GRABACION-mockups.md
+    ├── SPEC-DISENO.md, SPEC-DISENO-mockups.md, DISENO-AUDITORIA.md
+    ├── SETUP_HISTORY.md            # historico de la instalacion (no se actualiza)
+    └── auditoria/, capturas-rediseno/, capturas-grabacion/
 ```
 
 ## Servicios y URLs
@@ -383,8 +384,9 @@ moderador aprobó en la moderación A/V durante la reunión.
 2. Asistente: abre `/reunion/<slug>` (QR), escribe apto y nombre → `POST /unirse`
    → el panel firma **un token nuevo por persona** (`context.user.id` y `sub`
    únicos, nombre `Apto 302 - Ana Pérez`, `moderator: false`) y redirige a
-   `https://meet.../<sala>#jwt=<token>`. El token va en el **fragmento**
-   (`#`), que el navegador no envía al servidor: no queda en logs ni en Referer.
+   `https://meet.../<sala>?jwt=<token>`. El token va en la **query**:
+   `stable-11031` ignora `#jwt=` (corregido en `4535fd9`). Se acepta que quede
+   en los logs de Caddy porque caduca al terminar la reunión + 30 min.
 3. Admin: `/admin/reunion/<id>/sala` (Jitsi embebido + controles) o
    `/admin/reunion/<id>/entrar` (Jitsi directo). Token con `moderator: true`.
 4. Prosody (`authentication = "token"`) valida firma HS256 (`JWT_APP_SECRET`),
@@ -430,7 +432,8 @@ La moderación la ejecuta el **navegador del moderador** con el iframe API
 
 - `GET /admin/reunion/<id>/sala` — página lista para usar: activa la moderación
   de audio y video al entrar, lista los participantes (mano levantada primero)
-  con *Dar palabra / Quitar palabra / Habilitar cámara / Quitar cámara*, y
+  con *Pedir la palabra / Silenciar / Habilitar camara / Apagar camara* (así se
+  llaman los botones), y
   *Silenciar a todos / Apagar todas las cámaras*. Registra cada comando.
 - `GET /admin/reunion/<id>/moderador.json` — `{domain, roomName, jwt,
   participantId, exp, expired}` para que **otro cliente** embeba Jitsi como
@@ -456,22 +459,24 @@ api.addListener('videoConferenceJoined', () => {
 });
 // Dar la palabra (aprueba audio y le pide activar el micro):
 api.executeCommand('askToUnmute', participantId);
-// Quitar la palabra:
-api.executeCommand('rejectParticipant', participantId, 'audio');
+// Quitar la palabra ('rejectParticipant' NO existe en la API de 11031):
 api.executeCommand('muteRemoteParticipant', participantId, 'audio');
-// Habilitar / quitar cámara:
+// Habilitar cámara (necesario también para que se vea su pantalla compartida):
 api.executeCommand('approveVideo', participantId);
-api.executeCommand('rejectParticipant', participantId, 'video');
+// Apagar cámara:
+api.executeCommand('muteRemoteParticipant', participantId, 'video');
 // Silenciar a todos:
 api.executeCommand('muteEveryone', 'audio');
 // participantId: eventos participantJoined / raiseHandUpdated, o api.getRoomsInfo().
 </script>
 ```
 
-Comandos verificados en `external_api.min.js` de `jitsi/web:stable-11031`.
-En esa versión el cliente solo distingue `audio` y `video` en
-`toggleModeration` (no existe tipo `desktop`), así que la pantalla compartida
-queda bajo la moderación de video. **No probado en una reunión real.**
+Comandos verificados en `external_api.min.js` de `jitsi/web:stable-11031` y
+usados en asambleas reales (1 y 2-nov-2026). La moderación de `desktop`
+existe en Prosody, pero el iframe API no tiene `approveDesktop`, así que el
+panel no la activa. **Con la moderación de vídeo activa, la pantalla de un
+residente no llega hasta que el admin le pulsa "Habilitar cámara"** (ver
+[Compartir pantalla](#compartir-pantalla-qué-se-puede-y-qué-no-importante)).
 
 ### Reuniones existentes (migración)
 
@@ -506,9 +511,22 @@ el admin entra primero. El plugin `mod_muc_wait_for_host` (ya presente en
 `prosody/prosody-plugins/`) haría esperar a los asistentes hasta que entre el
 moderador; no está activado porque no se ha probado con `token_affiliation`.
 
-## Criterios de aceptación (estado)
+## Fases y estado (2-Nov-2026)
 
-Los criterios que pedía el plan del analista y en qué fase se resuelven:
+| Fase | Qué | Estado |
+|---|---|---|
+| 0 | Restaurar el sitio y persistir el vhost de Caddy | **completa** |
+| 1 | Repo reproducible (clon limpio + CI) | **completa** |
+| 2 | JWT obligatorio y moderación A/V | **completa** |
+| 3 | Sala grande (config de cliente) | **completa**: la config vigente es idéntica a `e30c36d` |
+| 4 | TURN propio | **completa** (pendiente: prueba con dispositivo real, ver criterios) |
+| 5 | Capacidad 500+ / servidor dedicado | **PENDIENTE.** No comprar nada hasta un **ensayo real con 50–100 vecinos** |
+| 6 | Integración con votacionph.us | **parcial**: API `POST /api/reuniones/<id>/token`, `integracion/jitsi-cliente.js` y doc hechos. Falta que el portal lo use y aplicar `frame-ancestors` en el Caddy del host ([docs/INTEGRACION-JITSI.md](docs/INTEGRACION-JITSI.md)) |
+| 7 | Operación: monitorización, respaldos, prueba de carga | **completa** (pendientes: cron de respaldo y restauración en servidor limpio, ver criterios) |
+| 8 | Rediseño visual del panel | **completa** |
+| 9 | Grabación local + panel multi-conjunto | **implementada y desplegada**; falta la checklist en los PCs reales ([docs/GRABACION-PASO0.md](docs/GRABACION-PASO0.md)) |
+
+## Criterios de aceptación (estado)
 
 | Criterio | Estado | Fase |
 |---|---|---|
@@ -516,18 +534,14 @@ Los criterios que pedía el plan del analista y en qué fase se resuelven:
 | Un clon limpio levanta el stack completo; el CI pasa en verde | **hecho** (`scripts/test-ci-local.sh` simula el CI; clon real probado) | 1 |
 | Sin JWT válido para esa sala no se puede entrar | **hecho** (SASL `FAILURE: token required`) | 2 |
 | Solo quien trae `moderator: true` es moderador | **hecho** (`token_affiliation`; `enable-auto-owner=false`) | 2 |
-| Ningún asistente transmite sin aprobación | **hecho** (el JVB recibe `force-mute` para ese endpoint) | 2 |
+| Ningún asistente transmite sin aprobación | **hecho** (el JVB recibe `forceMuteVideo` para ese endpoint; efecto secundario: también bloquea su pantalla, ver "Compartir pantalla") | 2 |
 | El administrador da y quita la palabra | **hecho** ("Pedir la palabra" por participante y "Dar la palabra a todos") | 2 / 3 |
-| Audio en ambos sentidos con UDP bloqueado (TURN en 443) | **pendiente de la prueba con dispositivo real** (TURN desplegado y relay verificado; falta un móvil con datos y un PC con UDP bloqueado oyendo y hablando) | 4 |
-| Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** | 6 |
-| Prueba de carga con 600 clientes | **pendiente** (arnés listo en `loadtest/`, sin ejecutar) | 7 |
+| Un residente comparte pantalla y todos la ven | **hecho** con el procedimiento "Habilitar cámara" (confirmado en producción el 2-nov a las 12:33) | 3 |
+| Audio en ambos sentidos con UDP bloqueado (TURN en 443) | TURN desplegado, relay verificado y vigilado por el watchdog. **A verificar** con dispositivo real (móvil con datos + PC con UDP bloqueado) | 4 |
+| Entrada desde Chrome, Chrome Android y Safari iPhone sin "instala la app" | **pendiente** (depende de que votacionph integre el cliente) | 6 |
+| Prueba de carga | **parcial**: se lanzaron 10, 50 y 120 receptores; **pico de 48 simultáneos**, 0 `bridge_failures`, JVB al 9–17 % de CPU. El límite lo puso el generador de clientes, no el servidor. La de 600 queda para la Fase 5 ([loadtest/README.md](loadtest/README.md)) | 7 / 5 |
 | Alertas: apagar el web dispara alerta en < 2 min | **hecho** (watchdog cada 2 min → Telegram; probado a mano) | 0 |
-| Respaldo restaurado en un servidor limpio | **pendiente** (`scripts/backup.sh`/`restore.sh` probados en local sobre un clon limpio; falta la restauración en un servidor limpio real, ver `docs/BACKUP-RESTORE.md`) | 7 |
-
-Estado de la Fase 4 (TURN): coturn desplegado en servidor aparte, relay verificado,
-certificado autofirmado con renovación automatizable (`scripts/turn-cert.sh`).
-Pendiente: DNS `turn.urbcerroazul.com` + Let's Encrypt y la prueba con dispositivo real.
-Detalle en [Fase 4 — TURN](#fase-4--turn).
+| Respaldo restaurado en un servidor limpio | **pendiente** (scripts probados en local sobre un clon limpio; en producción hay 1 respaldo, del 1-nov 03:40, y **sin cron diario**; ver `docs/BACKUP-RESTORE.md`) | 7 |
 
 ## Fase 3 — Sala grande (estabilidad)
 
@@ -690,10 +704,10 @@ const api = new JitsiMeetExternalAPI('meet.bytracking.net', {
 
 > Los asistentes que entran por la página pública de **este** panel
 > (`/reunion/<slug>` → `/unirse`) van a la URL directa de Jitsi, no a un
-> iframe: ven la barra por defecto del sitio (la del admin; cámara y pantalla
-> quedan bloqueadas por la moderación). Para darles la barra reducida habría
-> que añadir `&config.toolbarButtons=[...]` al fragmento en `jitsi_url()` para
-> tokens sin moderador (pendiente).
+> iframe: ven la barra por defecto del sitio (la del admin, con `desktop`).
+> Pueden pulsar "Compartir pantalla", pero con la moderación de vídeo activa
+> nadie la ve hasta que el admin les pulsa "Habilitar cámara". `jitsi_url()`
+> manda `config.toolbarButtons` en la query y Jitsi la ignora (pendiente).
 
 ### Verificar que se aplicó
 
@@ -782,10 +796,13 @@ con una credencial temporal → deben aparecer candidatos `relay` por UDP y por 
 
 ### Cómo renovar el certificado
 
-Hoy el TURN usa un certificado **autofirmado** (la zona DNS está en Netim y aún no existe
-`turn.urbcerroazul.com`). Los clientes WebRTC no validan el certificado del TURN, así que
-funciona; solo hay que renovarlo antes de que caduque. Cuando exista el registro DNS, se
-pasa a Let's Encrypt (HTTP-01 standalone/webroot, o DNS-01 con IONOS).
+Hoy el TURN usa un certificado **autofirmado** con `CN=turn.urbcerroazul.com`, válido
+hasta el 29-oct-2036 (comprobado el 2-nov-2026). El nombre `turn.urbcerroazul.com` se
+mantiene **a propósito** (el TURN está en otro servidor y no se migró con
+`meet.bytracking.net`), pero **no tiene registro DNS** (no resuelve, 2-nov-2026): Prosody
+anuncia el TURN por **IP** (`TURN_HOST`/`TURNS_HOST`/`STUN_HOST` = `155.133.22.222`). Los
+clientes WebRTC no validan el certificado del TURN, así que funciona. Si algún día se crea
+el registro DNS, se puede pasar a Let's Encrypt (HTTP-01 standalone/webroot, o DNS-01).
 
 ```bash
 # En el servidor del TURN (scripts copiados en /opt/coturn/scripts/)
@@ -810,7 +827,9 @@ certificado cambió.
 | Relay verificado (`turnutils_uclient`: Allocate con credencial REST y relay address) | **hecho** |
 | `TURN_*`/`TURNS_*`/`STUN_*` en el `.env` de Jitsi y `external_services` en Prosody | **hecho** |
 | Certificado TLS + renovación con reinicio de coturn | **hecho** (autofirmado; `scripts/turn-cert.sh` + cron, listo también para Let's Encrypt cuando exista el DNS) |
-| Registro DNS `turn.urbcerroazul.com` + Let's Encrypt | **pendiente** (zona en Netim) |
+| Servidor del TURN | `vmi3186036` (155.133.22.222), coturn `4.6.3-r3`, `/opt/coturn` |
+| Anuncio a los clientes | Prosody: `stun`, `turn` udp, `turn` tcp y `turns` 443, con `secret=true` (credenciales temporales) |
+| Registro DNS `turn.urbcerroazul.com` + Let's Encrypt | **no se hará por ahora**: se usa la IP y el autofirmado (a propósito) |
 | Audio en ambos sentidos con UDP bloqueado | **pendiente** de la prueba con dispositivo real (móvil con datos + PC con UDP bloqueado) |
 
 ## Fase 7 — Operación
@@ -820,8 +839,8 @@ certificado cambió.
 | Qué | Cómo | Estado |
 |---|---|---|
 | Web y `/healthz` del admin | watchdog de Hermes cada 2 min → Telegram (`check-meet-jitsi.sh`) | **hecho** |
-| TURN (STUN, Allocate con credencial, TLS 443, caducidad del cert) | `scripts/check-turn.sh` (silencioso si va bien; instalación en Hermes en `turn/README.md`) | **listo**, falta darlo de alta en Hermes |
-| Renovación del cert del TURN | `scripts/turn-cert-cron.sh` (aviso por `TURN_ALERT_WEBHOOK`/Telegram) | **listo**, falta el cron en el servidor del TURN |
+| TURN (STUN, Allocate con credencial, TLS 443, caducidad del cert) | `scripts/check-turn.sh`, llamado al final de `check-meet-jitsi.sh` (mismo watchdog, cada 2 min) | **hecho** (desde el 1-nov) |
+| Renovación del cert del TURN | `scripts/turn-cert-cron.sh` | **no instalado**: no hace falta mientras se use el autofirmado (caduca en 2036) |
 | Prometheus + Grafana, alertas de CPU/red/bridge | plan 7.1 | **pendiente** |
 
 ### 7.2 Respaldos
@@ -836,6 +855,10 @@ sudo BACKUP_PASSPHRASE='...' BACKUP_ORIGEN=/opt/jitsi-meet scripts/backup.sh --k
 sudo BACKUP_PASSPHRASE='...' scripts/restore.sh <respaldo> --dry-run                     # verifica sumas y HMAC, no escribe
 sudo BACKUP_PASSPHRASE='...' scripts/restore.sh <respaldo> --dest /opt/jitsi-meet        # pide confirmación; NO arranca nada
 ```
+
+Estado en producción (2-nov-2026): **1 respaldo** (`cerroazul-backup-20261101-034041.tar.gz`
+en `/opt/jitsi-meet/backups/`), passphrase en `/root/.backup_passphrase` (600, root) y
+**sin cron diario** todavía.
 
 Respalda `docker-compose.yml`, `web/config/` y `admin-panel/instance/` (db) en claro,
 `turn/turnserver.conf` con el secreto redactado, y **cifrados** (`aes-256-cbc` + PBKDF2 +
@@ -853,25 +876,48 @@ Arnés en [`loadtest/`](loadtest/README.md) para Malleus (`jitsi-meet-torture`):
 criterios. **`--dry-run` por defecto.** Comandos concretos en
 [`loadtest/malleus-sala-prueba.md`](loadtest/malleus-sala-prueba.md).
 
-> Antes de la prueba de 600: `MAX_PARTICIPANTS` vale hoy `500` y Prosody rechaza en
+**Lo que se midió (1-nov-2026, commit `0782429`):** sala única, 1 admin con audio +
+receptores en modo load-test. Se lanzaron pruebas de 10, 50 y 120 receptores; el **pico fue
+de 48 participantes simultáneos**, con 0 `bridge_failures`, JVB al 9–17 % de CPU y 380 MB,
+y 0 errores en Prosody. El límite lo puso la RAM de los hosts que generaban los clientes,
+**no el servidor**. Detalle y cómo repetirlo: [loadtest/README.md](loadtest/README.md).
+
+> Antes de una prueba de 600: `MAX_PARTICIPANTS` vale hoy `500` y Prosody rechaza en
 > silencio a partir de ahí. Hay que subirlo (≥ 610) para la prueba; `run.sh` lo comprueba.
 
 ## Limitaciones Conocidas
 
-- Max ~100 participantes por sala (teorico 200 con el VPS actual de 4 cores)
-- Sin grabación (Jibri no instalado)
-- Sin autoescalado (no Octo)
-- 1 solo worker de Gunicorn para el admin panel (suficiente)
-- TLS/SSL viene de Caddy existente (no se autogenera en este stack)
+- **Capacidad no demostrada por encima de 48 simultáneos** (pico de la prueba de carga). 500
+  es el límite configurado (`MAX_PARTICIPANTS`), no uno medido. Fase 5 pendiente.
+- **Para que un residente comparta pantalla**, el admin tiene que pulsar "Habilitar cámara", y
+  repetirlo si el residente recarga (ver la sección de pantalla compartida).
+- Grabación solo en el PC del admin (Chrome de escritorio). No hay Jibri ni grabación en servidor.
+- Sin autoescalado (un solo JVB, sin Octo).
+- 1 solo worker de Gunicorn para el admin panel (suficiente).
+- El TLS público lo pone el Caddy compartido del host (`hermes-caddy`), no este stack.
 
-## Documentación Adicional
+## Índice de la documentación
 
-- **[docs/SETUP_HISTORY.md](docs/SETUP_HISTORY.md)** - Conversación completa de instalación paso a paso (problemas encontrados, fixes aplicados, logs)
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Arquitectura detallada de cada servicio
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Problemas conocidos y soluciones
-- **[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** - Respaldo diario y restauración en un servidor limpio (Fase 7.2)
-- **[turn/README.md](turn/README.md)** - Servidor TURN: despliegue, certificado y watchdog (Fases 4 y 7.1)
-- **[loadtest/README.md](loadtest/README.md)** - Prueba de carga con Malleus y criterios de aprobación (Fase 7.3)
+| Documento | Léelo cuando… |
+|---|---|
+| [README.md](README.md) | Quieres el estado actual, las fases y cómo operar el sistema (este fichero) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Necesitas saber qué corre dónde: servidores, contenedores, rutas de Caddy, TURN, grabación |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Algo falla. Si "no se ve la pantalla", empieza por el bug de la pantalla compartida |
+| [docs/SOLUCION-PANTALLA.md](docs/SOLUCION-PANTALLA.md) | Vas a moderar una asamblea donde un residente compartirá pantalla: procedimiento, diagnóstico en 2 min y falsas pistas |
+| [docs/INVESTIGACION-PANTALLA.md](docs/INVESTIGACION-PANTALLA.md) | Quieres la evidencia completa del bug de la pantalla (código de Jicofo y del JVB, logs, cronología) |
+| [docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md) | Vas a respaldar, programar el cron o restaurar en un servidor limpio |
+| [docs/INTEGRACION-JITSI.md](docs/INTEGRACION-JITSI.md) | Trabajas en la integración con votacionph.us (API de tokens, cliente JS, cabeceras) |
+| [integracion/README.md](integracion/README.md) | Eres del equipo de votacionph y vas a embeber Jitsi |
+| [admin-panel/README.md](admin-panel/README.md) | Necesitas la referencia de las rutas del panel y de la API de tokens |
+| [turn/README.md](turn/README.md) | Vas a tocar el TURN: despliegue, firewall, certificado, watchdog |
+| [loadtest/README.md](loadtest/README.md) | Vas a repetir o ampliar la prueba de carga |
+| [loadtest/malleus-sala-prueba.md](loadtest/malleus-sala-prueba.md) | Necesitas los comandos exactos de Malleus para `meet.bytracking.net` |
+| [docs/GRABACION-ADMIN.md](docs/GRABACION-ADMIN.md) | Eres el administrador y vas a grabar una asamblea o convertirla a MP4 |
+| [docs/GRABACION-PASO0.md](docs/GRABACION-PASO0.md) | Vas a verificar la grabación en los PCs reales (checklist pendiente) |
+| [docs/SPEC-GRABACION.md](docs/SPEC-GRABACION.md) (+ mockups) | Quieres el diseño de la grabación (Fase 9). Es una spec, no el estado actual |
+| [docs/SPEC-DISENO.md](docs/SPEC-DISENO.md) (+ mockups) | Quieres el diseño del rediseño visual (Fase 8). Es una spec, no el estado actual |
+| [docs/DISENO-AUDITORIA.md](docs/DISENO-AUDITORIA.md) | Quieres ver cómo se implementó y verificó el rediseño, paso a paso |
+| [docs/SETUP_HISTORY.md](docs/SETUP_HISTORY.md) | Te interesa la historia: la instalación original de septiembre (dominio viejo). No se actualiza |
 
 ## Credenciales (protegidas, NO commitear)
 
@@ -912,7 +958,7 @@ El script:
 
 - Docker + Docker Compose
 - Jitsi Meet stable-11031
-- Prosody XMPP server (con 84 plugins de auth_token, av_moderation, breakout, polls, etc.)
+- Prosody XMPP server (con 86 plugins de auth_token, av_moderation, breakout, polls, etc.)
 - Flask 3 + Gunicorn para el admin panel
 - Caddy 2 como reverse proxy
 - Python 3.12 + SQLite para el admin
@@ -969,6 +1015,8 @@ Ninguna plantilla lleva el nombre del conjunto. Todo sale de `admin-panel/instan
 
 El dominio ya era variable (`PUBLIC_URL` en el `.env` de Jitsi).
 
+En producción (2-nov-2026): `JITSI_SITE_NAME=bytracking`, `JITSI_SITE_SUBTITLE="Asambleas virtuales"`, `JITSI_LEGAL_OWNER=bytracking LLC`. El aviso legal de la grabación usa `JITSI_LEGAL_OWNER`.
+
 ### Grabación en el PC del administrador
 
 Botón **Grabar esta reunión** en la sala de moderación (`/admin/reunion/<id>/sala`). Graba **vídeo + audio** (720p/15 fps, WebM VP8/Opus, ≈ 0,5 GB/h) de la pestaña recortada a la reunión, mezcla el micro del admin (solo cuando está abierto en Jitsi) y **guarda en el PC del admin**. **Cero subida al servidor**: no hay ninguna ruta que reciba grabaciones. Solo Chrome de escritorio (macOS y Windows). Sin límite de duración.
@@ -982,26 +1030,75 @@ Botón **Grabar esta reunión** en la sala de moderación (`/admin/reunion/<id>/
 | `scripts/grabacion/prueba-paso0.html` | Página de verificación para los PCs reales |
 | `scripts/grabacion/probar-grabacion-headless.py` | Prueba automática de punta a punta en Chromium (API de Jitsi simulada) |
 
+Grabar **no depende** de la pantalla compartida de Jitsi: el admin graba su propia pestaña (`getDisplayMedia`), así que el bug de la pantalla compartida no le afecta. Si un residente comparte, la grabación recoge lo que el admin ve en su pestaña.
+
 Documentos: [`docs/SPEC-GRABACION.md`](docs/SPEC-GRABACION.md) (diseño + §10 implementación), [`docs/GRABACION-ADMIN.md`](docs/GRABACION-ADMIN.md) (guía de uso y conversión, también con HandBrake), [`docs/GRABACION-PASO0.md`](docs/GRABACION-PASO0.md) (**checklist pendiente en Mac y Windows**).
 
 ## Compartir pantalla: qué se puede y qué no (importante)
 
-Documentado aquí porque costó dos intentos fallidos.
+> **Compartir pantalla requiere que el administrador habilite la cámara de quien
+> comparte. Es contraintuitivo, pero así funciona Jitsi.**
 
-### Cómo funciona realmente en `stable-11031`
+Costó dos días y varios redespliegues en plena asamblea. La evidencia completa está en
+[docs/INVESTIGACION-PANTALLA.md](docs/INVESTIGACION-PANTALLA.md). El procedimiento, el
+diagnóstico y las alternativas, en [docs/SOLUCION-PANTALLA.md](docs/SOLUCION-PANTALLA.md).
+
+### El mecanismo real
+
+1. La sala de moderación del panel activa la moderación de **audio y vídeo** al entrar el
+   admin. Es lo correcto en una asamblea: nadie transmite sin permiso.
+2. Con la moderación de vídeo activa, Jicofo manda **`forceMuteVideo`** al JVB para cada
+   participante no moderador que entra.
+3. El JVB silencia **por endpoint, no por pista**: descarta todo el vídeo de ese
+   participante, la cámara (`-v0`) **y también la pantalla** (`-v1`, `videoType=desktop`).
+4. El residente comparte y **ve su pantalla** (la vista es local). El JVB la recibe y la
+   descarta. **Los demás no ven nada**, y no sale ningún error.
+5. Cuando el admin pulsa **"Habilitar cámara"** (`approveVideo`), el residente entra en la
+   whitelist de vídeo. Con su siguiente petición de des-silenciado, Jicofo le quita el
+   `forceMuteVideo` y el JVB reenvía la pantalla.
+6. El admin es moderador: nunca recibe `forceMuteVideo` y su pantalla siempre llega.
+
+Pasa igual en `stable-11248` y en `master`: **actualizar Jitsi no lo arregla**.
+
+### Procedimiento para que un residente comparta pantalla
+
+1. **Moderación de vídeo activada** (audio + vídeo). Es la recomendada para asambleas grandes.
+2. El participante que va a compartir **levanta la mano**.
+3. El administrador le pulsa **"Habilitar cámara"** → entra en la whitelist de vídeo → el
+   JVB deja de silenciar su endpoint.
+4. Ese participante pulsa **"Compartir pantalla"**. Ahora sí la ven todos.
+5. Si a los ~10 s no se ve, que el participante **encienda su cámara** un momento (ya puede)
+   y la apague si quiere. Esa petición es la que levanta el bloqueo en el JVB.
+
+> ⚠️ **Hay que repetirlo si el participante recarga o se reconecta.** Cada reconexión es
+> un endpoint nuevo y vuelve a aplicarse el silenciado. Por eso **no** hay que decirle a
+> nadie "recarga a ver si se arregla": eso lo vuelve a romper.
+
+Confirmado en producción el 2-nov-2026 a las 12:33 (hora de Bogotá): "Habilitar cámara" →
+`Will unmute … for VIDEO` en Jicofo → `Unmuting incoming video` en el JVB → la pantalla se vio.
+
+Plan B si no funciona: "Apagar cámara" sobre ese participante (también levanta el bloqueo;
+comprobado), o que comparta el admin.
+
+Comprobarlo en el momento (solo lectura):
+
+```bash
+# endpoint de quien comparte
+ssh chatbotph 'docker logs jitsi-jvb --since 15m 2>&1 | grep -o "name=\"[0-9a-f]*-v1\" ssrc=\"[0-9]*\" videoType=\"desktop\"" | cut -d\" -f2 | sort -u'
+# ¿lo está silenciando el JVB? (Muting = sí; Unmuting = ya no)
+EP=<id>; ssh chatbotph "docker logs jitsi-jvb --since 4h 2>&1 | grep 'epId=$EP' | grep forceMuteVideo | tail -1"
+```
+
+### Barra y moderación de pantalla en `stable-11031`
 
 | Intento | ¿Funciona? |
 |---|---|
-| `config.toolbarButtons` en la **query** de la URL | ❌ **No.** El bundle no lee esa clave de la URL (0 apariciones). Solo existe `config.customToolbarButtons`, que son botones EXTRA |
-| `configOverwrite` en el **iframe** (`JitsiMeetExternalAPI`) | ✅ **Sí.** Es lo que usa el panel de moderación (el admin) |
+| `config.toolbarButtons` en la **query** de la URL | ❌ **No.** El bundle no lee esa clave de la URL. Solo existe `config.customToolbarButtons`, que son botones EXTRA |
+| `configOverwrite` en el **iframe** (`JitsiMeetExternalAPI`) | ✅ **Sí.** Es lo que usa la sala de moderación (el admin) |
 | `config.toolbarButtons` en el **`config.js` del servidor** | ✅ **Sí**, pero es **global**: no distingue admin de residente |
-| Moderar la pantalla con `toggleModeration("audio"/"video"/"desktop")` | ⚠️ **Existe** (`desktopModerationEnabled`, `desktopWhitelist`), pero activarla bloquea el compartir de los invitados **hasta que el admin conceda permiso uno a uno**, y el panel no tiene ese control |
+| Moderar la pantalla con `toggleModeration(..., "desktop")` | ⚠️ Existe en Prosody, pero el iframe API **no** tiene `approveDesktop`: el panel no podría dar el permiso. **No se activa** |
 
-### Estado actual (el que funciona)
-
-- La barra por defecto del sitio (`web/config/custom-config.js`) es la del **admin**, con `desktop` incluido.
-- La **moderación se activa solo para `audio` y `video`**. La pantalla queda libre.
-- Resultado: **cualquiera en la sala puede compartir pantalla** (comprobado en producción).
+Estado actual: la barra del sitio incluye `desktop` y la moderación es solo de `audio` y `video`.
 
 ### Configuración de vídeo y pantalla (NO cambiar sin leer esto)
 
@@ -1016,49 +1113,41 @@ config.desktopSharingFrameRate = { min: 5, max: 15 };           // pantalla
 // NO existe config.desktopSharingResolution: se deja sin definir a propósito
 ```
 
-Estos valores son los que el operador confirmó que **funcionan** (la pantalla se ve bien).
-
-### Por qué NO se debe "arreglar" la resolución de la pantalla
-
-Se probaron dos ajustes y **los dos empeoraron la situación**:
-
-| Intento | Resultado |
+| Intento (1-nov) | Resultado |
 |---|---|
-| `desktopSharingResolution = 1920×1080` | Pantalla **oscura** (tile en negro) |
-| `desktopSharingResolution = 800×600` | Pantalla **oscura** también |
-| Sin `desktopSharingResolution` (actual) | ✅ **Se ve bien** |
+| `desktopSharingResolution = 1920×1080` (`ce48ac9`) | Pantalla **en negro** |
+| `desktopSharingResolution = 800×600` (`99ffbe7`) | **Igual**, en negro |
+| Sin `desktopSharingResolution` (actual, `86e6319`) | Es la configuración que se mantiene. La pantalla se ve **si se habilita la cámara de quien comparte** |
 
-**La causa real no era la resolución.** Está en el log del JVB:
-
-```
-BandwidthAllocator: Sources suspended due to insufficient bandwidth
-(bwe=346343 bps): [3fadf6ff-v1]
-```
-
-`v1` es la pista de pantalla. Con **346 kbps** de ancho de banda estimado, el JVB **suspende la fuente** y el receptor ve el tile en negro. Subir la resolución multiplica lo que hace falta (1080p ≈ 2-3 Mbps) y hace que se suspenda **más**.
-
-**El límite es la red del receptor, no la configuración del servidor.**
+**No añadas `desktopSharingResolution`.** La resolución no era la causa: aquellas pruebas
+coincidieron con reconexiones del emisor, es decir, con el silenciado. Subirla solo aumenta
+el ancho de banda que necesita cada receptor.
 
 ### Reglas para no romperlo otra vez
 
-1. **No quites `desktop` de `config.toolbarButtons`** para "impedir" compartir: rompe el caso de uso de reuniones pequeñas, donde alguien tiene que mostrar un documento.
-2. **No actives `toggleModeration(..., "desktop")`** sin construir antes el permiso por participante: deja al invitado pulsando compartir sin que se vea nada.
-3. **No añadas `config.desktopSharingResolution`.** Se probó y la pantalla se pone oscura. Si algún día hiciera falta más nitidez, el problema a resolver primero es el ancho de banda del receptor.
-4. **No subas `maxFullResolutionParticipants`** a 2: agota el hueco de calidad completa entre cámara y pantalla.
-5. Ante cualquier cambio aquí: **probar con dos personas reales** (una comparte, otra mira) antes de darlo por bueno. Verificar que "el JVB recibe la pantalla" **no** prueba que el otro la vea.
+1. **No quites `desktop` de `config.toolbarButtons`**: rompe las reuniones pequeñas, donde
+   alguien tiene que mostrar un documento.
+2. **No actives `toggleModeration(..., "desktop")`**: el panel no tiene forma de aprobar.
+3. **No añadas `config.desktopSharingResolution`.**
+4. **No subas `maxFullResolutionParticipants`** a 2 ni toques `channelLastN` por este
+   problema: no intervienen.
+5. **No reinicies ni redespliegues `web`, `jicofo`, `jvb` o `prosody` durante una asamblea**
+   para "probar": cada reconexión reaplica el silenciado y el fallo parece aleatorio.
+6. Ante cualquier cambio aquí: **probar con dos personas reales** (una comparte, otra mira).
+   Que "el JVB recibe la pantalla" **no** prueba que el otro la vea.
 
-> Detalle de lo probado: commits `140cd43`, `ce48ac9`, `99ffbe7` y `86e6319` (este último restaura).
+### Si la pantalla se ve negra solo para alguien
 
-### Si la pantalla se ve oscura para alguien
-
-Casi siempre es **su conexión**. Comprobarlo así:
+Si el emisor ya está des-silenciado (`Unmuting` arriba) y **una** persona la ve en negro,
+es su red:
 
 ```bash
 ssh chatbotph 'docker logs jitsi-jvb --since 30m 2>&1 | grep -i "insufficient bandwidth"'
 ```
 
-- Si aparece `Sources suspended ... [<id>-v1]` con un `bwe` bajo → es ancho de banda del receptor. No hay nada que tocar en el servidor: esa persona necesita mejor red (cable, o wifi más cercano).
-- Si **no** aparece ese mensaje y aun así se ve negro → entonces sí es un problema distinto, y hay que mirar los logs del cliente.
+`Sources suspended … (bwe=346343 bps): [<id>-v1]` → el JVB suspende la pantalla para ese
+receptor por falta de ancho de banda. En el servidor no hay nada que tocar: esa persona
+necesita mejor red (cable o wifi más cercano). Esto **no** explica que no la vea nadie.
 
 ## Licencia
 

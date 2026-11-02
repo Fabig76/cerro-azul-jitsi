@@ -5,6 +5,56 @@ de cada asamblea de más de 300 personas (T-7 días en el checklist de la Fase 7
 
 Este directorio **prepara** la prueba; no la ejecuta nadie automáticamente.
 
+## Qué se probó realmente (1-nov-2026, commit `0782429`)
+
+Se lanzaron pruebas de **10, 50 y 120 receptores** con tres scripts:
+`escalonado.sh` (grid local), `carga-remota.sh` (grid en `vps2938` por túnel
+SSH) y `prueba-3vps.sh` (grids en `vps2938` y `vmi3186036`, 60 por VPS).
+Mediciones registradas en el commit:
+
+| Participantes simultáneos | Resultado |
+|---|---|
+| 10 receptores | 0 fallos, sala creada, 93 s de vida |
+| 32 | JVB 0,4 % CPU, 374 MB, 0 `bridge_failures` |
+| **48 (pico, 2 grids)** | JVB 9–17 % CPU, 380 MB, 0 `bridge_failures`, 30 MB enviados, 0 errores en Prosody |
+
+Ninguna prueba llegó a meter a la vez los 50 ni los 120 objetivo.
+
+Montaje común: sala única `cargatest0`, 1 emisor (admin) con audio + receptores
+con `--use-load-test` y varios receptores por pestaña (`--receivers-per-tab`).
+El VPS de producción (`chatbotph`) fue **solo servidor bajo prueba**, nunca
+generador de clientes.
+
+**Conclusión:** el límite fue la **RAM de los hosts que generaban los clientes**,
+no el servidor de Jitsi. Con 48 simultáneos el JVB no pasó del 17 % de CPU.
+**No está demostrado** cuánto aguanta por encima de eso: la prueba de 600 sigue
+pendiente y forma parte de la Fase 5. Antes de comprar un servidor dedicado, hacer
+un **ensayo real con 50–100 vecinos**.
+
+### Cómo repetirlo
+
+```bash
+# Token de la sala de prueba en /tmp/jwt-carga.txt (lo leen los tres scripts)
+python3 loadtest/make-token.py /opt/jitsi-meet/.env --room cargatest0 --hours 3 --out /tmp/jwt-carga.txt
+# (make-token.py necesita el .env de Jitsi: generarlo en el VPS y copiarlo, chmod 600)
+
+loadtest/escalonado.sh 10 120 3000 5          # humo: receptores, duración s, join-delay ms, recv/pestaña
+loadtest/carga-remota.sh 50 180 1000 8        # requiere: ssh -N -L 4444:localhost:4444 vps2938
+loadtest/prueba-3vps.sh 60 180 6              # 60 por VPS generador -> 120 objetivo
+shred -u /tmp/jwt-carga.txt                   # al terminar
+```
+
+Requisitos: clon de `jitsi-meet-torture` en `/root/jitsi-meet-torture`, JDK 17 y
+Maven, y un Selenium Grid (`docker-compose.selenium.yml`) en cada generador.
+*A verificar antes de repetir:* las pruebas pasaban el JWT con
+`--extra-*-params=jwt=…` el 1-nov por la mañana, antes de que se descubriera que
+`stable-11031` ignora `#jwt=` (`4535fd9`). Si los clientes no entran
+("token required" en Prosody), es eso.
+
+Las secciones siguientes describen `run.sh`, el envoltorio pensado para la
+prueba completa de 600 con criterios automáticos. Se escribió antes de las
+mediciones; las pruebas de arriba usaron los tres scripts directamente.
+
 | Fichero | Para qué |
 |---|---|
 | `run.sh` | Envoltorio de Malleus: comprobaciones previas, muestreo del JVB durante la prueba y tabla de resultados. **`--dry-run` por defecto**; solo lanza con `--run` |

@@ -1,5 +1,10 @@
 # Troubleshooting - Problemas Conocidos y Soluciones
 
+> Los problemas de la instalación inicial (septiembre de 2026, imágenes
+> `stable-9111`, Prosody anónimo) se conservan como referencia. El que más
+> afecta hoy a las asambleas es el de la **pantalla compartida**, al final:
+> [ir a la sección](#-bug-comparto-pantalla-pero-los-demás-no-la-ven-12-nov-2026).
+
 ## ⭐ BUG #6 (CRÍTICO): "There are no operational bridges" por JVB_BREWERY_MUC mal configurado
 
 **Síntoma:** Jicofo dice "no operational bridges", los participantes se desconectan al entrar el segundo.
@@ -197,6 +202,13 @@ jvb:
 ---
 
 ## Problema: Login pide usuario/contrasena al entrar a la reunion
+
+> **Histórico (antes de la Fase 2).** Desde la Fase 2 el acceso es **con JWT
+> obligatorio** (`ENABLE_AUTH=1`, `AUTH_TYPE=jwt`): no hay que volver a
+> anónimo. Hoy, "Se requiere autenticación" al entrar significa que el token
+> no llegó o no es válido. Con `stable-11031` el token tiene que ir en
+> `?jwt=` (query), **no** en `#jwt=` (corregido en `4535fd9`). Ver también
+> los logs de Prosody (`token required`, `signature verification failed`).
 
 **Sintoma:**
 - Al entrar a `/reunion/<slug>`, aparece modal "Se requiere autenticacion"
@@ -444,7 +456,7 @@ docker compose restart jicofo
 ### Ver DB de reuniones
 
 ```bash
-sqlite3 /opt/jitsi-admin/instance/reuniones.db
+sqlite3 /opt/jitsi-meet/admin-panel/instance/reuniones.db
 sqlite> .tables
 sqlite> .schema reuniones
 sqlite> SELECT id, slug, titulo, fecha_utc, activo FROM reuniones;
@@ -505,7 +517,9 @@ sudo systemctl restart docker
 
 ## Notas sobre Monitoreo
 
-Actualmente no hay monitoreo automatico. Para agregar:
+Hoy hay un watchdog de Hermes cada 2 min (web, `/healthz` y TURN) que avisa por
+Telegram; corre en el host de desarrollo `vmi3186036` (ver README, Fase 7.1).
+Pendiente (Fase 7.1): Prometheus + Grafana. Ideas originales:
 
 - **Prometheus + Grafana**: `docker-jitsi-meet` tiene un compose adicional
 - **Alertas**: configurar en /etc/cron.daily/ un script que verifique `curl /healthz` y envie email si falla
@@ -522,145 +536,104 @@ fi
 
 ---
 
-## BUG: "Comparto pantalla pero los demás no la ven" (1-Nov-2026)
+## ⭐ BUG: "Comparto pantalla pero los demás no la ven" (1/2-Nov-2026)
 
-**Síntoma.** Un invitado pulsa compartir pantalla, Chrome le pide qué
-compartir, acepta... y en la sala no aparece nada. Sin errores.
+> **Compartir pantalla requiere que el administrador habilite la cámara de
+> quien comparte.** Es contraintuitivo, pero así funciona Jitsi.
+> Investigación completa: [`INVESTIGACION-PANTALLA.md`](INVESTIGACION-PANTALLA.md).
+> Procedimiento y alternativas: [`SOLUCION-PANTALLA.md`](SOLUCION-PANTALLA.md).
 
-### Lo que NO era
+Esta sección **sustituye** a las dos versiones anteriores del 1-nov
+("era la moderación de `desktop`" y "era el ancho de banda del receptor").
+Las dos estaban equivocadas como causa principal.
 
-- **No era `channelLastN = 4`.** Se sospechó primero, pero el log del JVB
-  lo descartó: la pantalla llegaba al servidor con 6 fuentes
-  `videoType="desktop"` y Prosody no registraba ningún bloqueo.
-- **No era falta de ancho de banda** ni un fallo del JVB.
+### Síntoma exacto
 
-### La causa real
+- Un **residente** (no el admin) pulsa "Compartir pantalla", elige qué
+  compartir y **él ve su pantalla** (la vista es local).
+- **Los demás no ven nada.** Sin errores en ningún lado.
+- Si comparte el **admin**, se ve siempre.
+- "Antes funcionaba" y deja de funcionar cuando el residente recarga.
 
-Se había activado `toggleModeration(..., "desktop")` en el panel. Esa
-moderación **sí existe** en `stable-11031`:
+### Cómo distinguirlo de un problema de red
+
+En el log del JVB, la pista de pantalla del emisor **sí aparece** (llega al
+servidor), pero el JVB no la reenvía, y para ese endpoint la última línea de
+`forceMuteVideo` es *Muting*:
 
 ```
-desktopModerationEnabled · desktopWhitelist · desktopUnmuteApproved
-pendingDesktop · "desktop-moderation" · "raise-hand-desktop"
+… name="e0dae905-v1" ssrc="…" videoType="desktop" …              <- la pantalla llega
+Transceiver.forceMuteVideo#322: … epId=e0dae905 … Muting incoming video   <- y se descarta
 ```
 
-El problema: al activarla, el servidor **bloquea** el compartir de todos
-los que no estén en la lista blanca, y el panel **no tenía** ningún botón
-para añadir a alguien a esa lista. El invitado compartía, el servidor lo
-descartaba en silencio y nadie veía nada.
+Un problema de red del **receptor** se ve distinto: `Sources suspended due
+to insufficient bandwidth (bwe=…)` para un receptor concreto, y solo cuando
+el emisor ya está des-silenciado. Afecta a esa persona, no a todos.
 
-### La solución
+### Causa
 
-**Moderar solo `audio` y `video`.** La pantalla queda fuera de la
-moderación y compartir funciona para todos:
+Con la moderación de **vídeo** activa (la sala de moderación del panel la
+activa siempre), Jicofo manda `forceMuteVideo` al JVB para cada participante
+no moderador que entra. El JVB silencia **por endpoint, no por pista**: tira
+todos los paquetes de vídeo del residente, cámara (`-v0`) **y pantalla**
+(`-v1`, `videoType=desktop`). Cada reconexión vuelve a aplicarlo. Igual en
+`stable-11031`, `stable-11248` y `master`: actualizar no lo arregla.
 
-```js
-function activarModeracion() {
-  cmd("toggleModeration", true, "audio");
-  cmd("toggleModeration", true, "video");
-  // NO añadir "desktop" sin un botón de permiso por participante
-}
-```
+### Arreglo: habilitar la cámara de quien comparte
 
-### Cómo verificarlo
+1. Moderación de vídeo activada (audio + vídeo), la recomendada para asambleas.
+2. El residente que va a compartir **levanta la mano**.
+3. El admin le pulsa **"Habilitar cámara"** (`approveVideo`): entra en la
+   whitelist de vídeo.
+4. El residente pulsa "Compartir pantalla". Se ve en unos segundos.
+5. Si a los 10 s no se ve: el residente **enciende su cámara** un momento
+   (ya puede) y la apaga si quiere. Esa petición es la que hace que el JVB
+   pase a `Unmuting incoming video`.
+6. **Si el residente recarga o se reconecta, repetir desde el paso 3.**
+
+Plan B: "Apagar cámara" sobre el residente también levanta el silenciado
+(comprobado), o que comparta el admin. Detalle en `SOLUCION-PANTALLA.md` §a.
+
+Confirmado en producción el 2-nov a las 12:33 (Bogotá): "Habilitar cámara"
+→ `Will unmute … for VIDEO` → `Unmuting incoming video` → la pantalla se vio.
+
+### Diagnóstico en 2 minutos (solo lectura, desde el host de desarrollo)
 
 ```bash
-# 1. La pantalla llega al servidor (debe aparecer desktop)
-ssh chatbotph 'docker logs jitsi-jvb --since 5m | grep -c "videoType=\"desktop\""'
+# 1. ¿Quién comparte? -> id del endpoint (lo que va antes de -v1)
+ssh chatbotph 'docker logs jitsi-jvb --since 15m 2>&1 | grep -o "name=\"[0-9a-f]*-v1\" ssrc=\"[0-9]*\" videoType=\"desktop\"" | cut -d\" -f2 | sort -u'
 
-# 2. El panel NO activa moderación de desktop
-ssh chatbotph 'docker exec jitsi-admin grep -c "toggleModeration.*desktop" /app/page_sala.html'
-# debe dar 0
+# 2. ¿El JVB lo está silenciando?
+EP=e0dae905
+ssh chatbotph "docker logs jitsi-jvb --since 4h 2>&1 | grep 'epId=$EP' | grep forceMuteVideo | tail -1"
+#   Muting incoming video   -> es este bug: "Habilitar cámara" (arriba)
+#   Unmuting incoming video -> el JVB sí reenvía; mirar el paso 3
+#   (nada)                  -> emisor moderador o sin moderación de vídeo; paso 3
 
-# 3. La barra del sitio incluye desktop
-curl -sk https://meet.bytracking.net/config.js | grep -A12 "^config.toolbarButtons"
+# 3. ¿Algún receptor sin ancho de banda?
+ssh chatbotph 'docker logs jitsi-jvb --since 15m 2>&1 | grep "insufficient bandwidth"'
 ```
 
-### Errores que se cometieron en el camino (para no repetirlos)
+Si el paso 1 no devuelve nada, la pantalla ni siquiera llegó al JVB:
+problema en el emisor (permisos del navegador o de macOS).
 
-1. **Creer que `config.toolbarButtons` se puede pasar por la query.** No
-   se puede: el bundle no lee esa clave de la URL (0 apariciones). Solo
-   `configOverwrite` por iframe, o el `config.js` del servidor (global).
-2. **Quitar `desktop` de la barra** para impedir compartir: rompe las
-   reuniones pequeñas donde alguien tiene que mostrar un documento.
-3. **No probar end-to-end.** Verificar que "el JVB recibe la pantalla"
-   no prueba que "el invitado la vea". Hay que abrir dos navegadores y
-   comprobarlo en la sala.
+Las horas del log están en hora de Bogotá (`TZ` de los contenedores).
 
----
+### Falsas pistas (descartadas, con evidencia)
 
-## BUG: "La pantalla compartida se ve OSCURA / en negro" (1-Nov-2026)
-
-**Síntoma.** Alguien comparte pantalla y el receptor ve el tile **negro**,
-no la imagen. La pantalla se está transmitiendo, pero no se ve.
-
-### Lo que NO era (se probó y se descartó)
-
-| Hipótesis | Prueba | Veredicto |
-|---|---|---|
-| Falta de resolución (360p heredado) | `desktopSharingResolution = 1920×1080` | ❌ **Empeoró**: más oscura aún |
-| Resolución excesiva para el JVB | `desktopSharingResolution = 800×600` | ❌ **Siguió oscura** |
-| Hueco de calidad completa ocupado | `maxFullResolutionParticipants = 2` | ❌ No cambió nada |
-| Moderación de pantalla bloqueando | `toggleModeration("desktop")` | ❌ Ya estaba descartado antes |
-
-**Conclusión: no era la resolución.** Los tres ajustes se revirtieron.
-
-### La causa real: el ancho de banda del RECEPTOR
-
-El log del JVB lo dice sin ambigüedad:
-
-```
-BandwidthAllocator.allocate#279: Sources suspended due to insufficient
-bandwidth (bwe=346343 bps): [3fadf6ff-v1]
-```
-
-- `bwe=346343 bps` → el estimador de ancho de banda mide **346 kbps**.
-- `[3fadf6ff-v1]` → la fuente suspendida es la **`v1`**, la pista de
-  pantalla (`videoType="desktop"`).
-
-Cuando el BWE del receptor baja de lo que necesita la pista, el JVB
-**deja de enviarla** ("Sources suspended"). El cliente no recibe vídeo y
-pinta el tile en negro. No hay ningún error visible: es una decisión
-correcta del servidor, no un fallo.
-
-Subir la resolución **multiplica** lo que se necesita:
-
-| Resolución de pantalla | Ancho de banda necesario |
+| Pista | Por qué no era |
 |---|---|
-| 800×600 @ 5-15 fps | ~500-800 kbps |
-| 1280×720 | ~1-1,5 Mbps |
-| 1920×1080 | ~2-3 Mbps |
+| `desktopSharingResolution` | 1080p (`ce48ac9`) y 800×600 (`99ffbe7`) dieron pantalla en negro. Coincidieron con reconexiones (`MUTED`). Sin la clave (estado actual, `86e6319`) siguió fallando 6 veces seguidas (12:14–12:51) hasta que se usó "Habilitar cámara". **No añadirla** |
+| `channelLastN = 4` | Con 3–5 participantes la pantalla cabe. Las dos veces que se vio (1-nov 10:50, 2-nov 12:33) fue con `lastN=4` |
+| `maxFullResolutionParticipants` | Actúa en la selección del receptor, no en el descarte en la entrada del JVB. Dejarlo en `1` |
+| `source-add: 0` en Jicofo | **Normal** con SSRC rewriting (`use-ssrc-rewriting = true`): Jicofo no manda `source-add` a los receptores; las fuentes las anuncia el JVB por el canal de datos |
+| `insufficient bandwidth` | Real, pero solo para **receptores concretos** con poca banda (346 kbps; 285 → 30 kbps), y solo si el emisor ya está des-silenciado. No explica "no lo ve nadie" |
+| Moderación de `desktop` | Nunca llegó a activarse (0 `Setting enabled=true for DESKTOP` en Jicofo el 1-nov) |
 
-Con 346 kbps disponibles, **ninguna de las tres cabe**. La de 1080p se
-suspende antes y más a menudo: por eso al subirla se veía *peor*.
+### Errores que se cometieron (para no repetirlos)
 
-### Configuración que funciona (estado actual)
-
-Idéntica a la Fase 3. **No añadir `desktopSharingResolution`**:
-
-```js
-config.resolution = 360;
-config.constraints = { video: { height: { ideal: 360, max: 720, min: 180 } } };
-config.channelLastN = 4;
-config.maxFullResolutionParticipants = 1;
-config.desktopSharingFrameRate = { min: 5, max: 15 };
-```
-
-### Cómo diagnosticarlo en 10 segundos
-
-```bash
-ssh chatbotph 'docker logs jitsi-jvb --since 30m 2>&1 | grep -i "insufficient bandwidth"'
-```
-
-- **Aparece** `Sources suspended ... [-v1]` con `bwe` bajo
-  → es la red del receptor. **No hay nada que cambiar en el servidor.**
-  Esa persona necesita cable o mejor wifi.
-- **No aparece** y aun así se ve negro
-  → problema distinto: mirar la consola del navegador del receptor.
-
-### Lección
-
-Un "no se ve" no siempre se arregla en el servidor. Antes de tocar
-parámetros: **leer el log del JVB**. Ahí estaba la respuesta desde el
-principio (`insufficient bandwidth`), y se ignoró durante dos intentos
-de ajuste de resolución.
+1. Diagnosticar sin mirar `forceMuteVideo`, que estaba en el mismo log del JVB.
+2. Redesplegar y reiniciar Jicofo (1-nov 12:55) con gente dentro: cada
+   reconexión reaplicaba el silenciado y el fallo parecía aleatorio.
+3. Pedir a los residentes que recargaran: con este bug, **recargar lo rompe otra vez**.
+4. Dar por bueno un cambio sin dos personas reales (una comparte, otra mira).

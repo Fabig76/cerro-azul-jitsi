@@ -1,3 +1,25 @@
+# TURN (coturn) — Fase 4
+
+## Estado en producción (verificado el 2-nov-2026)
+
+| Qué | Valor |
+|---|---|
+| Servidor | `vmi3186036`, IP **155.133.22.222** (es también el host de desarrollo y el del watchdog de Hermes) |
+| Software | contenedor `coturn`, imagen `coturn/coturn:4.6.3-r3`, en `/opt/coturn`, `network_mode: host` |
+| Puertos | `3478/udp` y `3478/tcp` (STUN/TURN), `443/udp` (alterno) y `443/tcp` (**TURN sobre TLS**), relay `49160–49200/udp` |
+| Anuncio a los clientes | Prosody (`external_services`): `stun`, `turn` udp, `turn` tcp y `turns` 443, con `secret=true`. En el `.env` de Jitsi `TURN_HOST`, `TURNS_HOST` y `STUN_HOST` = `155.133.22.222` (por **IP**) |
+| Certificado TLS | autofirmado, `CN=turn.urbcerroazul.com`, válido hasta el 29-oct-2036 |
+| Nombre de dominio | **Sigue siendo `turn.urbcerroazul.com`, a propósito**: el TURN está en otro servidor y no se migró con `meet.bytracking.net`. Ese nombre **no tiene registro DNS** (no resuelve, 2-nov-2026); solo aparece en el certificado. Por eso Prosody anuncia la IP |
+| Vigilancia | `check-meet-jitsi.sh` de Hermes llama a `scripts/check-turn.sh` cada 2 min (STUN, Allocate con credencial, TLS 443, caducidad del cert) con el secreto de `/root/.hermes/secrets/turn.env` |
+| Cron de renovación del cert | No instalado (no hace falta con el autofirmado hasta 2036) |
+
+> Si se rota `TURN_CREDENTIALS`, hay que actualizar a la vez el `.env` de Jitsi,
+> `static-auth-secret` de coturn **y** `/root/.hermes/secrets/turn.env`, o el
+> watchdog empezará a alertar con 401.
+
+## Notas de despliegue (cabecera original)
+
+```text
 # =====================================================================
 # turn/ - Servidor TURN de Cerro Azul (Fase 4)
 #
@@ -72,6 +94,7 @@
 #     usuario, o no los podra leer.
 #   - El healthcheck mira /proc/net (la imagen no trae netstat ni ss).
 # =====================================================================
+```
 
 ## Certificado TLS del TURN (`scripts/turn-cert.sh`)
 
@@ -89,15 +112,15 @@ cp scripts/turn-cert.sh scripts/turn-cert-cron.sh /opt/coturn/scripts/
 ```
 
 **Escenario B — autofirmado (el de hoy).** El instalado hoy es autofirmado y dura
-~10 años. Para regenerarlo (365 días, con la IP como SAN):
+~10 años (hasta el 29-oct-2036). Para regenerarlo (365 días, con la IP como SAN):
 
 ```bash
 /opt/coturn/scripts/turn-cert.sh issue --selfsigned --ip <IP_TURN> --dry-run
 /opt/coturn/scripts/turn-cert.sh issue --selfsigned --ip <IP_TURN>
 ```
 
-**Escenario A — Let's Encrypt (preferido).** Requiere el registro DNS
-`turn.urbcerroazul.com` → IP del TURN (la zona está en **Netim**).
+**Escenario A — Let's Encrypt (no previsto por ahora).** Requeriría crear el registro DNS
+`turn.urbcerroazul.com` → IP del TURN (la zona está en **Netim**), que hoy no existe.
 
 ```bash
 apt install certbot
@@ -185,11 +208,11 @@ chmod 700 /root/.hermes/scripts/check-turn-cerroazul.sh
 /root/.hermes/scripts/check-turn-cerroazul.sh; echo "rc=$?"     # sin salida y rc=0
 ```
 
-3. Dar de alta el trabajo en Hermes con los mismos campos que `watchdog-meet-urbcerroazul`
-   (en `/root/.hermes/cron/jobs.json`, mediante la herramienta de cron de Hermes):
-   `"name": "watchdog-turn-cerroazul"`, `"script": "check-turn-cerroazul.sh"`,
-   `"no_agent": true`, `"schedule": {"kind": "interval", "minutes": 5}`,
-   `"deliver": "telegram:..."` (el mismo destino que el watchdog de meet).
+3. Dar de alta el trabajo en Hermes (`no_agent: true`, intervalo, destino Telegram).
+   **En producción no se hizo así:** desde el 1-nov la comprobación del TURN va al final
+   de `/root/.hermes/scripts/check-meet-jitsi.sh` (el mismo trabajo de cada 2 min), con
+   `--host 155.133.22.222 --port 3478 --turns-port 443`. El envoltorio separado de este
+   apartado solo hace falta si se quiere un trabajo aparte.
 4. Probar la alerta: con un secreto equivocado en una copia de `turn.env`, el script debe
    imprimir `🔴 ALERTA ... credencial rechazada (401)`.
 

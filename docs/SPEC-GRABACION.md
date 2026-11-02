@@ -1,5 +1,7 @@
 # SPEC — Grabación de la asamblea en el PC del administrador
 
+> **Nota (2-nov-2026):** este documento es la **spec de diseño de la Fase 9** (grabación local). No se reescribe. El estado final está en el [README](../README.md) (sección «Fase 9») y la guía de uso, en [`GRABACION-ADMIN.md`](GRABACION-ADMIN.md).
+
 > **Estado:** auditado, aprobado e **implementado** (Fase 2, 2026-11-01). Ver §10 para las decisiones del autor y las desviaciones. Pendiente: verificación en los PCs reales ([`GRABACION-PASO0.md`](GRABACION-PASO0.md)).
 > **Fecha:** 2026-11-01 · **Alcance:** `admin-panel/app/page_sala.html`, `admin-panel/app/static/` (+ 1 línea de `app.py`), `web/config/custom-config.js` (solo si se elige la alternativa A2).
 > **Wireframes:** [`SPEC-GRABACION-mockups.md`](SPEC-GRABACION-mockups.md)

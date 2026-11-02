@@ -255,7 +255,9 @@ interacciones (`auditoria/paso6-7-*.txt`).
 Vuelta atrás si hiciera falta: `ssh chatbotph 'cd /opt/jitsi-meet && sudo docker tag jitsi-admin:pre-paso5
 jitsi-admin:local && sudo docker compose up -d --no-build --force-recreate admin'`.
 
-## Hallazgo previo al rediseño: el residente no entra con `#jwt=` (PENDIENTE, decisión del usuario)
+## Hallazgo previo al rediseño: el residente no entra con `#jwt=` (RESUELTO en `4535fd9`)
+
+> **Resuelto el 1-nov-2026:** el usuario aprobó el cambio y `jitsi_url()` manda ahora el token en `?jwt=` (commit `4535fd9`). Se acepta que quede en los logs de Caddy porque caduca. Lo de abajo es el registro del hallazgo.
 
 Durante la prueba con dos clientes, B (que entra por `/reunion/<slug>` → `/unirse`) recibía en Jitsi
 **"Se requiere autenticación"**. Con **el mismo token** pasado como `?jwt=` entra sin problema:

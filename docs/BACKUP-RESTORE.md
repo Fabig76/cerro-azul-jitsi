@@ -3,6 +3,32 @@
 Criterio de aceptación: **respaldo restaurado con éxito en un servidor limpio**.
 Este documento es el procedimiento para cumplirlo (y para repetirlo una vez al mes).
 
+## Estado en producción (verificado el 2-nov-2026)
+
+| Qué | Estado |
+|---|---|
+| Respaldos en `/opt/jitsi-meet/backups/` | **1**: `cerroazul-backup-20261101-034041.tar.gz` |
+| Passphrase | `/root/.backup_passphrase` en el VPS (600, root). Debe estar también fuera del servidor |
+| Cron diario | **No instalado** (en `/etc/cron.d/` del VPS no hay `jitsi-backup`). Ver "Respaldo diario" |
+| Restauración en un servidor limpio | **Pendiente** (criterio de la Fase 7.2) |
+
+`admin.env` de producción ya no es solo la contraseña del panel. Lleva también
+la marca (`JITSI_SITE_NAME`, `JITSI_SITE_SUBTITLE`, `JITSI_LEGAL_OWNER`) y las
+dos API keys de la Fase 6 (`JITSI_API_KEY`, `JITSI_API_KEY_ADMIN`). Por eso va
+**cifrado** en el respaldo y es grave que falte: sin él, el panel arranca con la
+marca por defecto y votacionph deja de poder pedir tokens. Los valores reales no
+se escriben nunca en el repo (aquí: `<oculto>`).
+
+Con la passphrase en `/root/.backup_passphrase` (solo la passphrase, sin
+`BACKUP_PASSPHRASE=`), el respaldo manual en el VPS es:
+
+```bash
+sudo bash -c 'BACKUP_PASSPHRASE="$(cat /root/.backup_passphrase)" BACKUP_ORIGEN=/opt/jitsi-meet /opt/jitsi-meet/scripts/backup.sh --keep 14'
+```
+
+*A verificar antes de usarlo:* que el fichero contenga solo la passphrase (no
+se ha leído su contenido para este documento).
+
 ## El ciclo en una línea
 
 ```bash
@@ -64,7 +90,7 @@ ejecución y en `MANIFEST.txt`, y el respaldo queda marcado `estado: incompleto`
 | Qué | Cómo va en el respaldo | Por qué |
 |---|---|---|
 | `.env` | **cifrado** | Todos los secretos del stack. **Sin él el respaldo no sirve para restaurar** |
-| `admin-panel/instance/admin.env` | **cifrado** | Contraseña y claves del panel |
+| `admin-panel/instance/admin.env` | **cifrado** | Contraseña del panel, `JITSI_API_KEY`/`JITSI_API_KEY_ADMIN` (Fase 6) y marca `JITSI_SITE_*`/`JITSI_LEGAL_OWNER` (Fase 9) |
 | `web/config/keys/` | **cifrado** | `cert.key` es la clave privada TLS que genera el contenedor `web` |
 | `prosody/config/`, `jicofo/config/`, `jvb/config/` | **cifrado** | Ver nota abajo |
 
@@ -90,7 +116,7 @@ lo mismo:
 | Falta | Gravedad |
 |---|---|
 | `.env` | **Grave.** Lleva todos los secretos del stack (XMPP, JWT, `TURN_CREDENTIALS`...). **Sin `.env` no se puede restaurar el stack**: habría que regenerar secretos, y entonces cambian los tokens del panel y el secreto del TURN |
-| `admin-panel/instance/admin.env` | **Grave.** Sin él el panel no arranca con la misma contraseña ni con las mismas claves |
+| `admin-panel/instance/admin.env` | **Grave.** Sin él el panel no arranca con la misma contraseña, ni con las API keys que usa votacionph, ni con la marca del conjunto |
 | `prosody/config`, `jicofo/config`, `jvb/config`, `web/config/keys` | Normal donde el stack no ha arrancado: los genera el contenedor al arrancar |
 | `turn/turnserver.conf` | Normal: el TURN vive en otro servidor |
 

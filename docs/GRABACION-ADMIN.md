@@ -4,6 +4,8 @@ La grabación se hace **desde la sala de moderación del panel**, en **tu comput
 
 > Estado: implementada; pendiente de la verificación en los PCs reales ([`GRABACION-PASO0.md`](GRABACION-PASO0.md)). Haz un ensayo antes de la primera asamblea real.
 
+> **Grabar no depende de la pantalla compartida de Jitsi.** El «Compartir» que pide Chrome en el paso 2 es para capturar **tu propia pestaña** (`getDisplayMedia`), no el botón «Compartir pantalla» de Jitsi. El problema conocido de la pantalla compartida (los demás no ven la de un residente si no le pulsas «Habilitar cámara», ver [`SOLUCION-PANTALLA.md`](SOLUCION-PANTALLA.md)) **no afecta a la grabación**. Eso sí: la grabación recoge lo que tú ves en la pestaña, así que la pantalla de un residente solo queda grabada si a ti te llega.
+
 ---
 
 ## 1. Antes del día de la reunión (una sola vez)
@@ -12,7 +14,7 @@ La grabación se hace **desde la sala de moderación del panel**, en **tu comput
 
 **macOS**
 - Ajustes del Sistema → Privacidad y seguridad → **Micrófono** → Google Chrome activado.
-- Ajustes del Sistema → Privacidad y seguridad → **Grabación de pantalla y audio del sistema** (en macOS 13–14: «Grabación de pantalla») → Google Chrome activado. Hace falta para compartir la pantalla en Jitsi y puede que también para grabar. Al activarlo, macOS **obliga a reiniciar Chrome**: hazlo antes, **nunca durante** la reunión.
+- Ajustes del Sistema → Privacidad y seguridad → **Grabación de pantalla y audio del sistema** (en macOS 13–14: «Grabación de pantalla») → Google Chrome activado. Hace falta para compartir **tu** pantalla en Jitsi y puede que también para grabar la pestaña. Al activarlo, macOS **obliga a reiniciar Chrome**: hazlo antes, **nunca durante** la reunión.
 - Energía: el portátil **enchufado** y con la tapa abierta.
 
 **Windows**

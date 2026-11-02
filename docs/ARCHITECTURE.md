@@ -1,281 +1,183 @@
-# Arquitectura Detallada
+# Arquitectura
+
+> Estado a 2-nov-2026. La versión anterior de este documento describía la
+> instalación de septiembre (`stable-9111`, Prosody anónimo, admin en
+> `/opt/jitsi-admin`) y ya no era válida. El histórico está en
+> [`SETUP_HISTORY.md`](SETUP_HISTORY.md).
+
+## Vista general
+
+```
+                    Internet
+                       |
+   DNS: A meet.bytracking.net -> 84.247.165.81  (zona en ipage.com)
+                       |
++----------------------v-------------------------------------------------+
+| VPS "chatbotph"  84.247.165.81          /opt/jitsi-meet (NO es un git)  |
+|                                                                         |
+|  hermes-caddy (:80/:443, compartido con otros sitios del host)          |
+|    bloque 'meet.bytracking.net' en /home/chatbotph/chatbotph/Caddyfile  |
+|      /admin* /reunion/* /unirse /healthz /api/reuniones/* -> admin:8081 |
+|      todo lo demas                                       -> web:80      |
+|                                                                         |
+|  red Docker jitsi-meet_jitsi                                            |
+|    jitsi-web      jitsi/web:stable-11031      Nginx + UI, proxy WS      |
+|    jitsi-prosody  jitsi-prosody-cerroazul:stable-11031 (+mod_http_health)|
+|    jitsi-jicofo   jitsi/jicofo:stable-11031   foco de conferencias      |
+|    jitsi-jvb      jitsi/jvb:stable-11031      10000/udp, 4443/tcp       |
+|    jitsi-admin    jitsi-admin:local           Flask/Gunicorn :8081      |
++-------------------------------------------------------------------------+
+
++----------------------------------------------+
+| vmi3186036  155.133.22.222  (host de desarrollo) |
+|   coturn 4.6.3-r3 (/opt/coturn, network host)  |
+|     3478 udp/tcp, 443 udp + tcp (TLS)          |
+|     relay 49160-49200/udp                      |
+|   watchdog de Hermes (cada 2 min -> Telegram)  |
+|   este repo (/root/cerro-azul-jitsi)           |
++----------------------------------------------+
+
++----------------------------------------------+
+| PC del administrador (Chrome de escritorio)  |
+|   sala de moderacion del panel (iframe)      |
+|   grabacion local: WebM en disco (Fase 9)    |
++----------------------------------------------+
+```
+
+Los 5 contenedores estaban `healthy` con ~24 h de uptime el 2-nov-2026.
+TLS público: Let's Encrypt emitido por Caddy, válido hasta el 30-ene-2027.
 
 ## Componentes
 
-### 1. Jitsi Web (`jitsi-web:stable-9111`)
+### Caddy (`hermes-caddy`, del host)
 
-- Basado en Nginx + la UI de Jitsi Meet (HTML/JS)
-- **Puerto interno:** 80
-- **Puerto externo:** ninguno directo (Caddy hace proxy)
-- **Imagen:** ~98 MB
+- No es parte de este stack: es el Caddy compartido del host. El bloque
+  está **escrito en el Caddyfile del host** (no en la admin API: así se cayó
+  el sitio dos semanas en octubre).
+- Fuente de verdad: `infra/caddy/meet.bytracking.net.caddy`.
+- **Diferencia conocida con el host:** el bloque del repo pone
+  `frame-ancestors 'self' https://votacionph.us` en Jitsi y
+  `frame-ancestors 'none'` + `X-Frame-Options: DENY` en el panel. **En el
+  host aún no está aplicado, a propósito** (Fase 6 pendiente). La ruta
+  `/api/reuniones/*` sí está en el host desde el 1-nov.
+- El Caddyfile del host es un bind de **fichero**: editarlo en sitio (sin
+  `sed -i`), `caddy validate` y `caddy reload` dentro del contenedor.
 
-Sirve los archivos estaticos de Jitsi Meet y maneja WebSocket para señalizacion cliente↔Jicofo.
+### jitsi-web
 
-**Configuracion personalizada (`config.js`):**
-- `domain = 'meet.bytracking.net'`
-- `bosh = '/http-bind'` (ruta relativa, Caddy proxy)
-- `websocket = 'wss://meet.bytracking.net/xmpp-websocket'`
-- `tokenAuthUrl = '/auth-token'` (para JWT del admin)
-- `prejoinConfig.enabled = false` (entrada directa a la sala)
-- Toolbar minima (sin filmstrip, sin etherpad, etc)
-- Resolucion 720p max, audio Opus 32kbps
+- `jitsi/web:stable-11031`, publicado solo en `127.0.0.1:8080` (Caddy le
+  llega por la red Docker como `web:80`).
+- Hace de proxy de `/xmpp-websocket` y `/colibri-ws`: **recrearlo corta la
+  señalización de todos** los participantes.
+- `web/config/custom-config.js` y `custom-interface_config.js` (versionados,
+  Fase 3) se concatenan al `config.js` generado en cada arranque.
+  Config de sala vigente: idéntica a `e30c36d` (ver README, "Compartir pantalla").
 
-### 2. Prosody XMPP (`jitsi-prosody:stable-9111`)
+### jitsi-prosody
 
-- XMPP server de Jitsi
-- **Puertos internos:** 5222 (cliente), 5347 (componentes), 5280 (BOSH/WS)
-- **Imagen:** ~59 MB
+- Imagen propia `jitsi-prosody-cerroazul:stable-11031` = oficial +
+  `mod_http_health` (sin él no se registran `focus@`/`jvb@` y no hay medio).
+- Autenticación **JWT obligatoria** (`authentication = "token"`).
+- `muc.meet.bytracking.net` carga `token_verification` y `token_affiliation`
+  (moderador solo si `context.user.moderator = true`).
+- `avmoderation.meet.bytracking.net`: whitelists de audio/vídeo/pantalla.
+- `muc_max_occupants = 500` (`MAX_PARTICIPANTS`).
+- `external_services`: anuncia el TURN por IP (`155.133.22.222`): `stun`,
+  `turn` udp, `turn` tcp y `turns` 443, con `secret=true` (credenciales
+  temporales firmadas con `TURN_CREDENTIALS`).
 
-**Virtualhosts:**
-- `meet.bytracking.net` - virtualhost principal con `authentication = "jitsi-anonymous"` (los participantes se conectan anonimos)
-- `auth.meet.bytracking.net` - virtualhost interno para componentes (focus, jvb) con `authentication = "internal_hashed"`
+### jitsi-jicofo
 
-**Components internos:**
-- `internal-muc.meet.bytracking.net` - MUC para JVB (bridge selection)
-- `muc.meet.bytracking.net` - MUC de salas (donde entran los participantes)
-- `focus.meet.bytracking.net` - cliente proxy para Jicofo
-- `speakerstats.meet.bytracking.net` - estadisticas
-- `conferenceduration.meet.bytracking.net` - duracion de reuniones
-- `endconference.meet.bytracking.net` - eventos fin de reunion
-- `avmoderation.meet.bytracking.net` - moderacion de audio/video
-- `lobby.meet.bytracking.net` - lobby/sala de espera
-- `breakout.meet.bytracking.net` - salas secundarias
+- `jitsi/jicofo:stable-11031`. `enable-auto-owner = false`,
+  `max-bridge-participants = 500`, `use-ssrc-rewriting = true` (por defecto).
+- Con la moderación de vídeo activa manda `forceMuteVideo` al JVB para cada
+  no moderador que entra. **Esto también bloquea su pantalla compartida**:
+  ver [`SOLUCION-PANTALLA.md`](SOLUCION-PANTALLA.md).
 
-**Plugins habilitados (modules_enabled):**
-```
-bosh, websocket, smacks, turncredentials, pubsub, ping,
-speakerstats, conference_duration, room_metadata,
-end_conference, muc_lobby_rooms, muc_breakout_rooms,
-av_moderation, mod_turncredentials
-```
+### jitsi-jvb
 
-**Configuracion TURN (clave para que funcione):**
-```lua
-TURNCREDENTIALS_secret = "<32 bytes hex>"
-TURNCREDENTIALS=*** stun, turn, turns }
-```
+- `jitsi/jvb:stable-11031` (JVB 2.3.295). `10000/udp` y `4443/tcp` publicados.
+- Un solo bridge (sin Octo).
+- REST privado en `:8080` (`/about/health`, `/colibri/stats`, `/debug`).
 
-### 3. Jicofo (`jitsi-jicofo:stable-9111`)
+### jitsi-admin (panel)
 
-- Conference Focus - maneja las salas y asigna bridges
-- **Puerto interno:** 8888 (HTTP)
-- **Imagen:** ~144 MB
+- `jitsi-admin:local`, construido desde `admin-panel/` (Flask + Gunicorn, 1
+  worker). `app.py` va **dentro de la imagen**: un cambio exige `build`.
+- Volúmenes: `./admin-panel/instance:/app/instance` (`reuniones.db`,
+  `admin.env`) y el `.env` de Jitsi en solo lectura (para leer
+  `JWT_APP_SECRET`).
+- Funciones:
+  - Login (5 intentos / 15 min por IP), crear reuniones, QR, página pública
+    `/reunion/<slug>` y `POST /unirse` (JWT por persona, redirige a
+    `https://meet.bytracking.net/<sala>?jwt=…`).
+  - Sala de moderación `/admin/reunion/<id>/sala`: Jitsi en iframe, activa la
+    moderación de audio y vídeo, botones por participante (*Pedir la
+    palabra*, *Silenciar*, *Habilitar camara*, *Apagar camara*).
+  - API servidor a servidor `POST /api/reuniones/<id>/token` (Fase 6).
+  - Grabación local (Fase 9): `static/grabacion.js` + `grabacion-worker.js`.
+- **Panel multi-conjunto**: marca y responsable legal por variables de
+  `admin.env`. En producción: `JITSI_SITE_NAME=bytracking`,
+  `JITSI_SITE_SUBTITLE="Asambleas virtuales"`, `JITSI_LEGAL_OWNER=bytracking LLC`.
 
-**Funciones:**
-- Recibe conference-requests de los clientes via XMPP
-- Asigna bridges (JVB) a cada sala
-- Maneja la negociación SDP
-- Detecta cuando un bridge se desconecta
+### TURN (servidor aparte)
 
-**Configuracion:**
-- `brewery-jid = "jvbbrewery@internal-muc.meet.bytracking.net"` (donde se registran los JVBs)
-- Conecta a Prosody como `focus@auth.meet.bytracking.net`
+- coturn `4.6.3-r3` en `vmi3186036` (155.133.22.222), `/opt/coturn`.
+- Va aparte porque necesita el 443 y en el VPS de Jitsi lo usa Caddy.
+- Certificado autofirmado `CN=turn.urbcerroazul.com` (hasta 2036). Ese
+  nombre **no tiene DNS**; los clientes usan la IP. Detalle en
+  [`../turn/README.md`](../turn/README.md).
 
-### 4. JVB - Video Bridge (`jitsi-jvb:stable-9111`)
+### Grabación (PC del administrador)
 
-- El "router" de video/audio
-- **Puerto interno privado:** 8080 (REST + health)
-- **Puerto interno publico:** 9090 (WebSocket)
-- **Puerto UDP:** 10000 (RTP media)
-- **Puerto TCP fallback:** 4443
-- **Imagen:** ~209 MB
+- Chrome graba la pestaña de la sala (`getDisplayMedia` + `MediaRecorder`,
+  vídeo + audio, 720p/15 fps, WebM, ~0,5 GB/h) con 4 comprobaciones contra
+  la grabación muda y guardado incremental en OPFS.
+- **Nada se sube al servidor.** Conversión a MP4 en el propio PC con
+  `scripts/grabacion/convertir-mp4.{command,bat}`.
+- Guía: [`GRABACION-ADMIN.md`](GRABACION-ADMIN.md).
 
-**Dos servidores HTTP:**
-- **Privado (8080):** `/about/health`, `/about/version`, `/colibri/*` - solo accesible internamente
-- **Publico (9090):** WebSocket para clientes - este NO tiene `/about/health`
-
-**Endpoints clave:**
-- `http://jvb:8080/about/health` → 200 OK (lo que Jicofo consulta)
-- `http://jvb:8080/about/version` → JSON con version
-- `http://jvb:10000/udp` → media WebRTC de clientes
-
-**Configuracion clave:**
-- `apis.rest.enabled = true` (necesario para `/about/health`)
-- `http-servers.private.host = 0.0.0.0` (puerto 8080)
-- `http-servers.public.host = 0.0.0.0 port = 9090`
-- `ice4j.harvest.mapping.static-mappings` con `public-address = "84.247.165.81"`
-- `JVB_PUBLIC_ADDRESS=84.247.165.81` (IP publica para NAT traversal)
-
-### 5. Admin Panel (`jitsi-admin:local`)
-
-- Flask + Gunicorn para gestionar reuniones
-- **Puerto interno:** 8081 (solo localhost)
-- **Imagen:** ~150 MB (custom build)
-
-**Funciones:**
-- Login con usuario unico (Hguaza76)
-- Crear reuniones (titulo, fecha, hora, duracion)
-- Generar QR para cada reunion
-- Lista de reuniones activas
-- Firmar JWT unico por participante
-- Pagina publica para unirse
-
-**Stack:**
-- Python 3.12 + Flask 3 + Gunicorn
-- SQLite para DB
-- qrcode para generar QRs
-- PyJWT para firmar tokens
-
-**Endpoints:**
-- `GET /healthz` → JSON status
-- `GET /admin/login` + `POST /admin/login`
-- `GET /admin` (panel)
-- `POST /admin/reunion`
-- `GET /admin/qr/<id>` (vista HTML o PNG)
-- `GET /reunion/<slug>` (publica)
-- `POST /unirse` (genera JWT, redirige a Jitsi)
-
----
-
-## Flujo de Datos
-
-### Cuando un participante entra a una reunion:
+## Flujo de entrada de un residente
 
 ```
-1. Navegador carga https://meet.bytracking.net/reunion/abc123
-   |
-   v
-2. Caddy recibe request en :443
-   - Ve host: meet.bytracking.net
-   - Ruta /reunion/* → reverse_proxy admin:8081
-   |
-   v
-3. Flask admin panel recibe GET /reunion/abc123
-   - Lee DB SQLite
-   - Renderiza page_reunion.html con form
-   |
-   v
-4. Usuario llena nombre y envia POST /unirse
-   - Flask genera JWT unico (sub_id aleatorio)
-   - Flask redirige (302) a:
-     https://meet.bytracking.net/<sala>#jwt=<token>
-   |
-   v
-5. Navegador carga https://meet.bytracking.net/<sala>
-   - Caddy ve ruta que no matchea admin → reverse_proxy web:80
-   |
-   v
-6. Jitsi Meet UI (Nginx) sirve index.html + JS
-   - JS lee JWT del fragment (#jwt=)
-   - JS abre WebSocket a wss://meet.bytracking.net/xmpp-websocket
-   |
-   v
-7. Caddy pasa WebSocket a Jitsi web
-   - Nginx pasa a Prosody
-   - Prosody autentica via JWT (mod_auth_token + token_verification)
-   - Prosody verifica el JWT firmado por nuestro admin
-   |
-   v
-8. Cliente envia conference-request IQ a focus@auth.meet.bytracking.net
-   - Pasa por Caddy → web → prosody → jicofo
-   - Jicofo acepta y asigna JVB
-   |
-   v
-9. Jicofo consulta /about/health al JVB en http://jvb:8080/about/health
-   - JVB responde 200 OK → es operacional
-   |
-   v
-10. Cliente envia STUN binding request para UDP 10000 al VPS:10000
-    - Firewall lo deja pasar (abierto 10000/udp)
-    - JVB procesa y negocia WebRTC
-    |
-    v
-11. Cliente tambien pide credenciales TURN al Prosody
-    - mod_turncredentials genera username/password basado en TURNCREDENTIALS_secret
-    - Devuelve lista de servers TURN: meet.bytracking.net:3478 (STUN), :443 (TURNS)
-    - El cliente intenta TURN si UDP bloqueado
-    |
-    v
-12. Conexion WebRTC establecida
-    - Audio/video fluyen entre cliente y JVB via UDP 10000
-    - JVB rutea entre participantes
+1. QR / enlace -> https://meet.bytracking.net/reunion/<slug>   (Caddy -> admin)
+2. Formulario (apto + nombre) -> POST /unirse
+3. El panel firma un JWT por persona (moderator:false, room=<sala>,
+   exp = fin de la reunión + 30 min) y redirige a
+   https://meet.bytracking.net/<sala>?jwt=<token>               (Caddy -> web)
+4. El cliente abre wss://meet.bytracking.net/xmpp-websocket -> Prosody valida el JWT
+5. Jicofo asigna el JVB. Con moderación de vídeo: forceMuteVideo para el residente
+6. ICE: UDP 10000 directo al JVB; si la red lo bloquea, relay por el TURN
+   (3478 udp/tcp o TLS 443 en 155.133.22.222)
 ```
 
----
+Para votacionph.us el flujo es el mismo desde el paso 3, pero el token lo
+pide su backend a `POST /api/reuniones/<id>/token` y el iframe lo crea
+`integracion/jitsi-cliente.js` ([`INTEGRACION-JITSI.md`](INTEGRACION-JITSI.md)).
 
-## Red Docker
+## Persistencia y respaldo
 
-```
-Network: jitsi-meet_jitsi (bridge)
-├── jitsi-web       (172.21.0.X)
-├── jitsi-prosody   (172.21.0.Y)
-├── jitsi-jicofo    (172.21.0.Z)
-├── jitsi-jvb       (172.21.0.5)
-└── jitsi-admin     (172.21.0.7)
-```
+| Qué | Dónde | Respaldo |
+|---|---|---|
+| Reuniones | `/opt/jitsi-meet/admin-panel/instance/reuniones.db` | `scripts/backup.sh` (en claro, copia consistente) |
+| Secretos del stack | `/opt/jitsi-meet/.env` (600) | `backup.sh`, cifrado |
+| Contraseña, API keys y marca del panel | `/opt/jitsi-meet/admin-panel/instance/admin.env` (600) | `backup.sh`, cifrado |
+| Cert interno del web | `/opt/jitsi-meet/web/config/keys/` | `backup.sh`, cifrado |
+| Config generada de Prosody/Jicofo/JVB | `prosody/config`, `jicofo/config`, `jvb/config` | `backup.sh`, cifrado (se regeneran desde el `.env`) |
+| Cert público | Caddy del host | lo renueva Caddy |
+| Grabaciones | PC del administrador | responsabilidad del administrador |
 
-Caddy (en otra red `hermes-agent_hermes-net`) se conecta a `jitsi-meet_jitsi` via `docker network connect`.
+Procedimiento: [`BACKUP-RESTORE.md`](BACKUP-RESTORE.md).
 
----
+## Operaciones que cortan una asamblea
 
-## Volumenes
+| Acción | Efecto |
+|---|---|
+| Recrear o reiniciar `web` | Corta la señalización de todos |
+| Reiniciar `jicofo` | Tira todas las conferencias (pasó el 1-nov a las 12:55) |
+| Reiniciar `jvb` o `prosody` | Corta medio o señalización de todos |
+| Recrear solo `admin` | Jitsi sigue; `/unirse` y el panel no responden ~10–20 s |
+| Recargar la página de un residente | Le vuelve a aplicar `forceMuteVideo` (su pantalla deja de verse) |
 
-### Jitsi (`/opt/jitsi-meet/`)
-
-| Directorio host | Container mount | Notas |
-|------------------|------------------|-------|
-| `./web/config` | `/config` | Regenerado por entrypoint |
-| `./prosody/config` | `/config` | Regenerado por entrypoint |
-| `./prosody/prosody-plugins` | `/prosody-plugins` | 84 plugins |
-| `./jvb/config` | `/config` | Regenerado |
-| `./jicofo/config` | `/config` | Regenerado |
-| `./web/crash` | `/crash` | Crash dumps |
-| `./web/letsencrypt` | `/etc/letsencrypt` | Certificados |
-
-### Admin (`/opt/jitsi-admin/`)
-
-| Directorio host | Container mount | Notas |
-|------------------|------------------|-------|
-| `./app/` | `/app/` | Codigo fuente |
-| `./instance/` | `/app/instance/` | DB + admin.env + logs |
-
----
-
-## SSL/TLS
-
-- **HTTPS:** Terminado en Caddy existente
-- **Let's Encrypt:** Automatico via Caddy para `meet.bytracking.net`
-- **Cert renewal:** Caddy lo maneja, no requiere intervencion
-- **WebSocket:** `wss://` pasa por Caddy via Upgrade header
-
-Los certificados DENTRO de los containers Jitsi (para XMPP) son **auto-firmados** porque solo se usan internamente entre containers Docker. El TLS público solo lo maneja Caddy.
-
----
-
-## Persistencia
-
-| Que | Donde | Backup |
-|-----|-------|--------|
-| DB reuniones | `/opt/jitsi-admin/instance/reuniones.db` | Copiar a S3/glacier |
-| Cert Let's Encrypt | `/data/caddy` (volume Caddy) | Backup automatico Caddy |
-| Config Prosody | `/opt/jitsi-meet/prosody/config/` | Git (anonimizado) |
-| Passwords | `.env` files (chmod 600) | NO commitear a git |
-| Certs XMPP (auto-firmados) | Se regeneran al iniciar | No criticos |
-
----
-
-## Restart del Stack
-
-```bash
-# Si solo necesitas reiniciar servicios (config NO cambio):
-cd /opt/jitsi-meet
-docker compose restart jvb jicofo prosody web
-
-# Si cambio el .env o docker-compose.yml:
-cd /opt/jitsi-meet
-docker compose down
-docker compose up -d
-
-# Si quiero regenerar configs desde .env (despues de cambios):
-sudo rm -rf prosody/config/conf.d/*.lua prosody/config/prosody.cfg.lua
-sudo rm -f jicofo/config/jicofo.conf jicofo/config/logging.properties
-sudo rm -f web/config/config.js web/config/interface_config.js
-sudo rm -rf web/config/nginx web/config/keys
-docker compose up -d
-
-# Para el admin panel:
-docker restart jitsi-admin
-# o:
-cd /opt/jitsi-meet
-docker compose up -d --force-recreate admin
-```
+Antes de reiniciar algo, comprobar que hay 0 conferencias en el JVB y en
+Jicofo (comandos en `SOLUCION-PANTALLA.md` §c).

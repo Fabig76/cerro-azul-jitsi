@@ -1,5 +1,7 @@
 # SPEC-DISENO — Mockups de pantallas
 
+> **Nota (2-nov-2026):** wireframes de la **spec de diseño de la Fase 8**, anteriores a la implementación. No se actualizan. El estado final está en el [README](../README.md) (sección «Fase 8»).
+
 > Complemento de [`SPEC-DISENO.md`](SPEC-DISENO.md). Sirve para **aprobar el aspecto antes de escribir código**.
 > Los nombres entre `‹ ›` son tokens o componentes del spec (sección 3). Los textos asumen aprobadas
 > D1 (hora de Colombia), D2 (descripción), D3 (estado), D4 (tildes) y D5 (cerrar sesión en el menú).

@@ -1,5 +1,7 @@
 # SPEC-GRABACION — Mockups (wireframes ASCII)
 
+> **Nota (2-nov-2026):** wireframes de la **spec de diseño de la Fase 9** (grabación local). No se actualizan. El estado final está en el [README](../README.md) (sección «Fase 9»).
+
 Complemento de [`SPEC-GRABACION.md`](SPEC-GRABACION.md). Usa los componentes y tokens existentes de `theme.css` (tarjeta `.card.sala__card`, botones `.btn--*`, avisos `.alert--*`, `<dialog class="dialog">`, `.live-dot`, `.badge`). Sin componentes nuevos salvo el vúmetro (5 barras con `--color-*`) y la franja `.grab-aviso`.
 
 Leyenda: `[ Botón ]` primario · `( Botón )` secundario · `{! … }` aviso · `●` punto rojo pulsante · `▮▯` vúmetro.

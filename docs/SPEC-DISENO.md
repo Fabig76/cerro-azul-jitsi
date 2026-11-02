@@ -1,5 +1,7 @@
 # SPEC-DISENO — Rediseño visual del panel de Cerro Azul Jitsi
 
+> **Nota (2-nov-2026):** este documento es la **spec de diseño de la Fase 8** (rediseño visual del panel), escrita antes de implementarla. No se actualiza. El estado final está en el [README](../README.md) (sección «Fase 8») y la implementación, en [`DISENO-AUDITORIA.md`](DISENO-AUDITORIA.md).
+
 > Estado: **borrador para aprobar** (Fase 0, 2026-11-01). No hay código implementado.
 > Acompaña a [`SPEC-DISENO-mockups.md`](SPEC-DISENO-mockups.md), que describe cada pantalla.
 > Alcance: solo la **capa visual** del panel Flask (`admin-panel/`). No cambia rutas, códigos HTTP,
