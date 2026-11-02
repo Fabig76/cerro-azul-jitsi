@@ -19,15 +19,19 @@ Jitsi comparten origen y el boton depende de ello (lee APP.conference del
 iframe). Para reproducirlo sin tocar produccion, Playwright sirve todo
 https://sala.prueba: /admin* y /healthz se reenvian al contenedor local,
 /external_api.js es el de la imagen jitsi/web:stable-11031 y la pagina del
-iframe es un Jitsi SIMULADO que solo expone APP.conference.sendEndpointMessage
-y APP.store (y anota las llamadas). Las manos levantadas se simulan
-insertando en #lista lo mismo que pinta el script congelado (div.p > div.n >
-span.mano): no hay participantes reales. Lo que NO valida: que la mano de
-otra persona baje de verdad (eso exige dos clientes reales).
+iframe es un Jitsi SIMULADO que solo expone APP.store (participants:
+raisedHandsQueue/local/remote; conference: la JitsiConference con
+sendMessage) y anota las llamadas. Las manos levantadas se simulan en los dos
+sitios que mira el boton: en el store simulado (de ahi salen los ids) y en
+#lista con lo mismo que pinta el script congelado (div.p > div.n > span.mano).
+No hay participantes reales. Lo que NO valida: que la mano de otra persona
+baje de verdad (eso exige clientes reales; ver el informe del cambio).
 
 Escenarios del iframe simulado:
-  ok          -> sendEndpointMessage existe: se envia el mensaje correcto
-  sin-metodo  -> APP.conference sin el metodo: aviso claro, sala intacta
+  ok          -> UN sendMessage por mano, con su id, por XMPP (sin JVB);
+                 boton individual "Bajar la mano"; sin manos no se envia nada
+  falla-uno   -> el envio a un id lanza: los demas salen y se avisa
+  sin-metodo  -> conference sin sendMessage: aviso claro, sala intacta
   tarde       -> APP aparece a los 1,2 s: el boton reintenta una vez y envia
   no-moderador-> rol "participant": no se envia y se avisa
 
@@ -63,6 +67,8 @@ IDS_CONTRATO = ["jitsi", "lista", "cnt", "log", "st-audio", "st-video"]
 CLASES_JS = {"p", "n", "mano", "m", "ok2", "d"}
 
 FALLOS = []
+IDS = ["bbbb0001", "bbbb0002", "bbbb0003"]   # ids de participante simulados (8 hex)
+MSG = {"name": "lower-hand-message"}
 
 
 def ok(cond, msg):
@@ -198,16 +204,27 @@ def http_basico(base):
 # --------------------------------------------------------------------------
 STUB = """<!doctype html><meta charset="utf-8"><title>Jitsi simulado</title><body>Jitsi simulado (%(modo)s)
 <script>
+// Anota cada conference.sendMessage(payload, to, porJVB) y expone el estado
+// del store que lee bajar-manos.js. window.__manos(ids) simula manos.
 window.__enviados = [];
 var modo = %(modo_js)s;
+var cola = [], remote = new Map();
+window.__manos = function (ids) {
+  cola = ids.map(function (id, i) { return { id: id, raisedHandTimestamp: 1000 + i }; });
+  ids.forEach(function (id, i) { remote.set(id, { id: id, name: "Vecino " + i }); });
+};
 function montar() {
   var conference = {};
   if (modo !== "sin-metodo") {
-    conference.sendEndpointMessage = function (to, payload) { window.__enviados.push([to, payload]); };
+    conference.sendMessage = function (payload, to, porJVB) {
+      if (modo === "falla-uno" && to === "bbbb0002") throw new Error("fallo simulado");
+      window.__enviados.push([to, JSON.parse(JSON.stringify(payload)), porJVB === undefined ? null : porJVB]);
+    };
   }
   var rol = modo === "no-moderador" ? "participant" : "moderator";
-  window.APP = { conference: conference,
-                 store: { getState: function () { return { "features/base/participants": { local: { role: rol } } }; } } };
+  window.APP = { conference: {}, store: { getState: function () { return {
+    "features/base/participants": { local: { id: "aaaa0000", role: rol }, remote: remote, raisedHandsQueue: cola },
+    "features/base/conference": { conference: conference } }; } } };
 }
 if (modo === "tarde") setTimeout(montar, 1200); else montar();
 </script>"""
@@ -322,7 +339,10 @@ def navegador(base):
             page.wait_for_timeout(500)
             return r.status
 
-        def simular_manos(n):
+        def simular_manos(n, store=None):
+            # store: ids que tendra raisedHandsQueue (por defecto, n ids).
+            ids = IDS[:n] if store is None else store
+            marco().evaluate("(ids) => window.__manos && window.__manos(ids)", ids)
             page.evaluate("""(n) => {
                 const l = document.getElementById("lista"); l.textContent = "";
                 for (let i = 0; i < n; i++) {
@@ -334,8 +354,12 @@ def navegador(base):
                 }}""", n)
             page.wait_for_timeout(100)
 
+        # Frame y no frame_locator(...).evaluate: Locator.evaluate pasaria el
+        # elemento como primer argumento.
+        marco = lambda: page.query_selector("#jitsi iframe").content_frame()
+
         def enviados():
-            return page.frame_locator("#jitsi iframe").locator("body").evaluate("() => window.__enviados || null")
+            return marco().evaluate("() => window.__enviados || null")
 
         log = lambda: page.inner_text("#log") if page.is_visible("#log") else page.eval_on_selector("#log", "e => e.textContent")
         aviso = lambda: page.inner_text("#manos-estado")
@@ -348,22 +372,62 @@ def navegador(base):
         bt = page.locator("#manos-bajar")
         ok(bt.is_visible() and bt.inner_text().strip() == "Bajar todas las manos", "el boton aparece: '%s'" % bt.inner_text().strip())
         ok(bt.is_disabled(), "sin manos el boton esta deshabilitado ('%s')" % aviso())
-        dentro_lista = page.evaluate("() => !!document.querySelector('#lista #manos-bajar, .gl #manos-bajar')")
-        ok(not dentro_lista, "el boton esta fuera de #lista y de .gl")
+        ok(page.locator("#manos-lista").is_hidden(), "sin manos no hay lista individual")
+        dentro = page.evaluate("() => !!document.querySelector('#lista #manos-bajar, .gl #manos-bajar, #lista #manos-lista, .gl #manos-lista')")
+        ok(not dentro, "boton y lista individual fuera de #lista y de .gl")
         simular_manos(3)
         ok(bt.is_enabled() and aviso() == "3 manos levantadas.", "con 3 manos: habilitado ('%s')" % aviso())
+        nombres = page.locator("#manos-lista li").all_inner_texts()
+        ok(len(nombres) == 3 and "Vecino 0" in nombres[0], "lista individual con 3 personas %s" % nombres)
+        clases = set(" ".join(page.eval_on_selector_all("#manos-lista, #manos-lista *", "es => es.map(e => e.className)")).split())
+        ok(not (clases & CLASES_JS), "la lista individual no usa clases del JS congelado (%s)" % " ".join(sorted(clases)))
         bt.click()
         page.wait_for_timeout(400)
         env = enviados()
-        ok(env == [["", {"name": "lower-hand-message"}]], "iframe recibio sendEndpointMessage%s" % env)
-        ok("enviado lower-hand-message" in log(), "el #log registra el envio")
-        ok(aviso() == "Orden enviada.", "aviso tras enviar: '%s'" % aviso())
+        ok(env == [[i, MSG, None] for i in IDS],
+           "un sendMessage por mano, con su id y por XMPP (sin 3er argumento): %s" % env)
+        ok("enviado a 3 de 3 [bbbb0001, bbbb0002, bbbb0003]" in log(), "el #log registra a cuantos y con que ids")
+        ok(aviso() == "Orden enviada a 3 personas.", "aviso tras enviar: '%s'" % aviso())
         simular_manos(0)   # lo que haria el script congelado al llegar raiseHandUpdated
         page.wait_for_timeout(5200)
-        ok("ya no queda ninguna mano" in log(), "comprobacion a los 5 s en el #log")
-        ok(bt.is_disabled(), "sin manos vuelve a deshabilitarse")
+        ok("todas las manos enviadas han bajado" in log(), "comprobacion a los 5 s en el #log")
+        ok(bt.is_disabled() and page.locator("#manos-lista").is_hidden(), "sin manos vuelve a deshabilitarse")
+
+        print("  -- boton individual --")
+        marco().evaluate("() => { window.__enviados = []; }")
+        simular_manos(2)
+        page.locator("#manos-lista li", has_text="Vecino 1").get_by_role("button", name="Bajar la mano de Vecino 1").click()
+        page.wait_for_timeout(400)
+        ok(enviados() == [["bbbb0002", MSG, None]], "'Bajar la mano' solo envia a esa persona %s" % enviados())
+        ok("bajar la mano de Vecino 1: lower-hand-message enviado a 1 de 1 [bbbb0002]" in log(), "el #log lo registra")
+        ok(aviso() == "Orden enviada a 1 persona.", "aviso: '%s'" % aviso())
+        page.wait_for_timeout(5200)
+        ok("siguen levantadas 5 s después: [bbbb0002]" in log(), "si la mano no baja, el #log lo dice con el id")
+        ok("1 mano sigue levantada" in aviso(), "y se avisa: '%s'" % aviso())
+
+        print("  -- sin manos en Jitsi --")
+        marco().evaluate("() => { window.__enviados = []; }")
+        simular_manos(1, store=[])   # #lista aun pinta una mano pero Jitsi ya no tiene ninguna
+        page.wait_for_timeout(100)
+        bt.click()
+        page.wait_for_timeout(400)
+        ok(enviados() == [], "no se envia nada %s" % enviados())
+        ok("no se ha enviado nada" in aviso(), "aviso: '%s'" % aviso())
+        ok("Jitsi tiene 0 manos y #lista muestra 1" in log() and "no se envia nada" in log(), "el #log anota el desajuste")
         ok(not errores, "consola sin errores %s" % errores)
         print("  #log:\n" + "\n".join("     | " + l for l in log().strip().splitlines()))
+
+        # --- falla-uno ---
+        print("  -- escenario falla-uno --")
+        abrir("falla-uno")
+        simular_manos(3)
+        page.locator("#manos-bajar").click()
+        page.wait_for_timeout(400)
+        ok(enviados() == [["bbbb0001", MSG, None], ["bbbb0003", MSG, None]], "sigue con los demas %s" % enviados())
+        ok(aviso() == "Orden enviada a 2 de 3. Falló con 1.", "aviso: '%s'" % aviso())
+        ok("enviado a 2 de 3 [bbbb0001, bbbb0003]" in log() and "fallo el envio a bbbb0002 (fallo simulado)" in log(),
+           "el #log registra el fallo con el id")
+        ok(not errores, "consola sin errores %s" % errores)
 
         # --- sin-metodo ---
         print("  -- escenario sin-metodo --")
@@ -384,11 +448,13 @@ def navegador(base):
         errores.clear()
         page.goto(sala)
         page.wait_for_selector("#jitsi iframe")
-        simular_manos(2)
+        simular_manos(2)   # el store aun no existe: solo #lista
         page.locator("#manos-bajar").click()
-        page.wait_for_timeout(2800)
+        page.wait_for_timeout(1400)
+        marco().evaluate("(ids) => window.__manos(ids)", IDS[:2])
+        page.wait_for_timeout(1400)
         ok("reintento en 2 s" in log() and "al reintentar" in log(), "reintenta una vez y envia")
-        ok(enviados() == [["", {"name": "lower-hand-message"}]], "enviado tras el reintento %s" % enviados())
+        ok(enviados() == [[i, MSG, None] for i in IDS[:2]], "enviado tras el reintento %s" % enviados())
         ok(not errores, "consola sin errores %s" % errores)
 
         # --- no-moderador ---
