@@ -95,27 +95,35 @@ bundle desplegado (`jitsi/web:stable-11031`, 3-nov):
 
 - `config.constraints` solo se usa al construir las constraints de
   `getUserMedia` para la **cámara**: `const i=hs(t.constraints||Co)` en
-  `lib-jitsi-meet.min.js`. Ningún código lee `constraints.video.bitrate`, y
-  `bitrate` no es una constraint estándar de `getUserMedia`: el navegador la
-  ignora.
+  `lib-jitsi-meet.min.js`. Ningún código de Jitsi lee
+  `constraints.video.bitrate`, pero `bitrate` **sí** es una constraint
+  estándar de `getUserMedia` y la aplica el navegador: medido en producción,
+  el consumo por receptor bajó de **0,405 a 0,316 Mbit/s** al añadirla.
 - La **pantalla compartida no usa `config.constraints`**.
   `obtainScreenFromGetDisplayMedia` solo toma `desktopSharingFrameRate`,
   `resolution` y `screenShareSettings`. Así que la idea de que la pantalla
   comparte constraints con la cámara **no se confirma** en esta versión.
-- En esta versión, Jitsi limita el bitrate del emisor con
-  `config.videoQuality.maxBitratesVideo` (por códec y capa: `low`, `standard`,
-  `high`, `ssHigh` para la pantalla…). Hoy no está definida en la config, así
-  que se aplican los valores por defecto del bundle.
+  El bitrate de la pantalla lo regula el JVB de forma adaptativa según el
+  ancho de banda de cada receptor (se autorregula: por eso la prueba de 50
+  personas funcionó sin problemas). Si hicieran falta 500 personas con
+  buena conexión **y** pantalla, la palanca sería
+  `config.desktopSharingResolution`.
+- `config.videoQuality.maxBitratesVideo` **no existe** en `stable-11031`
+  (0 apariciones en el bundle): es una clave de otras versiones de Jitsi,
+  no la uses aquí.
 
-En resumen: el paso de 0,405 a 0,316 Mbit/s por receptor es una medición real,
-pero **no se puede atribuir a la línea `bitrate`**. Puede venir de la
-variación entre ejecuciones: arranque del estimador de ancho de banda, la
-cámara falsa o el resto del tráfico del host. Para un tope real habría que
-usar `videoQuality.maxBitratesVideo` y volver a medir antes y después
-([Pendiente](#pendiente)).
+En resumen: el paso de 0,405 a 0,316 Mbit/s por receptor es una medición real.
+**Lo único que cambió entre las dos fue la línea `bitrate`** (mismo script,
+mismos 6 receptores, mismos 40 s, mismo hardware; lo demás fue el reinicio
+del contenedor `web` que regenera el `config.js`). Que el navegador aplique
+esa constraint es lo esperable —`bitrate` es una constraint estándar de
+`getUserMedia`— y el −22 % es coherente con ello, pero **no es un A/B con
+repeticiones**, así que se anota como "medición controlada", no como prueba
+de laboratorio.
 
-La conclusión de la Fase 5 **no depende de este tope**: con la medición sin
-él (203 Mbit/s a 500) también se queda por debajo de la subida del VPS.
+Lo que sí queda fuera de toda duda: **la conclusión de la Fase 5 no depende
+de este tope**. Con la medición sin él (203 Mbit/s a 500) también se queda
+por debajo de la subida del VPS.
 
 ## 5. La calidad depende de la red de cada vecino
 
@@ -146,5 +154,5 @@ a esa persona, y la subida del VPS se queda en una pista por oyente.
 | **Tope de tráfico mensual del VPS** | No se puede ver desde dentro del servidor. Una asamblea de 2 h a ~180 Mbit/s son unos 160 GB de salida | Panel del proveedor (Contabo) |
 | **Prueba con 500 reales** | La mayor prueba real es de **50** (operador, 2-nov). La de 48 la hizo el generador de clientes. 500 es una extrapolación | Asamblea real o ensayo, vigilando la subida del host y `insufficient bandwidth` |
 | **Muchas redes distintas a la vez** | Las mediciones se hicieron desde un solo host con buena red. No se ha visto cuántos vecinos tendrán la pantalla recortada por el BWE | Contar `insufficient bandwidth` en el log del JVB durante una asamblea grande |
-| **Tope de bitrate efectivo** | La línea `constraints.video.bitrate` no parece hacer nada (§4) | Probar `config.videoQuality.maxBitratesVideo` y medir con `medir-bitrate.py` antes y después |
+| **Tope de bitrate de la cámara** | `constraints.video.bitrate` **sí** la aplica el navegador: medido, 0,405 → 0,316 Mbit/s por receptor (§4) | Repetir la medición varias veces para convertirlo en un A/B |
 | **Modo "asamblea" en el panel** | Propuesto: cuando la reunión es grande, el panel baja `channelLastN` a 1 y el bitrate de la pantalla | En cola, **no implementado** |

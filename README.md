@@ -889,15 +889,16 @@ config.constraints = {
 };
 ```
 
-> ⚠️ **No está verificado que esta línea tenga efecto.** En el bundle de
+> ⚠️ **Alcance del tope, verificado.** En el bundle de
 > `stable-11031`, `config.constraints` solo alimenta el `getUserMedia` de la
-> **cámara**. Nada lee `constraints.video.bitrate`, y la **pantalla compartida
-> no usa `config.constraints`**: toma `desktopSharingFrameRate`, `resolution` y
-> `screenShareSettings`. La bajada de 0,405 a 0,316 puede deberse a la variación
-> entre ejecuciones. En esta versión, el tope real se pone con
-> `config.videoQuality.maxBitratesVideo`; queda pendiente probarlo. **La
-> conclusión no depende de ello**: sin tope salen 203 Mbit/s, también por debajo
-> de 220.
+> **cámara**, y la **pantalla compartida no usa `config.constraints`**: toma
+> `desktopSharingFrameRate`, `resolution` y
+> `screenShareSettings`. El tope `constraints.video.bitrate` **sí** lo aplica el
+> navegador a la cámara (medido: 0,405 → 0,316 Mbit/s por receptor; es una
+> medición controlada, no un A/B con repeticiones). Para la pantalla, el
+> bitrate lo regula el JVB de forma adaptativa según la red de cada receptor.
+> **La conclusión no depende del tope**: sin él salen 203 Mbit/s, también por
+> debajo de 220.
 
 **Conclusión:** no hace falta servidor dedicado. Por encima de la subida del
 VPS, el límite es **la red de cada vecino**. El JVB adapta lo que envía a cada

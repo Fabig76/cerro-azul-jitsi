@@ -83,7 +83,29 @@ config.maxFullResolutionParticipants = 1;
 config.resolution = 360;
 config.constraints = {
     video: {
-        height: { ideal: 360, max: 720, min: 180 }
+        height: { ideal: 360, max: 720, min: 180 },
+        // Tope de bitrate de la CAMARA del ponente.
+        //
+        // POR QUE (medido el 2-Nov-2026): con 500 personas en la sala, el
+        // JVB entrega la pista del ponente a los 500 a la vez. Medido en
+        // produccion: 0,405 Mbit/s por receptor -> 203 Mbit/s a 500, contra
+        // los ~220 Mbit/s de subida reales del VPS. Con este tope:
+        // 500 x 0,32 = 160 Mbit/s + 15 de audio = 175, con margen.
+        // El 360p de la camara no se resiente.
+        //
+        // QUE ALCANZA Y QUE NO (verificado en lib-jitsi-meet):
+        //  - La CAMARA si: createLocalTracks -> getUserMedia(constraints).
+        //  - La PANTALLA NO: su getDisplayMedia se construye como
+        //        const m = { audio: a, video: d, ...c, cursor: "always" }
+        //    donde `d` lleva frameRate/displaySurface/height/width y `c`
+        //    solo recibe las opciones de screenShareSettings. Las
+        //    constraints de video NO llegan a la captura de pantalla.
+        //    El bitrate de la pantalla lo regula el JVB de forma adaptativa
+        //    segun el ancho de banda de cada receptor (se autorregula: por
+        //    eso la prueba de 50 personas funciono sin problemas).
+        //    Si algun dia hicieran falta 500 personas con buena conexion Y
+        //    pantalla, la palanca seria config.desktopSharingResolution.
+        bitrate: { ideal: 280000, max: 320000 }
     }
 };
 // Pantalla compartida: documentos, no video. 5-15 fps basta y reduce
