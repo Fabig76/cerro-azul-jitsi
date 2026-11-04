@@ -10,6 +10,10 @@
 > - ✅ Grabación local en el PC del administrador (Fase 9)
 > - ✅ Panel: **"Bajar todas las manos"** y "Bajar la mano" por persona (por XMPP; el
 >   videobridge reenvía esos mensajes vacíos). Ver [docs/MODERACION-MANOS.md](docs/MODERACION-MANOS.md)
+> - ⚠️ **Caddy no está leyendo el Caddyfile del host** (verificado 4-nov-2026): el
+>   bind-mount quedó en un inodo huérfano (`...Caddyfile//deleted`). Editar ese
+>   fichero **no tiene efecto** hasta recrear `hermes-caddy`. Ver
+>   [Caddy: el bloque debe vivir en el Caddyfile del host](#caddy-el-bloque-debe-vivir-en-el-caddyfile-del-host-y-hoy-no-se-lee).
 > - ⚠️ **Compartir pantalla: el administrador tiene que pulsar "Habilitar cámara" sobre
 >   quien va a compartir**, o los demás no ven nada. Ver
 >   [Compartir pantalla](#compartir-pantalla-qué-se-puede-y-qué-no-importante)
@@ -109,7 +113,7 @@ sudo ufw allow 4443/tcp comment 'Jitsi JVB fallback'
 ./scripts/sync-caddy.sh --apply
 ```
 
-### Caddy: por qué el bloque debe vivir en el Caddyfile del host
+### Caddy: el bloque debe vivir en el Caddyfile del host (y hoy no se lee)
 
 El 21-Oct-2026 el sitio estuvo **caído ~2 semanas** (`HTTP 000`, `TLS internal error`)
 aunque los 5 contenedores Jitsi estaban sanos y el certificado de Let's Encrypt
@@ -123,11 +127,76 @@ Caddyfile del host — que nunca contuvo el bloque de Jitsi — y el vhost desap
 **Regla:** la admin API sirve para *recargar*, nunca para *persistir*. El bloque
 tiene que estar escrito en el Caddyfile del host.
 
+### El Caddyfile del host NO se está leyendo (verificado 4-nov-2026)
+
+**Antes de editar `/home/chatbotph/chatbotph/Caddyfile`, lea esto.** Ese fichero
+**no es** el que Caddy usa hoy. El bind-mount de `hermes-caddy` quedó apuntando a
+un inodo huérfano:
+
 ```
-/home/chatbotph/chatbotph/Caddyfile   (bind-mount ro -> /etc/caddy/Caddyfile)
+/etc/caddy/Caddyfile -> /home/chatbotph/chatbotph/Caddyfile//deleted
 ```
 
-Procedimiento (sin downtime, los otros sitios no se tocan):
+Evidencia recogida el 4-nov-2026:
+
+| Qué | Valor |
+|---|---|
+| `stat` del fichero en el contenedor | mtime **1-nov 15:06 UTC**, ino `531049`, **3492** bytes |
+| `stat` del fichero en el host | mtime **1-nov 17:19**, ino `526045`, **3488** bytes |
+| Entradas en `/etc/caddy/Caddyfile` en el contenedor | 105 (fichero viejo) |
+| Un edit mío con `Content-Security-Policy` (22:32) | **invisible** dentro del contenedor |
+
+Consecuencia: **cualquier edición del fichero del host se pierde**. Se puede
+escribir, `caddy validate` contra esa ruta pasa (valida el fichero viejo, no el
+suyo), `caddy reload` sale 0 — y no cambia nada en producción. Así se pierde una
+tarde entera creyendo que se aplicó un cambio.
+
+El `reload` del 4-nov releyó ese mismo inodo viejo, y por eso la config en
+memoria y la del disco coinciden — pero **ambas son la del 1-nov**, no la del
+fichero del host.
+
+### Cómo comprobar cuál está activo (antes de tocar nada)
+
+```bash
+# ¿Coincide lo que ve el contenedor con el fichero del host?
+stat -c '%i %s %y' /home/chatbotph/chatbotph/Caddyfile
+docker exec hermes-caddy stat -c '%i %s %y' /etc/caddy/Caddyfile
+
+# ¿Está el mount en un inodo borrado?
+PID=$(docker inspect -f '{{.State.Pid}}' hermes-caddy)
+sudo grep Caddyfile /proc/$PID/mountinfo    # '/deleted' = roto
+
+# ¿La memoria tiene algo que el disco no tiene? (si difieren, manda la memoria)
+docker exec hermes-caddy wget -q -O - http://127.0.0.1:2019/config/
+docker exec hermes-caddy caddy adapt --adapter caddyfile --config /etc/caddy/Caddyfile
+```
+
+Un script que hace esa comparación por sitio y guarda los JSON con fecha está en
+`/tmp/auditar_caddy.py` del VPS (copia en `auditoria-caddy/`). Salida del
+4-nov: los 4 sitios **equivalentes**, siendo ambos el estado del 1-nov.
+
+### La corrección: recrear el contenedor (autorizado por el dueño)
+
+El mount se arregla **recreando** `hermes-caddy` para que resuelva el path a un
+inodo vivo. Orden correcto y no negociable:
+
+1. Escribir las cabeceras en el fichero del host **primero**.
+2. Recrear el contenedor (no `reload`, no `restart`): así el bind se resuelve de
+   nuevo y Caddy carga el fichero nuevo al arrancar.
+3. Verificar los 4 sitios y las cabeceras.
+
+Hacerlo al revés (recrear y luego editar) funciona solo por suerte: el inodo
+queda vivo hasta el próximo reemplazo del fichero.
+
+**Cortes:** recrear `hermes-caddy` corta TLS de los 4 sitios unos segundos.
+Hacerlo **fuera de asamblea** y comprobar antes que no hay nadie en la sala.
+
+### Regla que sigue vigente
+
+La admin API sirve para *recargar*, nunca para *persistir*. Y ahora, además: el
+fichero del host sirve para *declarar*, pero **hay que confirmar que el
+contenedor lo está viendo** antes de dar un cambio por aplicado.
+
 
 ```bash
 # 1. Respaldo con fecha

@@ -222,19 +222,58 @@ cabeceras: `frame-ancestors 'self' https://votacionph.us` en Jitsi y
 aplicarlas, cualquier sitio podría embeber Jitsi. Se aplicarán cuando
 votacionph esté listo para probar el iframe.
 
+### ANTES DE EMPEZAR: el fichero del host no se está leyendo (4-nov-2026)
+
+El bind-mount de `hermes-caddy` quedó apuntando a un inodo huérfano:
+
+```
+/etc/caddy/Caddyfile -> /home/chatbotph/chatbotph/Caddyfile//deleted
+```
+
+Consecuencias medidas el 4-nov-2026:
+
+- El contenedor ve un fichero de **1-nov 15:06 UTC, 3492 bytes, ino 531049**.
+- El host tiene otro de **1-nov 17:19, 3488 bytes, ino 526045**.
+- Un edit con las cabeceras `frame-ancestors` escrito a las 22:32 **nunca
+  apareció dentro del contenedor**.
+
+Por tanto `caddy validate` puede decir "Valid configuration", `caddy reload`
+puede salir 0 y **no cambiar nada en producción**. No es un fallo del
+procedimiento de abajo: es que el fichero que se edita y el que Caddy lee no
+son el mismo.
+
+**Orden correcto:**
+
+1. Editar el fichero del host (abajo).
+2. **Recrear** `hermes-caddy` para que el bind resuelva a un inodo vivo. El
+   `reload` **no basta**.
+3. Verificar los 4 sitios y las cabeceras.
+
+Recrear corta TLS de los 4 sitios unos segundos: hacerlo fuera de asamblea.
+Comprobación rápida de si sigue roto:
+
+```bash
+stat -c '%i %s' /home/chatbotph/chatbotph/Caddyfile
+docker exec hermes-caddy stat -c '%i %s' /etc/caddy/Caddyfile   # deben coincidir
+```
+
 > El Caddyfile del host es un bind de **fichero único**: hay que editarlo en
 > sitio, conservando el inodo (sin `sed -i` ni editores que reemplacen el
-> fichero), o el contenedor seguirá viendo el viejo.
+> fichero), o el contenedor seguirá viendo el viejo. **Hoy esto ya no basta**,
+> porque el inodo al que apunta está borrado: hace falta recrear.
 
 ```bash
 ssh chatbotph
 CF=/home/chatbotph/chatbotph/Caddyfile
 cp -p "$CF" "$CF.bak.fase6.$(date +%Y%m%d_%H%M%S)"
+# 1. Comprobar el mount ANTES de editar (ver arriba). Si esta roto, recrear primero.
 # Editar EN SITIO: sustituir el bloque 'meet.bytracking.net { ... }' por el de
 # /opt/jitsi-meet/infra/caddy/meet.bytracking.net.caddy (sin las lineas de
 # comentario de cabecera si se prefiere). Despues:
 docker exec hermes-caddy caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
 docker exec hermes-caddy caddy reload --adapter caddyfile --config /etc/caddy/Caddyfile
+# 2. Si el reload no cambia las cabeceras -> el mount sigue roto: recrear.
+# cd /home/chatbotph/chatbotph && docker compose up -d --force-recreate caddy
 # Comprobar:
 curl -sI https://meet.bytracking.net/ | grep -i content-security-policy
 curl -sI https://meet.bytracking.net/admin/login | grep -iE 'content-security-policy|x-frame-options'
