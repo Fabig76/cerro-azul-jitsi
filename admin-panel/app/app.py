@@ -332,6 +332,11 @@ def get_reunion(rid):
     with db() as c:
         return c.execute("SELECT * FROM reuniones WHERE id=? AND activo=1", (rid,)).fetchone()
 
+def get_reunion_por_slug(slug):
+    """La misma reunion, buscada por el slug de su enlace publico (/reunion/<slug>)."""
+    with db() as c:
+        return c.execute("SELECT * FROM reuniones WHERE slug=? AND activo=1", (slug,)).fetchone()
+
 def token_moderador(r):
     """Token de administrador (moderator: true) para la reunion r."""
     pid = "admin-" + secrets.token_hex(6)
@@ -778,6 +783,20 @@ def api_origen():
 
 @app.route("/api/reuniones/<int:rid>/token", methods=["POST"])
 def api_token(rid):
+    return _api_token(str(rid), lambda: get_reunion(rid))
+
+
+# votacionph.us guarda el ENLACE PUBLICO de la reunion (https://meet.../reunion/<slug>), no el
+# numero interno. Esta ruta da el mismo token buscando la reunion por ese slug, para que el
+# operador no tenga que copiar ningun numero: pega el enlace como siempre.
+@app.route("/api/reuniones/slug/<slug>/token", methods=["POST"])
+def api_token_por_slug(slug):
+    if not slug or len(slug) > 64:
+        return api_error(404, "reunion_no_existe", "La reunion no existe o fue eliminada")
+    return _api_token("slug:" + slug, lambda: get_reunion_por_slug(slug))
+
+
+def _api_token(rid, buscar):
     origen = api_origen()
     if not API_KEY and not API_KEY_ADMIN:
         log.error("api token id=" + str(rid) + " origen=" + origen
@@ -814,7 +833,7 @@ def api_token(rid):
         return api_error(403, "moderador_no_permitido",
                          "Solo la key de administracion (JITSI_API_KEY_ADMIN) puede pedir moderador")
 
-    r = get_reunion(rid)
+    r = buscar()
     if not r:
         log.info(log_base + " -> 404")
         return api_error(404, "reunion_no_existe", "La reunion no existe o fue eliminada")

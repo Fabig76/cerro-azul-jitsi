@@ -24,7 +24,9 @@ export const BOTONES_ADMIN = Object.freeze([
 
 /** Barra del asistente (misma lista que TOOLBAR_ASISTENTE del panel). */
 export const BOTONES_ASISTENTE = Object.freeze([
-  'microphone', 'raisehand', 'chat', 'settings', 'hangup',
+  // Decision del dueno (4-nov-2026): en el celular solo estos tres. Sin colgar (nadie sale por
+  // error), sin chat ni ajustes (botones grandes y pantalla limpia).
+  'microphone', 'camera', 'raisehand',
 ]);
 
 /** Eventos del iframe API que se reenvian a onEvento. */
